@@ -7,7 +7,7 @@
 ## The Short Version
 
 - **Your photos stay on your device.** We don't upload, store, or access them unless you explicitly opt in.
-- **AI insights are opt-in per capture.** If you enable photo analysis for a specific capture, that image is sent to our AI provider for processing — then immediately discarded.
+- **AI insights are opt-in per capture.** If you enable photo analysis for a specific capture, that image is sent to our AI provider for processing and then immediately discarded.
 - **We don't sell your data.** Ever. No ads, no third-party data sharing for profit.
 - **You own your content.** Delete your account, and your data goes with it.
 
@@ -37,7 +37,7 @@
 
 | Data | Purpose | Retention |
 |------|---------|-----------|
-| **Photos (when opted in)** | AI insight generation | Processed and immediately discarded — not stored |
+| **Photos (when opted in)** | AI insight generation | Processed and immediately discarded, never stored |
 
 ---
 
@@ -61,7 +61,7 @@ Obsy uses Google's Gemini API to generate reflective insights based on your capt
 - ❌ Use your photos for AI training
 - ❌ Display ads based on your content
 - ❌ Access your photos without explicit per-capture consent
-- ❌ Share your journal entries with anyone (including album members — only mood tags are visible in albums)
+- ❌ Share your journal entries with anyone, including album members. Only mood tags are visible in albums.
 
 ---
 
@@ -101,7 +101,7 @@ Album data follows the same security standards as your personal data.
 |---------|---------|-------------|
 | **Supabase** | Authentication, database, storage | Account info, synced data |
 | **Google Gemini API** | AI insight generation | Mood tags, journal snippets, photos (only when opted in) |
-| **Stripe** | Payment processing (Plus tier) | Payment info (handled entirely by Stripe — we never see your card) |
+| **Stripe** | Payment processing (Plus tier) | Payment info handled entirely by Stripe. We never see your card. |
 | **Expo** | App infrastructure | Crash reports, anonymized analytics |
 
 We do not share your data with any other third parties.
@@ -154,12 +154,12 @@ Questions about your privacy? Concerns about your data?
 
 | Question | Answer |
 |----------|--------|
-| Do you store my photos? | **No** — local only, unless you opt into Plus cloud backup |
+| Do you store my photos? | **No.** Local only, unless you opt into Plus cloud backup. |
 | Does AI see my photos? | **Only if you enable it** per capture |
 | Do you sell my data? | **Never** |
-| Can I delete everything? | **Yes** — account deletion removes all cloud data |
+| Can I delete everything? | **Yes.** Account deletion removes all cloud data. |
 | Do you show ads? | **No** |
 
 ---
 
-*Obsy is built on the belief that reflection is personal. Your thoughts, your photos, your data — they stay yours.*
+*Obsy is built on the belief that reflection is personal. Your thoughts, your photos, your data. They stay yours.*

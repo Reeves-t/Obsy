@@ -12,7 +12,7 @@ By using Obsy ("the App"), you agree to these Terms of Service ("Terms"). If you
 
 ## What Obsy Is
 
-Obsy is a visual micro-journal and mood tracker. You capture moments, tag moods, and receive AI-generated reflective insights. It's designed for personal observation and reflection — not therapy, diagnosis, or medical advice.
+Obsy is a visual micro-journal and mood tracker. You capture moments, tag moods, and receive AI-generated reflective insights. It's designed for personal observation and reflection. Not therapy, diagnosis, or medical advice.
 
 ---
 
@@ -43,7 +43,7 @@ Obsy is a visual micro-journal and mood tracker. You capture moments, tag moods,
 ## Your Content
 
 ### Ownership
-You own everything you create in Obsy — your photos, journal entries, moods, and any content you generate. We don't claim any ownership over your content.
+You own everything you create in Obsy. Your photos, journal entries, moods, and any content you generate. We don't claim any ownership over your content.
 
 ### License to Us
 By using Obsy, you grant us a limited license to:
@@ -136,7 +136,7 @@ To the maximum extent permitted by law:
 - We're not liable for indirect, incidental, or consequential damages
 - Our total liability is limited to the amount you paid us in the past 12 months (or $100, whichever is greater)
 
-This isn't us being unfriendly — it's standard legal protection that lets us offer the service.
+This isn't us being unfriendly. It's standard legal protection that lets us offer the service.
 
 ---
 
