@@ -26,7 +26,8 @@ interface InsightTextProps {
  * InsightText Component
  *
  * Renders insight text with:
- * - Stacked sentence blocks with 12px spacing
+ * - Stacked paragraph blocks with 16px spacing
+ * - Sentences flow together naturally within paragraphs
  * - lineHeight: 1.6 for readability
  * - Optional expand/collapse functionality
  */
@@ -53,19 +54,19 @@ export function InsightText({
         return sentences.slice(0, collapsedSentences);
     }, [sentences, isExpanded, expandable, collapsedSentences]);
 
-    // Handle plain text split into sentences if structured sentences not available
-    const fallbackSentences = React.useMemo(() => {
+    // Handle plain text split into paragraphs (not sentences) for natural flow
+    const fallbackParagraphs = React.useMemo(() => {
         return fallbackText
-            .split(/(?<=[.!?])\s+/)
+            .split(/\n\n+/)
             .filter(s => s.trim().length > 0);
     }, [fallbackText]);
 
     const visibleFallback = React.useMemo(() => {
-        if (!expandable || isExpanded || fallbackSentences.length <= collapsedSentences) {
-            return fallbackSentences;
+        if (!expandable || isExpanded || fallbackParagraphs.length <= collapsedSentences) {
+            return fallbackParagraphs;
         }
-        return fallbackSentences.slice(0, collapsedSentences);
-    }, [fallbackSentences, isExpanded, expandable, collapsedSentences]);
+        return fallbackParagraphs.slice(0, collapsedSentences);
+    }, [fallbackParagraphs, isExpanded, expandable, collapsedSentences]);
 
     const handleToggleExpand = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -73,7 +74,7 @@ export function InsightText({
     };
 
     const hasMoreContent = sentences.length > collapsedSentences && !isExpanded;
-    const hasMoreFallback = fallbackSentences.length > collapsedSentences && !isExpanded;
+    const hasMoreFallback = fallbackParagraphs.length > collapsedSentences && !isExpanded;
 
     // If we have structured sentences, render as stacked blocks with spacing
     if (sentences.length > 0) {
@@ -165,7 +166,7 @@ const styles = StyleSheet.create({
         // Each sentence is its own block
     },
     sentenceSpacing: {
-        marginBottom: 12, // 12px spacing between sentence blocks
+        marginBottom: 16, // 16px spacing between paragraph blocks
     },
     normalText: {
         fontSize: FONT_SIZE,
