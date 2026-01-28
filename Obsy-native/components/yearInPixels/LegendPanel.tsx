@@ -20,7 +20,7 @@ interface LegendPanelProps {
 }
 
 export const LegendPanel: React.FC<LegendPanelProps> = ({ panelHeight }) => {
-    const { colors, isDark } = useObsyTheme();
+    const { colors, isDark, isLight } = useObsyTheme();
     const { legend, activeColorId, setActiveColorId, addLegendItem, removeLegendItem } = useYearInPixelsStore();
     const [isAdding, setIsAdding] = useState(false);
 
@@ -127,7 +127,7 @@ export const LegendPanel: React.FC<LegendPanelProps> = ({ panelHeight }) => {
     return (
         <View style={[styles.container, panelHeight ? { height: panelHeight } : { flex: 1 }]}>
             <View style={styles.topSection}>
-                <ThemedText style={styles.sectionTitle}>Key</ThemedText>
+                <ThemedText style={[styles.sectionTitle, { color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)' }]}>Key</ThemedText>
 
                 <View style={{ maxHeight: LIST_MAX_HEIGHT }}>
                     <ScrollView
@@ -154,7 +154,7 @@ export const LegendPanel: React.FC<LegendPanelProps> = ({ panelHeight }) => {
                                         );
                                     }}
                                 >
-                                    <ThemedText style={styles.legendLabel} numberOfLines={1}>{item.label}</ThemedText>
+                                    <ThemedText style={[styles.legendLabel, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]} numberOfLines={1}>{item.label}</ThemedText>
                                     <View style={[styles.colorSquare, { backgroundColor: item.color }]} />
                                 </TouchableOpacity>
                                 {index < legend.length - 1 && <View style={styles.legendDivider} />}

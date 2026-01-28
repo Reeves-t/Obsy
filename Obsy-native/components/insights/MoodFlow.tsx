@@ -6,6 +6,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
 import Colors from "@/constants/Colors";
 import { useMoodResolver } from "@/hooks/useMoodResolver";
+import { useObsyTheme } from "@/contexts/ThemeContext";
 
 type MoodSegment = {
     mood: string;
@@ -59,6 +60,7 @@ function buildGradientColors(flow: MoodSegment[]): [string, string, ...string[]]
 }
 
 export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false }: MoodFlowProps) {
+    const { colors, isLight } = useObsyTheme();
     const [expanded, setExpanded] = useState(false);
     const { isLoading: isMoodCacheLoading } = useMoodResolver();
     const segments = moodFlow || [];
@@ -77,8 +79,8 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
         <View style={[styles.cardPadding, flat && styles.flatPadding]}>
             <View style={styles.header}>
                 <View style={styles.titleRow}>
-                    <Ionicons name="sparkles-outline" size={18} color={Colors.obsy.silver} />
-                    <ThemedText type="defaultSemiBold" style={styles.title}>
+                    <Ionicons name="sparkles-outline" size={18} color={colors.cardTextSecondary} />
+                    <ThemedText type="defaultSemiBold" style={[styles.title, { color: colors.cardTextSecondary }]}>
                         Mood Flow
                     </ThemedText>
                 </View>
@@ -86,7 +88,7 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
                     <Ionicons
                         name={expanded ? "chevron-up" : "chevron-down"}
                         size={18}
-                        color={Colors.obsy.silver}
+                        color={colors.cardTextSecondary}
                     />
                 </TouchableOpacity>
             </View>
@@ -101,11 +103,11 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
             </View>
 
             {isLoadingMoods && (
-                <ThemedText style={styles.placeholder}>Generating today's mood flow...</ThemedText>
+                <ThemedText style={[styles.placeholder, { color: colors.cardTextSecondary }]}>Generating today's mood flow...</ThemedText>
             )}
 
             {!isLoadingMoods && segments.length === 0 && (
-                <ThemedText style={styles.placeholder}>
+                <ThemedText style={[styles.placeholder, { color: colors.cardTextSecondary }]}>
                     Capture moments today to see your mood transitions.
                 </ThemedText>
             )}
@@ -116,13 +118,13 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
                         <View key={`${segment.mood}-${segment.percentage}`} style={styles.segmentCard}>
                             <View style={styles.segmentHeader}>
                                 <View style={[styles.colorDot, { backgroundColor: segment.color || "#9CA3AF" }]} />
-                                <ThemedText style={styles.segmentMood}>{segment.mood}</ThemedText>
+                                <ThemedText style={[styles.segmentMood, { color: colors.cardText }]}>{segment.mood}</ThemedText>
                                 <ThemedText style={styles.segmentPercent}>
                                     {Math.round(segment.percentage)}%
                                 </ThemedText>
                             </View>
                             {segment.context ? (
-                                <ThemedText style={styles.segmentContext}>{segment.context}</ThemedText>
+                                <ThemedText style={[styles.segmentContext, { color: colors.cardTextSecondary }]}>{segment.context}</ThemedText>
                             ) : null}
                         </View>
                     ))}

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { UserDailyChallenge, ChallengeTemplate } from '@/types/challenges';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ThemedText } from '@/components/ui/ThemedText';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface DailyChallengeCardProps {
     daily: UserDailyChallenge;
@@ -13,6 +14,7 @@ interface DailyChallengeCardProps {
 
 export function DailyChallengeCard({ daily, template }: DailyChallengeCardProps) {
     const router = useRouter();
+    const { colors } = useObsyTheme();
     const isCompleted = daily.status === 'completed';
 
     const handlePress = () => {
@@ -38,7 +40,7 @@ export function DailyChallengeCard({ daily, template }: DailyChallengeCardProps)
             <GlassCard style={[styles.card, isCompleted && styles.cardCompleted]} variant="liquid">
                 <View style={styles.content}>
                     <ThemedText
-                        style={[styles.prompt, isCompleted && styles.promptCompleted]}
+                        style={[styles.prompt, { color: colors.text }, isCompleted && [styles.promptCompleted, { color: colors.textSecondary }]]}
                         numberOfLines={3}
                         ellipsizeMode="tail"
                     >
@@ -54,7 +56,7 @@ export function DailyChallengeCard({ daily, template }: DailyChallengeCardProps)
                             )}
                         </View>
                         {isCompleted && (
-                            <ThemedText style={styles.completedText}>Completed</ThemedText>
+                            <ThemedText style={[styles.completedText, { color: colors.textSecondary }]}>Completed</ThemedText>
                         )}
                     </View>
                 </View>

@@ -1,5 +1,3 @@
-import { callGemini } from "@/services/ai";
-
 /**
  * Energy categorization for moods
  */
@@ -93,62 +91,14 @@ export function deterministicMonthPhrase(moodTotals: Record<string, number>): st
 }
 
 /**
- * Generate a 2-word phrase using AI that captures the month's emotional essence
+ * Generate a 2-word phrase that captures the month's emotional essence
+ * NOTE: Temporarily using deterministic fallback until secure edge function is available
  */
 export async function generateMonthPhrase(
     moodTotals: Record<string, number>,
     bannedWords: string[]
 ): Promise<string> {
-    const { highEnergy, mediumEnergy, lowEnergy, total } = categorizeMoodEnergy(moodTotals);
-
-    if (total === 0) {
-        return deterministicMonthPhrase(moodTotals);
-    }
-
-    const highPct = Math.round((highEnergy / total) * 100);
-    const medPct = Math.round((mediumEnergy / total) * 100);
-    const lowPct = Math.round((lowEnergy / total) * 100);
-
-    const prompt = `Generate a 2-word phrase (exactly 2 words, Title Case) that captures this month's emotional essence.
-
-Rules:
-- EXACTLY 2 words, no more, no less
-- Title Case (e.g., "Silent Current")
-- Do NOT use these words: ${bannedWords.join(", ")}
-- Minimal, aesthetic, creative tone
-- NOT therapy-ish or self-help
-- Return ONLY the 2-word phrase, nothing else
-
-Mood distribution:
-- High energy: ${highPct}%
-- Medium energy: ${medPct}%
-- Low energy: ${lowPct}%
-
-Output format: Two Words`;
-
-    try {
-        const response = await callGemini([{ text: prompt }]);
-        const phrase = response.trim();
-
-        // Validate the response
-        if (validateMonthPhrase(phrase, bannedWords)) {
-            return phrase;
-        }
-
-        // Retry once with stricter prompt
-        const retryPrompt = `${prompt}\n\nIMPORTANT: Previous response was invalid. Return ONLY 2 words in Title Case. No punctuation.`;
-        const retryResponse = await callGemini([{ text: retryPrompt }]);
-        const retryPhrase = retryResponse.trim();
-
-        if (validateMonthPhrase(retryPhrase, bannedWords)) {
-            return retryPhrase;
-        }
-
-        // Fallback to deterministic
-        return deterministicMonthPhrase(moodTotals);
-    } catch (error) {
-        console.error("[monthPhraseGenerator] AI generation failed:", error);
-        return deterministicMonthPhrase(moodTotals);
-    }
+    // Temporarily use deterministic fallback until secure edge function is available
+    return deterministicMonthPhrase(moodTotals);
 }
 

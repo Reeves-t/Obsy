@@ -7,6 +7,7 @@ import { PixelGrid } from '@/components/yearInPixels/PixelGrid';
 import { LegendPanel } from '@/components/yearInPixels/LegendPanel';
 import { ExpandedDayCanvas } from '@/components/yearInPixels/ExpandedDayCanvas';
 import { YearInPixelsInfoModal } from '@/components/yearInPixels/YearInPixelsInfoModal';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 // Fixed canvas constants
 const CANVAS_MAX_WIDTH = 420;
@@ -17,6 +18,7 @@ const VERTICAL_LABEL_WIDTH = 20;
 export const YearInPixelsSection: React.FC = () => {
     const { width: windowWidth, height: windowHeight } = useWindowDimensions();
     const insets = useSafeAreaInsets();
+    const { isLight } = useObsyTheme();
 
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
@@ -54,7 +56,7 @@ export const YearInPixelsSection: React.FC = () => {
                 <View style={styles.contentRow}>
                     {/* Vertical "Year in Pixels" label - readable when phone is rotated */}
                     <View style={[styles.verticalLabelContainer, { width: VERTICAL_LABEL_WIDTH }]}>
-                        <ThemedText style={styles.verticalLabel}>Year in Pixels</ThemedText>
+                        <ThemedText style={[styles.verticalLabel, { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)' }]}>Year in Pixels</ThemedText>
                     </View>
 
                     <View style={[styles.gridContainer, { width: gridWidth }]}>
@@ -63,7 +65,7 @@ export const YearInPixelsSection: React.FC = () => {
                     <View style={[styles.legendContainer, { width: LEGEND_WIDTH }]}>
                         <View style={styles.legendHeader}>
                             <TouchableOpacity style={styles.infoButton} onPress={() => setInfoVisible(true)}>
-                                <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.4)" />
+                                <Ionicons name="information-circle-outline" size={20} color={isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)'} />
                             </TouchableOpacity>
                         </View>
                         <LegendPanel panelHeight={availableHeight - 30} />

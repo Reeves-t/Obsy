@@ -22,7 +22,7 @@ interface PixelGridProps {
 }
 
 export const PixelGrid: React.FC<PixelGridProps> = ({ onDayPress, availableHeight }) => {
-    const { isDark } = useObsyTheme();
+    const { isDark, isLight } = useObsyTheme();
     const { year, pixels, activeColorId, legend, setPixelColor, photoMode } = useYearInPixelsStore();
     const { captures } = useCaptureStore();
 
@@ -107,7 +107,7 @@ export const PixelGrid: React.FC<PixelGridProps> = ({ onDayPress, availableHeigh
                 <View style={styles.monthLabelsRow}>
                     {months.map((m, i) => (
                         <View key={i} style={styles.monthLabelContainer}>
-                            <ThemedText style={styles.monthLabel}>{m}</ThemedText>
+                            <ThemedText style={[styles.monthLabel, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>{m}</ThemedText>
                         </View>
                     ))}
                 </View>
@@ -118,7 +118,7 @@ export const PixelGrid: React.FC<PixelGridProps> = ({ onDayPress, availableHeigh
                 {days.map((day) => (
                     <View key={day} style={[styles.row, { height: rowHeight }]}>
                         <View style={[styles.dayLabelContainer, { width: DAY_LABEL_WIDTH }]}>
-                            <ThemedText style={styles.dayLabel}>{day}</ThemedText>
+                            <ThemedText style={[styles.dayLabel, { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)' }]}>{day}</ThemedText>
                         </View>
                         <View style={styles.cellsRow}>
                             {months.map((_, mIndex) => {

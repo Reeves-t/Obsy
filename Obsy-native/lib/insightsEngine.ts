@@ -1,4 +1,5 @@
-import { generateDailySummary, AiSettings, DailySummaryInput } from "@/services/ai";
+import { AiSettings, generateDailyInsightSecure, CaptureData } from "@/services/secureAI";
+import { InsightSentence } from "@/services/dailyInsights";
 import { fetchInsightHistory, upsertInsightHistory } from "@/services/insightHistory";
 import { archiveInsight } from "@/services/archive";
 import { Capture } from "@/types/capture";
@@ -85,25 +86,42 @@ export async function ensureDailyInsight(
         day: "numeric",
     });
 
-    const input: DailySummaryInput = {
-        dateLabel,
-        captures: targetCaptures.map((c) => ({
-            mood: c.mood_name_snapshot || getMoodLabel(c.mood_id || 'neutral'),
-            note: c.note || undefined,
-            capturedAt: c.created_at,
-            tags: c.tags,
-            imageUrl: c.image_url,
-            usePhotoForInsight: c.usePhotoForInsight,
-        })),
-    };
+    // Map captures to CaptureData format for secure AI
+    const captureData: CaptureData[] = targetCaptures.map((c) => ({
+        mood: c.mood_name_snapshot || getMoodLabel(c.mood_id || 'neutral'),
+        note: c.note || undefined,
+        capturedAt: c.created_at,
+        tags: c.tags,
+        timeBucket: undefined,
+    }));
 
     // PHOTO GUARDRAIL: Log photo inclusion status
     const photoOptInCount = targetCaptures.filter(c => c.usePhotoForInsight).length;
     console.log(`[InsightEngine] Generating insight: ${targetCaptures.length} captures, ${photoOptInCount} with photo opt-in`);
 
-    // Get AI generated summary
+    // Get AI generated summary via secure edge function
     try {
-        const { summary, sentences, vibe_tags, mood_colors, mood_flow, meta } = await generateDailySummary(input, settings);
+        const secureResult = await generateDailyInsightSecure(
+            dateLabel,
+            captureData,
+            settings.tone,
+            settings.selectedCustomToneId
+        );
+
+        // Map secure response to DailySummaryResult format
+        const summary = secureResult.insight;
+        const vibe_tags = secureResult.vibe_tags || [];
+        const mood_colors = secureResult.mood_colors || [];
+
+        // Convert insight text to InsightSentence array for UI compatibility
+        const sentences: InsightSentence[] = summary
+            .split(/(?<=[.!?])\s+/)
+            .filter((text: string) => text.trim().length > 0)
+            .map((text: string) => ({ text, highlight: false }));
+
+        // mood_flow and meta not returned by secure version
+        const mood_flow: any[] = [];
+        const meta = undefined;
 
         // 7. Extract capture IDs for tracking
         const captureIds = targetCaptures.map(c => c.id);
@@ -157,8 +175,26 @@ export async function ensureDailyInsight(
             mood_flow: saved.mood_summary?.mood_flow || null,
             capture_ids: saved.capture_ids || []
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to generate daily insight:", error);
+
+        // Check for rate limit error and provide user-friendly message
+        if (error.message?.includes('Rate limit')) {
+            // Extract tier info if available from error message
+            // Format: "Rate limit reached (X/Y for tier_name tier)"
+            const tierMatch = error.message.match(/for (\w+) tier/);
+            const tier = tierMatch ? tierMatch[1] : 'your';
+
+            throw new Error(
+                `Daily insight generation limit reached. Your ${tier} plan allows a limited number of insights per day. Upgrade for unlimited insights.`
+            );
+        }
+
+        // Check for authentication error
+        if (error.message?.includes('Authentication required')) {
+            throw new Error('Please sign in to generate AI insights.');
+        }
+
         throw error;
     }
 }

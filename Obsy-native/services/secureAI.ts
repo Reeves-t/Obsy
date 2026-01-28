@@ -12,8 +12,16 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { AiToneId } from '@/lib/aiTone';
 
 export type InsightType = 'daily' | 'weekly' | 'capture' | 'album' | 'tag' | 'month';
+
+export interface AiSettings {
+    tone: AiToneId;
+    selectedCustomToneId?: string;
+    autoDailyInsights: boolean;
+    useJournalInInsights: boolean;
+}
 
 export interface CaptureData {
     mood: string;
@@ -69,13 +77,16 @@ export interface InsightResponse {
 export async function generateSecureInsight(request: InsightRequest): Promise<string> {
     // Get current session for auth header
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     if (!session) {
         throw new Error('Authentication required for AI insights');
     }
 
     const response = await supabase.functions.invoke<InsightResponse>('generate-insight', {
         body: request,
+        headers: {
+            Authorization: `Bearer ${session.access_token}`
+        }
     });
 
     if (response.error) {

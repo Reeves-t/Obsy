@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/ui/ThemedText';
 import { Capture } from '@/lib/captureStore';
 import { MOODS } from '@/constants/Moods';
 import Colors from '@/constants/Colors';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface TodayCaptureCardProps {
     capture: Capture;
@@ -12,6 +13,7 @@ interface TodayCaptureCardProps {
 }
 
 export function TodayCaptureCard({ capture, onPress }: TodayCaptureCardProps) {
+    const { colors } = useObsyTheme();
     const mood = MOODS.find(m => m.id === capture.mood);
     const [showNote, setShowNote] = useState(false);
 
@@ -23,7 +25,7 @@ export function TodayCaptureCard({ capture, onPress }: TodayCaptureCardProps) {
                 <View style={styles.overlay}>
                     {mood && (
                         <View style={styles.moodTag}>
-                            <ThemedText style={styles.moodText}>{mood.label}</ThemedText>
+                            <ThemedText style={[styles.moodText, { color: colors.text }]}>{mood.label}</ThemedText>
                         </View>
                     )}
 
@@ -34,7 +36,7 @@ export function TodayCaptureCard({ capture, onPress }: TodayCaptureCardProps) {
                                 style={styles.noteContainer}
                                 onPress={() => setShowNote(true)}
                             >
-                                <ThemedText style={styles.noteText} numberOfLines={2} ellipsizeMode="tail">
+                                <ThemedText style={[styles.noteText, { color: colors.text }]} numberOfLines={2} ellipsizeMode="tail">
                                     {capture.obsy_note}
                                 </ThemedText>
                             </TouchableOpacity>
@@ -48,7 +50,7 @@ export function TodayCaptureCard({ capture, onPress }: TodayCaptureCardProps) {
                                 <View style={styles.modalBackdrop}>
                                     <GlassCard style={styles.modalCard}>
                                         <ThemedText type="subtitle" style={styles.modalTitle}>Obsy Note</ThemedText>
-                                        <ThemedText style={styles.modalBody}>
+                                        <ThemedText style={[styles.modalBody, { color: colors.text }]}>
                                             {capture.obsy_note}
                                         </ThemedText>
                                         <TouchableOpacity

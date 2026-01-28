@@ -6,7 +6,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { ThemedText } from '@/components/ui/ThemedText';
 import Colors from '@/constants/Colors';
 import { Capture } from '@/lib/captureStore';
-import { AiSettings } from '@/services/ai';
+import { AiSettings } from '@/services/secureAI';
 import {
     getJournalEntries,
     generateJournalDailyInsight,

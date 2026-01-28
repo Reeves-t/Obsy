@@ -5,6 +5,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Ex
 import { ThemedText } from "@/components/ui/ThemedText";
 import { getMoodColor, MOOD_COLOR_MAP } from "@/lib/moodColors";
 import { DailyMoodFlowData } from "@/lib/dailyMoodFlows";
+import { useObsyTheme } from "@/contexts/ThemeContext";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CIRCLE_SIZE = 240;
@@ -134,6 +135,7 @@ export function MoodRingDial({
     monthPhrase,
     aiReasoning,
 }: MoodRingDialProps) {
+    const { colors, isLight } = useObsyTheme();
     const SIZE = CIRCLE_SIZE;
     const CENTER = SIZE / 2;
     const RADIUS = 90;
@@ -281,7 +283,14 @@ export function MoodRingDial({
     return (
         <View style={styles.wrapper}>
             <TouchableOpacity activeOpacity={1} onPress={handlePress}>
-                <Animated.View style={[styles.morphContainer, containerStyle]}>
+                <Animated.View style={[
+                    styles.morphContainer,
+                    containerStyle,
+                    {
+                        backgroundColor: isLight ? colors.cardBackground : '#121212',
+                        borderColor: colors.cardBorder,
+                    }
+                ]}>
 
                     {/* STATE A: THE DIAL (fades out when expanding) */}
                     <Animated.View style={[styles.contentLayer, dialContentStyle]}>
@@ -306,11 +315,11 @@ export function MoodRingDial({
                         <View style={styles.dialCenterLabel}>
                             {monthPhrase ? (
                                 <>
-                                    <ThemedText style={styles.monthPhraseText}>{monthPhrase}</ThemedText>
-                                    <ThemedText style={styles.monthSubtext}>Tap for details</ThemedText>
+                                    <ThemedText style={[styles.monthPhraseText, { color: colors.cardText }]}>{monthPhrase}</ThemedText>
+                                    <ThemedText style={[styles.monthSubtext, { color: colors.cardTextSecondary }]}>Tap for details</ThemedText>
                                 </>
                             ) : (
-                                <ThemedText style={styles.placeholderText}>—</ThemedText>
+                                <ThemedText style={[styles.placeholderText, { color: colors.cardTextSecondary }]}>—</ThemedText>
                             )}
                         </View>
                     </Animated.View>
@@ -318,13 +327,13 @@ export function MoodRingDial({
                     {/* STATE B: THE TEXT DETAILS (fades in when expanded) - NO SCALE */}
                     <Animated.View style={[styles.contentLayer, textContentStyle]}>
                         <View style={styles.textContainer}>
-                            <ThemedText style={styles.headerText}>
+                            <ThemedText style={[styles.headerText, { color: colors.cardText }]}>
                                 Why "{monthPhrase || 'This Month'}"?
                             </ThemedText>
                             <View style={styles.divider} />
                             {aiReasoning ? (
                                 <View style={styles.contentScroll}>
-                                    <ThemedText style={styles.bodyText}>
+                                    <ThemedText style={[styles.bodyText, { color: colors.cardText }]}>
                                         {aiReasoning.split('\n')[0]}
                                     </ThemedText>
                                     <View style={styles.bulletContainer}>
@@ -335,7 +344,7 @@ export function MoodRingDial({
                                             .map((line: string, index: number) => {
                                                 const cleanLine = line.trim().replace(/^(-\s*|\x20*-\s*)/, '');
                                                 return (
-                                                    <ThemedText key={index} style={styles.bulletText}>
+                                                    <ThemedText key={index} style={[styles.bulletText, { color: colors.cardText }]}>
                                                         - {cleanLine}
                                                     </ThemedText>
                                                 );
@@ -343,11 +352,11 @@ export function MoodRingDial({
                                     </View>
                                 </View>
                             ) : (
-                                <ThemedText style={styles.placeholderText}>
+                                <ThemedText style={[styles.placeholderText, { color: colors.cardTextSecondary }]}>
                                     Reasoning will appear after generating the monthly insight.
                                 </ThemedText>
                             )}
-                            <ThemedText style={styles.tapHint}>Tap to collapse</ThemedText>
+                            <ThemedText style={[styles.tapHint, { color: colors.cardTextSecondary }]}>Tap to collapse</ThemedText>
                         </View>
                     </Animated.View>
 

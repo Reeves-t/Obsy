@@ -271,13 +271,14 @@ serve(async (req: Request) => {
             .from("user_settings")
             .select("subscription_tier, daily_insight_count")
             .eq("user_id", user.id)
-            .single();
+            .maybeSingle();  // Returns null instead of throwing if no row exists
 
         const tier = settings?.subscription_tier || "free";
         const currentCount = settings?.daily_insight_count || 0;
         const limit = RATE_LIMITS[tier as keyof typeof RATE_LIMITS] || RATE_LIMITS.free;
 
-        if (currentCount >= limit && tier !== "founder" && tier !== "subscriber") {
+        // Rate limit applies to all tiers (founder/subscriber have high limits of 100/day)
+        if (currentCount >= limit) {
             return new Response(
                 JSON.stringify({
                     error: "Rate limit exceeded",

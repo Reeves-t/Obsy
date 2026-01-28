@@ -18,6 +18,7 @@ import { BookmarkButton } from "@/components/insights/BookmarkButton";
 import { useAuth } from "@/contexts/AuthContext";
 import * as Haptics from "expo-haptics";
 import { PendingInsightMessage } from "./PendingInsightMessage";
+import { useObsyTheme } from "@/contexts/ThemeContext";
 
 interface MonthViewProps {
     currentMonth: Date;
@@ -51,6 +52,7 @@ export function MonthView({
     capturedDaysCount,
     pendingCount = 0,
 }: MonthViewProps) {
+    const { colors, isLight } = useObsyTheme();
     const { user } = useAuth();
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
@@ -161,6 +163,8 @@ export function MonthView({
                 isEligible={isEligibleForInsight}
                 capturedDays={capturedDaysCount}
                 pendingCount={pendingCount}
+                isLight={isLight}
+                colors={colors}
             />
 
             <MonthCalendar
@@ -168,6 +172,8 @@ export function MonthView({
                 selectedDay={selectedDay}
                 onSelectDay={setSelectedDay}
                 dailyFlows={dailyFlows}
+                isLight={isLight}
+                colors={colors}
             />
 
             {/* Selected Day Panel - Inline below calendar */}
@@ -177,6 +183,8 @@ export function MonthView({
                     flowData={selectedDayData.flowData}
                     selectedDay={selectedDay!}
                     currentMonth={currentMonth}
+                    isLight={isLight}
+                    colors={colors}
                 />
             )}
         </View>
@@ -194,6 +202,8 @@ function MonthSummaryCard({
     isEligible,
     capturedDays,
     pendingCount,
+    isLight,
+    colors,
 }: {
     insight: InsightHistory | null;
     onGenerate: () => void;
@@ -205,6 +215,8 @@ function MonthSummaryCard({
     isEligible: boolean;
     capturedDays: number;
     pendingCount?: number;
+    isLight?: boolean;
+    colors?: { cardText: string; cardTextSecondary: string; cardBorder: string; };
 }) {
     const timestamp = insight?.mood_summary?.generated_through_date;
     const formattedDate = timestamp ? format(new Date(timestamp + 'T12:00:00'), "MMM d") : null;
@@ -214,11 +226,11 @@ function MonthSummaryCard({
             <View style={styles.summaryHeader}>
                 <View style={[styles.titleRow, { flex: 1 }]}>
                     <View>
-                        <ThemedText type="defaultSemiBold" style={styles.title}>
+                        <ThemedText type="defaultSemiBold" style={[styles.title, colors && { color: colors.cardText }]}>
                             Monthly Insight
                         </ThemedText>
                         {formattedDate && (
-                            <ThemedText style={styles.asOfText}>
+                            <ThemedText style={[styles.asOfText, colors && { color: colors.cardTextSecondary }]}>
                                 As of {formattedDate}
                             </ThemedText>
                         )}
@@ -228,15 +240,15 @@ function MonthSummaryCard({
                 {isEligible ? (
                     <TouchableOpacity style={styles.refreshBtn} onPress={onGenerate} disabled={isGenerating}>
                         {isGenerating ? (
-                            <ActivityIndicator size="small" color={Colors.obsy.silver} />
+                            <ActivityIndicator size="small" color={colors?.cardTextSecondary || Colors.obsy.silver} />
                         ) : (
-                            <Ionicons name="refresh-outline" size={24} color={Colors.obsy.silver} />
+                            <Ionicons name="refresh-outline" size={24} color={colors?.cardTextSecondary || Colors.obsy.silver} />
                         )}
                     </TouchableOpacity>
                 ) : (
                     <View style={styles.lockedContainer}>
-                        <ThemedText style={styles.lockedText}>Unlocks after week one</ThemedText>
-                        <ThemedText style={styles.progressText}>{capturedDays}/7 days captured</ThemedText>
+                        <ThemedText style={[styles.lockedText, colors && { color: colors.cardTextSecondary }]}>Unlocks after week one</ThemedText>
+                        <ThemedText style={[styles.progressText, colors && { color: colors.cardTextSecondary }]}>{capturedDays}/7 days captured</ThemedText>
                     </View>
                 )}
             </View>
@@ -253,11 +265,11 @@ function MonthSummaryCard({
 
             <View style={styles.summaryBody}>
                 {insight ? (
-                    <ThemedText style={styles.summaryText}>
+                    <ThemedText style={[styles.summaryText, colors && { color: colors.cardText }]}>
                         {insight.content}
                     </ThemedText>
                 ) : (
-                    <ThemedText style={styles.placeholder}>
+                    <ThemedText style={[styles.placeholder, colors && { color: colors.cardTextSecondary }]}>
                         {isEligible
                             ? "Create a monthly narrative to see long-form patterns."
                             : "Keep capturing your days to unlock this insight."}
@@ -283,11 +295,15 @@ function MonthCalendar({
     selectedDay,
     onSelectDay,
     dailyFlows,
+    isLight,
+    colors,
 }: {
     month: Date;
     selectedDay: number | null;
     onSelectDay: (day: number) => void;
     dailyFlows: Record<string, DailyMoodFlowData>;
+    isLight?: boolean;
+    colors?: { cardText: string; cardTextSecondary: string; };
 }) {
     const days = useMemo(() => getCalendarDays(month), [month]);
     const year = month.getFullYear();
@@ -303,7 +319,7 @@ function MonthCalendar({
         <View style={styles.calendarContainer}>
             <View style={styles.weekdayRow}>
                 {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => (
-                    <ThemedText key={`weekday-${idx}`} style={styles.weekday}>
+                    <ThemedText key={`weekday-${idx}`} style={[styles.weekday, colors && { color: colors.cardTextSecondary }]}>
                         {d}
                     </ThemedText>
                 ))}
@@ -321,7 +337,8 @@ function MonthCalendar({
                             key={idx}
                             style={[
                                 styles.dayCell,
-                                isSelected && { borderColor: "rgba(255,255,255,0.4)" },
+                                { backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' },
+                                isSelected && { borderColor: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' },
                                 day === 0 && styles.emptyCell,
                             ]}
                             disabled={day === 0}
@@ -329,7 +346,7 @@ function MonthCalendar({
                         >
                             {day !== 0 && (
                                 <>
-                                    <ThemedText style={styles.dayNumber}>{day}</ThemedText>
+                                    <ThemedText style={[styles.dayNumber, colors && { color: colors.cardText }]}>{day}</ThemedText>
                                     {hasData && moodColor && (
                                         <View
                                             style={[
@@ -353,11 +370,15 @@ function SelectedDayPanel({
     flowData,
     selectedDay,
     currentMonth,
+    isLight,
+    colors,
 }: {
     dayCaptures: Capture[];
     flowData: DailyMoodFlowData | null;
     selectedDay: number;
     currentMonth: Date;
+    isLight?: boolean;
+    colors?: { cardText: string; cardTextSecondary: string; cardBorder: string; };
 }) {
     const dateLabel = new Date(
         currentMonth.getFullYear(),
@@ -369,15 +390,15 @@ function SelectedDayPanel({
     const captureCount = dayCaptures.length;
 
     return (
-        <View style={styles.selectedDayPanel}>
+        <View style={[styles.selectedDayPanel, { borderTopColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]}>
             <View style={styles.selectedDayHeader}>
-                <ThemedText type="defaultSemiBold" style={styles.selectedDayTitle}>
+                <ThemedText type="defaultSemiBold" style={[styles.selectedDayTitle, colors && { color: colors.cardText }]}>
                     {dateLabel}
                 </ThemedText>
                 <View style={styles.selectedDayMeta}>
                     <View style={[styles.dominantDot, { backgroundColor: getMoodColor(dominantMood) }]} />
-                    <ThemedText style={styles.metaText}>{dominantMood}</ThemedText>
-                    <ThemedText style={styles.metaText}>• {captureCount} captures</ThemedText>
+                    <ThemedText style={[styles.metaText, colors && { color: colors.cardTextSecondary }]}>{dominantMood}</ThemedText>
+                    <ThemedText style={[styles.metaText, colors && { color: colors.cardTextSecondary }]}>• {captureCount} captures</ThemedText>
                 </View>
             </View>
 

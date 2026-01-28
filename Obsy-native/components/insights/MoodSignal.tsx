@@ -15,7 +15,7 @@ interface MoodSignalProps {
 }
 
 export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: MoodSignalProps) {
-    const { isLight } = useObsyTheme();
+    const { colors, isLight } = useObsyTheme();
     const { isLoading: isMoodCacheLoading } = useMoodResolver();
     const signalData = useMemo(() => getWeeklyMoodSignal(captures), [captures]);
 
@@ -29,8 +29,8 @@ export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: M
         <View style={[styles.cardPadding, flat && styles.flatPadding]}>
             <View style={styles.header}>
                 <View style={styles.titleRow}>
-                    <Ionicons name="pulse-outline" size={18} color={isLight ? "rgba(0,0,0,0.5)" : Colors.obsy.silver} />
-                    <ThemedText type="defaultSemiBold" style={[styles.title, isLight && { color: "rgba(0,0,0,0.6)" }]}>
+                    <Ionicons name="pulse-outline" size={18} color={colors.cardTextSecondary} />
+                    <ThemedText type="defaultSemiBold" style={[styles.title, { color: colors.cardTextSecondary }]}>
                         Mood Signal
                     </ThemedText>
                 </View>
@@ -70,9 +70,9 @@ export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: M
                                         />
                                     );
                                 })}
-                                {day.isHighlighted && <View style={styles.dayHighlight} />}
+                                {day.isHighlighted && <View style={[styles.dayHighlight, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)' }]} />}
                             </View>
-                            <ThemedText style={styles.dayLabel}>{day.dayName}</ThemedText>
+                            <ThemedText style={[styles.dayLabel, { color: colors.cardTextSecondary }]}>{day.dayName}</ThemedText>
                         </View>
                     ))}
                 </View>
@@ -93,11 +93,11 @@ export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: M
                     {topMoods.map((m, idx) => (
                         <View key={idx} style={styles.keyItem}>
                             <View style={[styles.keyDot, { backgroundColor: m.color }]} />
-                            <ThemedText style={[styles.keyText, isLight && { color: "rgba(0,0,0,0.4)" }]}>{m.mood}</ThemedText>
+                            <ThemedText style={[styles.keyText, { color: colors.cardTextSecondary }]}>{m.mood}</ThemedText>
                         </View>
                     ))}
                     {extraMoodsCount > 0 && (
-                        <ThemedText style={[styles.keyExtra, isLight && { color: "rgba(0,0,0,0.3)" }]}>+{extraMoodsCount}</ThemedText>
+                        <ThemedText style={[styles.keyExtra, { color: colors.cardTextSecondary }]}>+{extraMoodsCount}</ThemedText>
                     )}
                 </View>
             ) : null}
@@ -107,7 +107,7 @@ export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: M
                 {isLoading ? (
                     <View style={[styles.insightPlaceholder, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]} />
                 ) : (
-                    <ThemedText style={[styles.insightText, isLight && { color: "rgba(0,0,0,0.5)" }]}>
+                    <ThemedText style={[styles.insightText, { color: colors.cardTextSecondary }]}>
                         "{signalData.insight}"
                     </ThemedText>
                 )}

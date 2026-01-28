@@ -12,7 +12,7 @@ import Colors from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
 import { getAlbumDayContext } from '@/lib/albumEngine';
-import { generateAlbumInsight } from '@/services/ai';
+import { generateAlbumInsightSecure } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
 import { Alert } from 'react-native';
 import { DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
@@ -126,8 +126,22 @@ export default function AlbumsScreen() {
             const profile = await getProfile();
             const tone = profile?.ai_tone || DEFAULT_AI_TONE_ID;
 
-            // 5. Generate Insight
-            const text = await generateAlbumInsight(context, tone);
+            // 5. Generate Insight via secure Edge Function
+            let text: string;
+            try {
+                text = await generateAlbumInsightSecure(context, tone);
+            } catch (error: any) {
+                console.error("Error generating insight:", error);
+                if (error.message?.includes("Rate limit")) {
+                    Alert.alert("Rate Limit", "You've reached your AI insight limit. Upgrade to Vanguard for unlimited insights.");
+                } else if (error.message?.includes("Authentication required")) {
+                    Alert.alert("Authentication Error", "Please sign in again to generate insights.");
+                } else {
+                    Alert.alert("Error", "Failed to generate insight. Please try again.");
+                }
+                setIsGenerating(false);
+                return;
+            }
 
             // 6. Save Result
             const { data: savedInsight, error: saveError } = await supabase
@@ -220,8 +234,22 @@ export default function AlbumsScreen() {
             const profile = await getProfile();
             const tone = profile?.ai_tone || DEFAULT_AI_TONE_ID;
 
-            // Generate new insight
-            const text = await generateAlbumInsight(context, tone);
+            // Generate new insight via secure Edge Function
+            let text: string;
+            try {
+                text = await generateAlbumInsightSecure(context, tone);
+            } catch (error: any) {
+                console.error("Error generating insight:", error);
+                if (error.message?.includes("Rate limit")) {
+                    Alert.alert("Rate Limit", "You've reached your AI insight limit. Upgrade to Vanguard for unlimited insights.");
+                } else if (error.message?.includes("Authentication required")) {
+                    Alert.alert("Authentication Error", "Please sign in again to generate insights.");
+                } else {
+                    Alert.alert("Error", "Failed to generate insight. Please try again.");
+                }
+                setIsRefreshing(false);
+                return;
+            }
 
             // Update existing record (upsert) and get the updated row
             const { data: upsertData, error: saveError } = await supabase

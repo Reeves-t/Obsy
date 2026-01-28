@@ -9,6 +9,7 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface BookmarkButtonProps {
     isSaved: boolean;
@@ -23,6 +24,7 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({
     disabled = false,
     size = 20
 }) => {
+    const { colors } = useObsyTheme();
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -55,7 +57,14 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({
                 <Ionicons
                     name={isSaved ? "bookmark" : "bookmark-outline"}
                     size={size}
-                    color={disabled ? "rgba(255,255,255,0.2)" : (isSaved ? "#FFFFFF" : "rgba(255,255,255,0.4)")}
+                    color={
+                        disabled
+                            ? colors.cardTextSecondary
+                            : (isSaved
+                                ? colors.cardText
+                                : colors.cardTextSecondary
+                            )
+                    }
                 />
             </Animated.View>
         </TouchableOpacity>

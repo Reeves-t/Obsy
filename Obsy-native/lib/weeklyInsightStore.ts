@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Capture } from '@/types/capture';
-import { AiSettings } from '@/services/ai';
+import { AiSettings } from '@/services/secureAI';
 import { InsightHistory, fetchInsightHistory } from '@/services/insightHistory';
 import { ensureWeeklyInsight } from '@/lib/longTermInsights';
 import { startOfWeek } from 'date-fns';

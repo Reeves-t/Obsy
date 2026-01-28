@@ -2,9 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { Capture } from "@/types/capture";
 import { formatMonthKey } from "@/lib/dailyMoodFlows";
 import { getBannedMoodWords } from "@/lib/moodColors";
-import { callGemini } from "@/services/ai";
 import { getMoodLabel } from "@/lib/moodUtils";
-import { LANGUAGE_CONSTRAINTS } from "@/lib/insightPrompts";
 
 export interface MonthSignals {
     moodCounts: Record<string, number>;
@@ -114,37 +112,20 @@ export function getMonthSignals(captures: Capture[], monthKey: string, throughDa
 
 /**
  * Generate lightweight Month-to-Date summary
+ * NOTE: Temporarily using deterministic fallback until secure edge function is available
  */
 export async function generateMonthToDateSummary(signals: MonthSignals): Promise<string> {
     if (signals.totalCaptures === 0) return "Not enough data to summarize this month yet.";
 
-    const prompt = `You are a "month status" reporter. Summarize the month so far based on these signals.
-    
-    SIGNALS:
-    - Dominant Mood: ${signals.dominantMood}
-    - Runner up: ${signals.runnerUpMood || "none"}
-    - Volatility: ${Math.round(signals.volatilityScore * 100)}% (0 is rock steady, 100 is wild shifts)
-    - Active days: ${signals.activeDays}
-    - Total captures: ${signals.totalCaptures}
-    - Recent momentum: ${signals.last7DaysShift} (shift in energy over the last week)
+    // Temporary fallback while migrating to secure edge function
+    const dominantMood = signals.dominantMood;
+    const volatility = Math.round(signals.volatilityScore * 100);
 
-    RULES:
-    - Neutral and clear tone.
-    - NO therapy vibe, NO poetic metaphors.
-    - NEVER mention "journal", "photos", "entries", "captures", or "captured".
-    - 2–4 sentences max.
-    - Speak as a status update for the month rhythm.
-
-    Example output style:
-    "January so far has leaned productive with a steady undercurrent of calm. Most days feel consistent, with a few spikes of higher intensity that taper quickly. The last week trends slightly more focused than the start of the month, suggesting momentum is building rather than fading."`;
-
-    try {
-        const response = await callGemini([{ text: prompt }]);
-        return response.trim();
-    } catch (err) {
-        console.error("[monthlySummaries] Month-to-date summary failed:", err);
-        return "This month is showing a mix of patterns and momentum so far.";
-    }
+    return `This month has been characterized by ${dominantMood} energy. ${
+        volatility > 50
+            ? "The rhythm has varied with noticeable shifts."
+            : "The overall pattern has remained fairly consistent."
+    }`;
 }
 
 /**
@@ -196,6 +177,7 @@ function categorizeMoodEnergy(moodTotals: Record<string, number>): {
 
 /**
  * Generate monthly summary using Gemini AI (Legacy/Lightweight)
+ * NOTE: Temporarily using deterministic fallback until secure edge function is available
  */
 export async function generateMonthlySummaryFromMoodTotals(
     moodTotals: Record<string, number>,
@@ -208,47 +190,16 @@ export async function generateMonthlySummaryFromMoodTotals(
     }
 
     const highPct = Math.round((highEnergy / total) * 100);
-    const medPct = Math.round((mediumEnergy / total) * 100);
     const lowPct = Math.round((lowEnergy / total) * 100);
 
-    const prompt = `Generate a 2-sentence narrative about this month based on mood distribution.
-Do NOT use these words: ${bannedWords.join(", ")}.
-Focus on patterns and energy levels without naming specific moods.
-Be observational, not therapeutic or advice-giving.
-${LANGUAGE_CONSTRAINTS}
-
-Mood distribution for this month:
-- ${highPct}% high-energy states (active, driven, intense moments)
-- ${medPct}% balanced states (focused, curious, grounded moments)
-- ${lowPct}% contemplative states (quiet, restorative, introspective moments)
-- Total captures: ${total}
-
-Write 2 sentences that describe the month's emotional rhythm poetically.`;
-
-    try {
-        const response = await callGemini([{ text: prompt }]);
-
-        // Post-check: if response contains banned word, try once more
-        const lowerResponse = response.toLowerCase();
-        const containsBanned = bannedWords.some(word => lowerResponse.includes(word.toLowerCase()));
-
-        if (containsBanned) {
-            const strictPrompt = `${prompt}\n\nIMPORTANT: Your previous response contained banned mood words. Use synonyms or metaphors instead.`;
-            const retryResponse = await callGemini([{ text: strictPrompt }]);
-            return retryResponse.trim();
-        }
-
-        return response.trim();
-    } catch (err) {
-        console.error("[monthlySummaries] AI generation failed:", err);
-        // Fallback heuristic summary
-        return `This month showed ${highPct}% high-energy patterns and ${lowPct}% contemplative moments. The rhythm varied between active engagement and quiet reflection.`;
-    }
+    // Deterministic fallback (temporary until secure edge function is available)
+    return `This month showed ${highPct}% high-energy patterns and ${lowPct}% contemplative moments. The rhythm varied between active engagement and quiet reflection.`;
 }
 
 /**
  * Generate reasoning that explains WHY the monthPhrase title was chosen.
  * This is shown when the user taps the dial to expand it.
+ * NOTE: Temporarily using deterministic fallback until secure edge function is available
  */
 export async function generateMonthPhraseReasoning(
     monthPhrase: string,
@@ -268,51 +219,14 @@ export async function generateMonthPhraseReasoning(
     const medPct = Math.round((mediumEnergy / total) * 100);
     const lowPct = Math.round((lowEnergy / total) * 100);
 
-    // Build mood breakdown for context
-    const sortedMoods = Object.entries(moodTotals)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([mood, count]) => `${mood}: ${Math.round((count / total) * 100)}%`);
+    // Deterministic fallback
+    const dominantEnergy = highPct >= medPct && highPct >= lowPct
+        ? "high-energy"
+        : lowPct >= medPct
+            ? "contemplative"
+            : "balanced";
 
-    const prompt = `You are an empathetic observer translating monthly data into a quick human story.
-
-TITLE: "${monthPhrase}"
-
-MONTH DATA:
-- Total captures: ${total}
-- Days with activity: ${activeDays}
-- High-vibe/Productive states: ${highPct}%
-- Balanced/Steady states: ${medPct}%
-- Quiet/Inward states: ${lowPct}%
-- Top feelings: ${sortedMoods.join(", ")}
-
-TASK: Write a 1-sentence summary and exactly 2 very short, thoughtful bullet points explaining why the month felt like "${monthPhrase}".
-
-FORMAT:
-Line 1: "This month saw ${total} moments captured across ${activeDays} active days."
-Line 2: - [Short observation 1]
-Line 3: - [Short observation 2]
-
-RULES:
-${LANGUAGE_CONSTRAINTS}
-- CRITICAL: Keep bullets extremely concise (10-12 words max each).
-- No technical jargon. Focus on the vibe.
-- NO metaphors, poetry, or advice.
-- Do NOT use these words: ${bannedWords.join(", ")}.`;
-
-    try {
-        const response = await callGemini([{ text: prompt }]);
-        return response.trim();
-    } catch (err) {
-        console.error("[monthlySummaries] Reasoning generation failed:", err);
-        // Deterministic fallback as 3 bullet points
-        const dominantEnergy = highPct >= medPct && highPct >= lowPct
-            ? "high-energy"
-            : lowPct >= medPct
-                ? "contemplative"
-                : "balanced";
-        return `- ${total} mood captures were recorded this month.\n- ${dominantEnergy.charAt(0).toUpperCase() + dominantEnergy.slice(1)} states accounted for the largest portion at ${Math.max(highPct, medPct, lowPct)}%.\n- The title "${monthPhrase}" reflects this dominant pattern.`;
-    }
+    return `This month saw ${total} moments captured across ${activeDays} active days.\n- ${dominantEnergy.charAt(0).toUpperCase() + dominantEnergy.slice(1)} states accounted for ${Math.max(highPct, medPct, lowPct)}% of the month.\n- The title "${monthPhrase}" reflects this dominant pattern.`;
 }
 
 /**

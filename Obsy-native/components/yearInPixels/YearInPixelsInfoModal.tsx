@@ -19,32 +19,32 @@ export const YearInPixelsInfoModal: React.FC<YearInPixelsInfoModalProps> = ({ vi
                 <View style={[styles.modalContent, { backgroundColor: isDark ? '#1a1a1a' : '#fff' }]}>
                     <View style={styles.header}>
                         <ThemedText style={styles.title}>Year in Pixels</ThemedText>
-                        <ThemedText style={styles.subheader}>Observe your days</ThemedText>
+                        <ThemedText style={[styles.subheader, { color: colors.textTertiary }]}>Observe your days</ThemedText>
                     </View>
 
                     <View style={styles.divider} />
 
                     <View style={styles.body}>
                         <View style={styles.bulletRow}>
-                            <ThemedText style={styles.bullet}>•</ThemedText>
-                            <ThemedText style={styles.bulletText}>Tap a day to color how it felt</ThemedText>
+                            <ThemedText style={[styles.bullet, { color: colors.textTertiary }]}>•</ThemedText>
+                            <ThemedText style={[styles.bulletText, { color: colors.textSecondary }]}>Tap a day to color how it felt</ThemedText>
                         </View>
                         <View style={styles.bulletRow}>
-                            <ThemedText style={styles.bullet}>•</ThemedText>
-                            <ThemedText style={styles.bulletText}>Use the key to create and select moods</ThemedText>
+                            <ThemedText style={[styles.bullet, { color: colors.textTertiary }]}>•</ThemedText>
+                            <ThemedText style={[styles.bulletText, { color: colors.textSecondary }]}>Use the key to create and select moods</ThemedText>
                         </View>
                         <View style={styles.bulletRow}>
-                            <ThemedText style={styles.bullet}>•</ThemedText>
-                            <ThemedText style={styles.bulletText}>Long-press a day to add or edit brush strokes</ThemedText>
+                            <ThemedText style={[styles.bullet, { color: colors.textTertiary }]}>•</ThemedText>
+                            <ThemedText style={[styles.bulletText, { color: colors.textSecondary }]}>Long-press a day to add or edit brush strokes</ThemedText>
                         </View>
                         <View style={styles.bulletRow}>
-                            <ThemedText style={styles.bullet}>•</ThemedText>
-                            <ThemedText style={styles.bulletText}>Future days are locked until they happen</ThemedText>
+                            <ThemedText style={[styles.bullet, { color: colors.textTertiary }]}>•</ThemedText>
+                            <ThemedText style={[styles.bulletText, { color: colors.textSecondary }]}>Future days are locked until they happen</ThemedText>
                         </View>
                     </View>
 
                     <TouchableOpacity style={[styles.button, { backgroundColor: colors.accent || '#4a9eff' }]} onPress={onClose}>
-                        <ThemedText style={styles.buttonText}>Got it</ThemedText>
+                        <ThemedText style={[styles.buttonText, { color: colors.text }]}>Got it</ThemedText>
                     </TouchableOpacity>
                 </View>
             </View>

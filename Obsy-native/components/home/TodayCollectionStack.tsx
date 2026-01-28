@@ -3,6 +3,7 @@ import { StyleSheet, View, ScrollView, Dimensions } from 'react-native';
 import { Capture } from '@/lib/captureStore';
 import { TodayCaptureCard } from './TodayCaptureCard';
 import { ThemedText } from '@/components/ui/ThemedText';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface TodayCollectionStackProps {
     captures: Capture[];
@@ -15,10 +16,12 @@ const SNAP_INTERVAL = CARD_WIDTH + SPACING;
 const INSET = (width - CARD_WIDTH) / 2;
 
 export function TodayCollectionStack({ captures }: TodayCollectionStackProps) {
+    const { colors } = useObsyTheme();
+
     if (captures.length === 0) {
         return (
             <View style={styles.emptyContainer}>
-                <ThemedText style={styles.emptyText}>No captures yet today.</ThemedText>
+                <ThemedText style={[styles.emptyText, { color: colors.textSecondary }]}>No captures yet today.</ThemedText>
             </View>
         );
     }

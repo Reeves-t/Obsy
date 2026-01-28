@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { DailyInsight } from '@/services/dailyInsights';
 import { ensureDailyInsight } from '@/lib/insightsEngine';
 import { Capture } from '@/types/capture';
-import { AiSettings } from '@/services/ai';
+import { AiSettings } from '@/services/secureAI';
 import { getLocalDayKey } from '@/lib/utils';
 import { PendingInsights, computePendingInsights, createSnapshotFromHistory, InsightSnapshot } from '@/lib/pendingInsights';
 

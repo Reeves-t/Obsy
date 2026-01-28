@@ -11,6 +11,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface PulsingCameraTriggerProps {
     onPress?: () => void;
@@ -18,6 +19,7 @@ interface PulsingCameraTriggerProps {
 
 export function PulsingCameraTrigger({ onPress }: PulsingCameraTriggerProps) {
     const router = useRouter();
+    const { isLight } = useObsyTheme();
 
     const handlePress = () => {
         if (onPress) {
@@ -113,7 +115,7 @@ export function PulsingCameraTrigger({ onPress }: PulsingCameraTriggerProps) {
 
                     {/* Camera Icon */}
                     <View style={styles.iconContainer}>
-                        <Ionicons name="camera" size={36} color="rgba(255,255,255,0.8)" />
+                        <Ionicons name="camera" size={36} color={isLight ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'} />
                     </View>
                 </View>
             </TouchableOpacity>

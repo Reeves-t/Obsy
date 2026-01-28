@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { ThemedText } from '../ui/ThemedText';
 import Colors from '@/constants/Colors';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface ArchiveStorageIndicatorProps {
     current: number;
@@ -9,22 +10,29 @@ interface ArchiveStorageIndicatorProps {
 }
 
 export const ArchiveStorageIndicator: React.FC<ArchiveStorageIndicatorProps> = ({ current, max }) => {
+    const { colors } = useObsyTheme();
     const percentage = Math.min(current / max, 1);
     const isNearFull = current >= 130;
 
     return (
         <View style={styles.container}>
-            <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarBg, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
                 <View
                     style={[
                         styles.progressBarFill,
-                        { width: `${percentage * 100}%` },
-                        isNearFull && styles.nearFullFill
+                        {
+                            width: `${percentage * 100}%`,
+                            backgroundColor: 'rgba(255,255,255,0.8)',
+                        },
+                        isNearFull && {
+                            backgroundColor: 'rgba(255,255,255,1)',
+                            shadowColor: '#FFF',
+                        }
                     ]}
                 />
             </View>
-            <ThemedText style={styles.text}>
-                {current} / {max} <ThemedText style={styles.subtext}>saved</ThemedText>
+            <ThemedText style={[styles.text, { color: colors.cardTextSecondary }]}>
+                {current} / {max} <ThemedText style={[styles.subtext, { color: colors.cardTextSecondary }]}>saved</ThemedText>
             </ThemedText>
         </View>
     );

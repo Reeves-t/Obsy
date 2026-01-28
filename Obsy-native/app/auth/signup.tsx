@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
+// TODO: Uncomment when Turnstile is configured
+// import { ReactNativeTurnstile } from 'react-native-turnstile';
+// import Constants from 'expo-constants';
 
 export default function SignUpScreen() {
   const [fullName, setFullName] = useState('');
@@ -24,9 +27,45 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // TODO: Uncomment when Turnstile is configured
+  // const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // const [turnstileVerified, setTurnstileVerified] = useState(false);
+  // const [verifying, setVerifying] = useState(false);
+  // const [turnstileError, setTurnstileError] = useState<string | null>(null);
+  // const turnstileRef = useRef<any>(null);
   const router = useRouter();
   const { signUp } = useAuth();
   const { signIn } = useAuth(); // Needed for social login which is technically a sign-in
+
+  // TODO: Uncomment when Turnstile is configured
+  // async function verifyTurnstileToken(token: string) {
+  //   setVerifying(true);
+  //   setTurnstileError(null);
+  //
+  //   try {
+  //     const { data, error } = await supabase.functions.invoke('verify-turnstile', {
+  //       body: { token },
+  //     });
+  //
+  //     if (error) {
+  //       throw new Error(error.message || 'Verification failed');
+  //     }
+  //
+  //     if (!data?.success) {
+  //       throw new Error(data?.error || 'Bot verification failed');
+  //     }
+  //
+  //     setTurnstileVerified(true);
+  //     return true;
+  //   } catch (err: any) {
+  //     setTurnstileError(err.message);
+  //     setTurnstileVerified(false);
+  //     Alert.alert('Verification Failed', err.message);
+  //     return false;
+  //   } finally {
+  //     setVerifying(false);
+  //   }
+  // }
 
   async function handleGoogleSignIn() {
     try {
@@ -47,6 +86,12 @@ export default function SignUpScreen() {
   }
 
   async function handleSignUp() {
+    // TODO: Uncomment when Turnstile is configured
+    // if (!turnstileVerified) {
+    //   Alert.alert('Verification Required', 'Please complete the security verification');
+    //   return;
+    // }
+
     // Validation
     if (!fullName.trim()) {
       Alert.alert('Missing Information', 'Please enter your full name.');
@@ -71,6 +116,11 @@ export default function SignUpScreen() {
 
     if (error) {
       Alert.alert('Sign Up Failed', error.message);
+      // TODO: Uncomment when Turnstile is configured
+      // Reset Turnstile on signup failure
+      // setTurnstileVerified(false);
+      // setTurnstileToken(null);
+      // turnstileRef.current?.reset();
       setLoading(false);
     } else {
       Alert.alert(
@@ -100,6 +150,43 @@ export default function SignUpScreen() {
             Join Obsy to sync your captures across devices
           </Text>
         </View>
+
+        {/* TODO: Uncomment when Turnstile is configured */}
+        {/* Turnstile Bot Protection */}
+        {/* <View style={styles.turnstileContainer}>
+          <ReactNativeTurnstile
+            ref={turnstileRef}
+            siteKey={Constants.expoConfig?.extra?.turnstileSiteKey || process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY || ''}
+            onVerify={(token) => {
+              setTurnstileToken(token);
+              verifyTurnstileToken(token);
+            }}
+            onError={(error) => {
+              setTurnstileError('Verification widget failed to load');
+              Alert.alert('Verification Error', 'Please refresh and try again');
+            }}
+            theme="dark"
+            size="normal"
+          />
+
+          {verifying && (
+            <View style={styles.verifyingIndicator}>
+              <ActivityIndicator size="small" color={Colors.obsy.silver} />
+              <Text style={styles.verifyingText}>Verifying...</Text>
+            </View>
+          )}
+
+          {turnstileVerified && (
+            <View style={styles.verifiedIndicator}>
+              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Text style={styles.verifiedText}>Verified</Text>
+            </View>
+          )}
+
+          {turnstileError && (
+            <Text style={styles.errorText}>{turnstileError}</Text>
+          )}
+        </View> */}
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
@@ -169,6 +256,9 @@ export default function SignUpScreen() {
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleSignUp}
             disabled={loading}
+            // TODO: Uncomment when Turnstile is configured
+            // style={[styles.button, (loading || verifying || !turnstileVerified) && styles.buttonDisabled]}
+            // disabled={loading || verifying || !turnstileVerified}
           >
             {loading ? (
               <ActivityIndicator color="#000" />
@@ -336,5 +426,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
+  },
+  turnstileContainer: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  verifyingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  verifyingText: {
+    color: '#888',
+    fontSize: 14,
+  },
+  verifiedIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  verifiedText: {
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 12,
+    marginTop: 8,
   },
 });

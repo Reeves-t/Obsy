@@ -5,6 +5,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
 import Colors from "@/constants/Colors";
 import { InsightHistory } from "@/services/insightHistory";
+import { useObsyTheme } from "@/contexts/ThemeContext";
 
 interface ChallengeInsightSectionProps {
     insight: InsightHistory | null;
@@ -23,6 +24,7 @@ export function ChallengeInsightSection({
     onGenerate,
     onPress,
 }: ChallengeInsightSectionProps) {
+    const { colors } = useObsyTheme();
     const dateLabel = insight?.start_date
         ? new Date(insight.start_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })
         : "Recent";
@@ -38,7 +40,7 @@ export function ChallengeInsightSection({
                                 <ThemedText type="defaultSemiBold" style={styles.title}>
                                     Challenge Insight
                                 </ThemedText>
-                                <ThemedText style={styles.dateText}>{dateLabel}</ThemedText>
+                                <ThemedText style={[styles.dateText, { color: colors.cardTextSecondary }]}>{dateLabel}</ThemedText>
                             </View>
                         </View>
                         <TouchableOpacity onPress={() => onGenerate(true)} disabled={isGenerating}>
@@ -53,11 +55,11 @@ export function ChallengeInsightSection({
                     {loading ? (
                         <View style={styles.loadingRow}>
                             <ActivityIndicator size="small" color={Colors.obsy.silver} />
-                            <ThemedText style={styles.subtle}>Loading challenge insight...</ThemedText>
+                            <ThemedText style={[styles.subtle, { color: colors.cardTextSecondary }]}>Loading challenge insight...</ThemedText>
                         </View>
                     ) : insight ? (
                         <View style={styles.content}>
-                            <ThemedText style={styles.insightText} numberOfLines={4}>
+                            <ThemedText style={[styles.insightText, { color: colors.cardText }]} numberOfLines={4}>
                                 {insight.content}
                             </ThemedText>
                             <View style={styles.readMoreRow}>
@@ -67,7 +69,7 @@ export function ChallengeInsightSection({
                         </View>
                     ) : allCompleted ? (
                         <View style={styles.emptyState}>
-                            <ThemedText style={styles.subtle}>
+                            <ThemedText style={[styles.subtle, { color: colors.cardTextSecondary }]}>
                                 Challenges are done. Generate an insight to summarize the run.
                             </ThemedText>
                             <TouchableOpacity
@@ -83,7 +85,7 @@ export function ChallengeInsightSection({
                             </TouchableOpacity>
                         </View>
                     ) : (
-                        <ThemedText style={styles.subtle}>
+                        <ThemedText style={[styles.subtle, { color: colors.cardTextSecondary }]}>
                             Complete daily challenges to unlock this insight.
                         </ThemedText>
                     )}

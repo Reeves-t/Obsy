@@ -561,13 +561,12 @@ export default function InsightsScreen() {
                         {/* Timeframe Toggle */}
                         <View style={[
                             styles.toggleContainer,
-                            isLight && { backgroundColor: 'rgba(0,0,0,0.05)', borderColor: 'rgba(0,0,0,0.1)' }
+                            { backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)', borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }
                         ]}>
                             <TouchableOpacity
                                 style={[
                                     styles.toggleBtn,
-                                    selectedTimeframe === 'week' && styles.toggleBtnActive,
-                                    selectedTimeframe === 'week' && isLight && { backgroundColor: 'rgba(0,0,0,0.1)' }
+                                    selectedTimeframe === 'week' && [styles.toggleBtnActive, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]
                                 ]}
                                 onPress={() => setSelectedTimeframe('week')}
                             >
@@ -582,8 +581,7 @@ export default function InsightsScreen() {
                             <TouchableOpacity
                                 style={[
                                     styles.toggleBtn,
-                                    selectedTimeframe === 'month' && styles.toggleBtnActive,
-                                    selectedTimeframe === 'month' && isLight && { backgroundColor: 'rgba(0,0,0,0.1)' }
+                                    selectedTimeframe === 'month' && [styles.toggleBtnActive, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]
                                 ]}
                                 onPress={() => setSelectedTimeframe('month')}
                             >
@@ -643,10 +641,10 @@ export default function InsightsScreen() {
                                 <SectionHeader title="STATS" />
                                 <View style={styles.statsGrid}>
                                     {/* Best Streak */}
-                                    <View style={styles.statGridItem}>
-                                        <ThemedText type="caption" style={styles.statLabel}>BEST STREAK</ThemedText>
+                                    <View style={[styles.statGridItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
+                                        <ThemedText type="caption" style={[styles.statLabel, { color: colors.text }]}>BEST STREAK</ThemedText>
                                         <ThemedText
-                                            style={styles.statValue}
+                                            style={[styles.statValue, { color: colors.text }]}
                                             numberOfLines={1}
                                             adjustsFontSizeToFit
                                             minimumFontScale={0.7}
@@ -660,10 +658,10 @@ export default function InsightsScreen() {
                                     </View>
 
                                     {/* Current Streak */}
-                                    <View style={styles.statGridItem}>
-                                        <ThemedText type="caption" style={styles.statLabel}>CURRENT STREAK</ThemedText>
+                                    <View style={[styles.statGridItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
+                                        <ThemedText type="caption" style={[styles.statLabel, { color: colors.text }]}>CURRENT STREAK</ThemedText>
                                         <ThemedText
-                                            style={styles.statValue}
+                                            style={[styles.statValue, { color: colors.text }]}
                                             numberOfLines={1}
                                             adjustsFontSizeToFit
                                             minimumFontScale={0.7}
@@ -677,10 +675,10 @@ export default function InsightsScreen() {
                                     </View>
 
                                     {/* Most Captures in a Day */}
-                                    <View style={styles.statGridItem}>
-                                        <ThemedText type="caption" style={styles.statLabel}>MOST IN A DAY</ThemedText>
+                                    <View style={[styles.statGridItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
+                                        <ThemedText type="caption" style={[styles.statLabel, { color: colors.text }]}>MOST IN A DAY</ThemedText>
                                         <ThemedText
-                                            style={styles.statValue}
+                                            style={[styles.statValue, { color: colors.text }]}
                                             numberOfLines={1}
                                             adjustsFontSizeToFit
                                             minimumFontScale={0.7}
@@ -693,10 +691,10 @@ export default function InsightsScreen() {
                                     </View>
 
                                     {/* Avg Captures per Day */}
-                                    <View style={styles.statGridItem}>
-                                        <ThemedText type="caption" style={styles.statLabel}>AVG PER DAY</ThemedText>
+                                    <View style={[styles.statGridItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
+                                        <ThemedText type="caption" style={[styles.statLabel, { color: colors.text }]}>AVG PER DAY</ThemedText>
                                         <ThemedText
-                                            style={styles.statValue}
+                                            style={[styles.statValue, { color: colors.text }]}
                                             numberOfLines={1}
                                             adjustsFontSizeToFit
                                             minimumFontScale={0.7}
@@ -714,43 +712,43 @@ export default function InsightsScreen() {
                                 <SectionHeader title="MOOD BY TIME" />
                                 <View style={styles.timeOfDayGrid}>
                                     {/* Morning */}
-                                    <View style={styles.timeOfDayItem}>
+                                    <View style={[styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
                                         <View style={styles.timeOfDayHeader}>
-                                            <Sunrise size={18} strokeWidth={1.5} color="rgba(255,255,255,0.9)" />
-                                            <ThemedText type="caption" style={styles.timeOfDayLabel}>MORNING</ThemedText>
+                                            <Sunrise size={18} strokeWidth={1.5} color={isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'} />
+                                            <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: colors.textTertiary }]}>MORNING</ThemedText>
                                         </View>
-                                        <ThemedText style={styles.timeOfDayMood}>
+                                        <ThemedText style={[styles.timeOfDayMood, { color: colors.text }]}>
                                             {morningMood.dominant || '—'}
                                         </ThemedText>
-                                        <ThemedText style={styles.timeOfDayMeta}>
+                                        <ThemedText style={[styles.timeOfDayMeta, { color: colors.textTertiary }]}>
                                             {morningMood.count > 0 ? `${morningMood.count} of ${morningMood.totalCaptures}` : 'No data'}
                                         </ThemedText>
                                     </View>
 
                                     {/* Afternoon */}
-                                    <View style={styles.timeOfDayItem}>
+                                    <View style={[styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
                                         <View style={styles.timeOfDayHeader}>
-                                            <Sun size={18} strokeWidth={1.5} color="rgba(255,255,255,0.9)" />
-                                            <ThemedText type="caption" style={styles.timeOfDayLabel}>AFTERNOON</ThemedText>
+                                            <Sun size={18} strokeWidth={1.5} color={isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'} />
+                                            <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: colors.textTertiary }]}>AFTERNOON</ThemedText>
                                         </View>
-                                        <ThemedText style={styles.timeOfDayMood}>
+                                        <ThemedText style={[styles.timeOfDayMood, { color: colors.text }]}>
                                             {afternoonMood.dominant || '—'}
                                         </ThemedText>
-                                        <ThemedText style={styles.timeOfDayMeta}>
+                                        <ThemedText style={[styles.timeOfDayMeta, { color: colors.textTertiary }]}>
                                             {afternoonMood.count > 0 ? `${afternoonMood.count} of ${afternoonMood.totalCaptures}` : 'No data'}
                                         </ThemedText>
                                     </View>
 
                                     {/* Evening */}
-                                    <View style={styles.timeOfDayItem}>
+                                    <View style={[styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
                                         <View style={styles.timeOfDayHeader}>
-                                            <MoonStar size={18} strokeWidth={1.5} color="rgba(255,255,255,0.9)" />
-                                            <ThemedText type="caption" style={styles.timeOfDayLabel}>EVENING</ThemedText>
+                                            <MoonStar size={18} strokeWidth={1.5} color={isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'} />
+                                            <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: colors.textTertiary }]}>EVENING</ThemedText>
                                         </View>
-                                        <ThemedText style={styles.timeOfDayMood}>
+                                        <ThemedText style={[styles.timeOfDayMood, { color: colors.text }]}>
                                             {eveningMood.dominant || '—'}
                                         </ThemedText>
-                                        <ThemedText style={styles.timeOfDayMeta}>
+                                        <ThemedText style={[styles.timeOfDayMeta, { color: colors.textTertiary }]}>
                                             {eveningMood.count > 0 ? `${eveningMood.count} of ${eveningMood.totalCaptures}` : 'No data'}
                                         </ThemedText>
                                     </View>
@@ -809,9 +807,9 @@ export default function InsightsScreen() {
                                     <View style={styles.archiveContent}>
                                         <View>
                                             <ThemedText type="defaultSemiBold" style={[styles.archiveTitle, { color: onBgText }]}>Open Archive</ThemedText>
-                                            <ThemedText style={[styles.archiveSubtitle, { color: onBgTextTertiary }]}>Browse all past insights by type</ThemedText>
+                                            <ThemedText style={[styles.archiveSubtitle, { color: onBgTextSecondary }]}>Browse all past insights by type</ThemedText>
                                         </View>
-                                        <Ionicons name="chevron-forward" size={20} color={onBgTextTertiary} />
+                                        <Ionicons name="chevron-forward" size={20} color={onBgTextSecondary} />
                                     </View>
                                 </TouchableOpacity>
 
@@ -880,11 +878,10 @@ const styles = StyleSheet.create({
     },
     toggleContainer: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        // backgroundColor and borderColor applied via inline override
         borderRadius: 20,
         padding: 4,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
     },
     toggleBtn: {
         paddingVertical: 6,
@@ -892,7 +889,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
     },
     toggleBtnActive: {
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        // backgroundColor applied via inline override
     },
     toggleText: {
         fontSize: 12,
@@ -932,7 +929,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.obsy.silver,
     },
     cardTitle: {
-        color: '#FFFFFF',
         textShadowColor: 'rgba(0, 0, 0, 0.5)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4,
@@ -940,7 +936,6 @@ const styles = StyleSheet.create({
     insightText: {
         fontSize: 15,
         lineHeight: 22,
-        color: '#FFFFFF',
         textShadowColor: 'rgba(0, 0, 0, 0.5)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4,
@@ -967,18 +962,16 @@ const styles = StyleSheet.create({
     statDivider: {
         width: 1,
         height: '80%',
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        // backgroundColor applied via inline override
         marginHorizontal: 16,
     },
     statLabel: {
-        color: '#737373', // neutral-500
         letterSpacing: 1,
     },
     statValue: {
         fontSize: 28,
         lineHeight: 32,
         fontFamily: 'SpaceMono', // Default mono font in Expo template
-        color: '#FFFFFF',
         textShadowColor: 'rgba(0, 0, 0, 0.5)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4,
@@ -1008,10 +1001,9 @@ const styles = StyleSheet.create({
     statGridItem: {
         width: '47%',
         padding: 16,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        // backgroundColor and borderColor applied via inline override
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
         gap: 6,
     },
     statDate: {
@@ -1028,7 +1020,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     emptyText: {
-        color: 'rgba(255,255,255,0.5)',
+        // Color applied via inline override using colors.textSecondary
     },
     archiveCard: {
         padding: 16,
@@ -1043,12 +1035,12 @@ const styles = StyleSheet.create({
     },
     archiveTitle: {
         fontSize: 16,
-        color: '#FFFFFF',
+        // Color applied via inline override using onBgText
     },
     archiveSubtitle: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.6)',
         marginTop: 2,
+        // Color applied via inline override using onBgTextSecondary
     },
     // ─────────────────────────────────────────────────────────────────────────
     // Three-Tier Divider System
@@ -1061,13 +1053,13 @@ const styles = StyleSheet.create({
     },
     sectionDividerLine: {
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        // backgroundColor applied via inline override
         marginBottom: 14,
     },
     sectionTitle: {
         fontSize: 11,
         fontWeight: '600',
-        color: 'rgba(255,255,255,0.75)',
+        // color applied via inline override
         letterSpacing: 1.8,
         textTransform: 'uppercase',
     },
@@ -1081,7 +1073,7 @@ const styles = StyleSheet.create({
     softFadeGradient: {
         height: 1,
         width: '100%',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        // backgroundColor applied via inline override
         // Note: For true gradient, use LinearGradient component
         // This is a subtle approximation
     },
@@ -1093,7 +1085,7 @@ const styles = StyleSheet.create({
     },
     microDividerLine: {
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        // backgroundColor applied via inline override
     },
 
     // Section content wrapper
@@ -1105,7 +1097,7 @@ const styles = StyleSheet.create({
     sectionHeader: {
         fontSize: 12,
         fontWeight: '500',
-        color: 'rgba(255,255,255,0.4)',
+        // color applied via inline override using colors.textTertiary
         letterSpacing: 1,
         textTransform: 'uppercase',
         marginBottom: 12,
@@ -1128,13 +1120,13 @@ const styles = StyleSheet.create({
     rowDivider: {
         height: 1,
         width: '100%',
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        // backgroundColor applied via inline override
         marginTop: 8,
     },
     statRowDivider: {
         width: 1,
         height: '80%',
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        // backgroundColor applied via inline override
         marginHorizontal: 16,
     },
     revealContainer: {
@@ -1149,12 +1141,12 @@ const styles = StyleSheet.create({
     revealTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#fff',
+        // color applied via inline override using colors.text
         textAlign: 'center',
     },
     revealSubtitle: {
         fontSize: 13,
-        color: 'rgba(255,255,255,0.5)',
+        // color applied via inline override using colors.textSecondary
         textAlign: 'center',
         lineHeight: 18,
         paddingHorizontal: 10,
@@ -1188,9 +1180,8 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        // backgroundColor and borderColor applied via inline override
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
     },
     visionToggleText: {
         fontSize: 12,
@@ -1204,7 +1195,7 @@ const styles = StyleSheet.create({
     visionPillText: {
         fontSize: 8,
         fontWeight: '800',
-        color: 'rgba(255,255,255,0.4)',
+        // color applied via inline override using colors.textTertiary
         letterSpacing: 0.5,
     },
     // MOOD BY TIME Styles
@@ -1215,10 +1206,9 @@ const styles = StyleSheet.create({
     timeOfDayItem: {
         flex: 1,
         padding: 16,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        // backgroundColor and borderColor applied via inline override
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
         gap: 8,
     },
     timeOfDayHeader: {
@@ -1229,17 +1219,17 @@ const styles = StyleSheet.create({
     timeOfDayLabel: {
         fontSize: 10,
         fontWeight: '600',
-        color: 'rgba(255,255,255,0.4)',
+        // color applied via inline override using colors.textTertiary
         letterSpacing: 1,
     },
     timeOfDayMood: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#FFFFFF',
+        // color applied via inline override using colors.text
     },
     timeOfDayMeta: {
         fontSize: 10,
-        color: 'rgba(255,255,255,0.3)',
+        // color applied via inline override using colors.textTertiary
         fontWeight: '500',
     },
 });

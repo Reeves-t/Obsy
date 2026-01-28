@@ -12,7 +12,7 @@ import { useDailyChallenges } from '@/lib/challengeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { BlurView } from 'expo-blur';
 import { TagInput } from '@/components/capture/TagInput';
-import { generateObsyNote } from '@/services/ai';
+import { generateCaptureInsightSecure, CaptureData } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
 import { supabase } from '@/lib/supabase';
 import { DestinationSelector } from '@/components/capture/DestinationSelector';
@@ -124,9 +124,34 @@ export default function CaptureReviewScreen() {
             let obsyNote: string | null = null;
 
             if (profile?.ai_per_photo_captions) {
-                const moodLabel = MOODS.find(m => m.id === moodId)?.label || "neutral";
-                // Use preview for AI analysis (good enough quality, faster)
-                obsyNote = await generateObsyNote(optimized.preview, moodLabel);
+                try {
+                    const moodLabel = MOODS.find(m => m.id === moodId)?.label || "neutral";
+
+                    // Build CaptureData for secure AI call
+                    const captureData: CaptureData = {
+                        mood: moodLabel,
+                        note: note || undefined,
+                        capturedAt: new Date().toISOString(),
+                        tags: tags,
+                        timeBucket: undefined,
+                    };
+
+                    // Call secure edge function with user's tone settings
+                    obsyNote = await generateCaptureInsightSecure(
+                        captureData,
+                        profile.ai_tone || 'friendly',
+                        profile.selected_custom_tone_id
+                    );
+                } catch (aiError: any) {
+                    console.error('[Review] Obsy Note generation failed:', aiError);
+
+                    // Check for rate limit error
+                    if (aiError.message?.includes('Rate limit')) {
+                        alert('AI caption limit reached for today. Your capture will be saved without an Obsy Note.');
+                    }
+                    // Don't block save - continue without Obsy Note
+                    obsyNote = null;
+                }
             }
 
             // 1. Create the Master Capture (using preview for local display)

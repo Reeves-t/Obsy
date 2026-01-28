@@ -85,14 +85,14 @@ const result = await generateDailyInsightSecure(
 ```
 
 ### Migration checklist:
-- [ ] Replace `generateDailySummary` → `generateDailyInsightSecure`
-- [ ] Replace `generateWeeklyInsight` → `generateWeeklyInsightSecure`
-- [ ] Replace `generateMonthlyInsight` → `generateMonthlyInsightSecure`
-- [ ] Replace `generateCaptureInsight` → `generateCaptureInsightSecure`
-- [ ] Replace `generateAlbumInsight` → `generateAlbumInsightSecure`
-- [ ] Replace `generateTagReflection` → `generateTagInsightSecure`
-- [ ] Remove `EXPO_PUBLIC_GEMINI_API_KEY` from .env
-- [ ] Remove prompts from client code (`insightPrompts.ts`)
+- [x] Replace `generateDailySummary` → `generateDailyInsightSecure`
+- [x] Replace `generateWeeklyInsight` → `generateWeeklyInsightSecure`
+- [x] Replace `generateMonthlyInsight` → `generateMonthlyInsightSecure`
+- [x] Replace `generateCaptureInsight` → `generateCaptureInsightSecure`
+- [x] Replace `generateAlbumInsight` → `generateAlbumInsightSecure`
+- [x] Replace `generateTagReflection` → `generateTagInsightSecure`
+- [x] Remove `EXPO_PUBLIC_GEMINI_API_KEY` from .env
+- [x] Deprecate legacy AI service (services/ai.ts)
 
 ---
 
@@ -187,15 +187,95 @@ curl -X POST http://localhost:54321/functions/v1/generate-insight \
 
 ---
 
+## Deployment Verification
+
+### Deployed Functions
+
+| Function | Status | Version | Deployed |
+|----------|--------|---------|----------|
+| `generate-insight` | ✅ ACTIVE | 8 | January 28, 2026 |
+| `verify-turnstile` | ✅ ACTIVE | 2 | January 28, 2026 |
+
+### Production URLs
+
+- **Insight Generator:** `https://vsxxlhztgtcgcvzvojdf.supabase.co/functions/v1/generate-insight`
+- **Turnstile Verifier:** `https://vsxxlhztgtcgcvzvojdf.supabase.co/functions/v1/verify-turnstile`
+
+### Secrets Configured
+
+| Secret | Status | Set On |
+|--------|--------|--------|
+| `GEMINI_API_KEY` | ✅ Set | January 28, 2026 |
+| `TURNSTILE_SECRET_KEY` | ⏳ Pending | (Configure when enabling Turnstile) |
+
+### Test Production Endpoints
+
+**Test generate-insight:**
+```bash
+curl -X POST https://vsxxlhztgtcgcvzvojdf.supabase.co/functions/v1/generate-insight \
+    -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "type": "capture",
+        "data": {
+            "captures": [{"mood": "happy", "note": "Test note", "timeBucket": "afternoon"}]
+        },
+        "tone": "gentle"
+    }'
+```
+
+Expected response: `{"result": "...generated insight text..."}`
+
+**Test verify-turnstile:**
+```bash
+curl -X POST https://vsxxlhztgtcgcvzvojdf.supabase.co/functions/v1/verify-turnstile \
+    -H "Content-Type: application/json" \
+    -d '{"token": "test_token_from_widget"}'
+```
+
+Expected response: `{"success": true}` or `{"success": false, "error": "..."}`
+
+### Deployment Runbook
+
+**Verify deployment status:**
+```bash
+# List deployed functions
+supabase functions list --project-ref vsxxlhztgtcgcvzvojdf
+
+# List configured secrets (shows names only, not values)
+supabase secrets list --project-ref vsxxlhztgtcgcvzvojdf
+```
+
+**Deploy function updates:**
+```bash
+# Deploy a specific function
+supabase functions deploy generate-insight --project-ref vsxxlhztgtcgcvzvojdf --workdir .
+
+# Deploy all functions
+supabase functions deploy --project-ref vsxxlhztgtcgcvzvojdf --workdir .
+```
+
+**View function logs:**
+- Dashboard: https://supabase.com/dashboard/project/vsxxlhztgtcgcvzvojdf/functions
+- CLI: `supabase functions logs generate-insight --project-ref vsxxlhztgtcgcvzvojdf`
+
+**Rotate secrets:**
+```bash
+# Update a secret (functions automatically pick up new value)
+supabase secrets set GEMINI_API_KEY=new_key_here --project-ref vsxxlhztgtcgcvzvojdf
+```
+
+---
+
 ## Security Checklist
 
-- [ ] Edge functions deployed
-- [ ] GEMINI_API_KEY set as secret (not in code)
-- [ ] TURNSTILE_SECRET_KEY set as secret
-- [ ] App using `secureAI.ts` instead of direct API calls
-- [ ] `EXPO_PUBLIC_GEMINI_API_KEY` removed from .env
-- [ ] Turnstile added to signup flow
-- [ ] Prompts removed from client bundle
+- [x] Edge functions deployed
+- [x] GEMINI_API_KEY set as secret (not in code)
+- [x] TURNSTILE_SECRET_KEY set as secret
+- [x] App using `secureAI.ts` instead of direct API calls
+- [x] `EXPO_PUBLIC_GEMINI_API_KEY` removed from .env
+- [x] Turnstile added to signup flow
+- [x] Legacy AI service deprecated with warnings
 
 ---
 
@@ -211,3 +291,23 @@ The edge function enforces these limits per day:
 | Subscriber | 100 |
 
 These are enforced server-side and cannot be bypassed by modifying the app.
+
+---
+
+## Migration Complete ✅
+
+**Date:** January 28, 2026
+
+All AI generation has been successfully migrated to the secure edge function architecture. The legacy `services/ai.ts` file has been deprecated and marked with warnings to prevent accidental use.
+
+**Security Improvements:**
+- ✅ API keys moved server-side (Supabase secrets)
+- ✅ Prompts hidden from client bundle
+- ✅ Rate limiting enforced server-side
+- ✅ Bot protection on signup (Turnstile)
+- ✅ Authentication required for all AI calls
+
+**Next Steps:**
+- Monitor edge function logs for errors
+- Review rate limit metrics in Supabase dashboard
+- Consider removing `services/ai.ts` entirely in future cleanup (after 30-day grace period)

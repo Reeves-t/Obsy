@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { startOfWeek, format } from "date-fns";
 import { useCaptureStore } from "@/lib/captureStore";
 import { PendingInsightMessage } from "./PendingInsightMessage";
+import { useObsyTheme } from "@/contexts/ThemeContext";
 
 interface WeeklySummaryCardProps {
     weeklyInsight: InsightHistory | null;
@@ -38,6 +39,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     onArchiveFull,
     pendingCount = 0,
 }: WeeklySummaryCardProps) {
+    const { colors, isLight } = useObsyTheme();
     const { user } = useAuth();
     const { captures } = useCaptureStore();
     const hasInsight = !!weeklyInsight;
@@ -110,25 +112,25 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
         <View style={[styles.cardPadding, flat && styles.flatPadding]}>
             <View style={styles.header}>
                 <View style={styles.titleRow}>
-                    <Ionicons name="calendar-outline" size={18} color={Colors.obsy.silver} />
+                    <Ionicons name="calendar-outline" size={18} color={colors.cardTextSecondary} />
                     <View>
-                        <ThemedText type="defaultSemiBold" style={styles.title}>
+                        <ThemedText type="defaultSemiBold" style={[styles.title, { color: colors.cardText }]}>
                             Week in Review
                         </ThemedText>
-                        <ThemedText style={styles.subline}>
+                        <ThemedText style={[styles.subline, { color: colors.cardTextSecondary }]}>
                             A reflection across your days so far
                         </ThemedText>
                     </View>
                 </View>
                 <View style={styles.actions}>
                     <TouchableOpacity onPress={onViewHistory}>
-                        <ThemedText style={styles.historyHint}>View history</ThemedText>
+                        <ThemedText style={[styles.historyHint, { color: colors.cardTextSecondary }]}>View history</ThemedText>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={onGenerate} disabled={isGenerating}>
                         {isGenerating ? (
-                            <ActivityIndicator size="small" color={Colors.obsy.silver} />
+                            <ActivityIndicator size="small" color={colors.cardTextSecondary} />
                         ) : (
-                            <Ionicons name="refresh" size={18} color={Colors.obsy.silver} />
+                            <Ionicons name="refresh" size={18} color={colors.cardTextSecondary} />
                         )}
                     </TouchableOpacity>
                 </View>
@@ -154,7 +156,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                     />
                 ) : (
                     <View style={styles.emptyState}>
-                        <ThemedText style={styles.emptyText}>
+                        <ThemedText style={[styles.emptyText, { color: colors.cardTextSecondary }]}>
                             Generate a weekly narrative to see your week's arc.
                         </ThemedText>
                         <TouchableOpacity onPress={onGenerate} disabled={isGenerating}>
@@ -167,7 +169,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                                 {isGenerating ? (
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
-                                    <ThemedText style={styles.generateText}>Generate Narrative</ThemedText>
+                                    <ThemedText style={[styles.generateText, { color: colors.cardText }]}>Generate Narrative</ThemedText>
                                 )}
                             </LinearGradient>
                         </TouchableOpacity>
@@ -179,27 +181,27 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
 
             <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
-                    <ThemedText style={styles.statLabel}>CAPTURES</ThemedText>
-                    <ThemedText style={styles.statValue}>
+                    <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>CAPTURES</ThemedText>
+                    <ThemedText style={[styles.statValue, { color: colors.cardText }]}>
                         {weeklyStats?.totalCaptures ?? "--"}
                     </ThemedText>
                 </View>
                 <View style={styles.statCard}>
-                    <ThemedText style={styles.statLabel}>ACTIVE DAYS</ThemedText>
-                    <ThemedText style={styles.statValue}>
+                    <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>ACTIVE DAYS</ThemedText>
+                    <ThemedText style={[styles.statValue, { color: colors.cardText }]}>
                         {weeklyStats?.activeDays ?? "--"}
                     </ThemedText>
                 </View>
                 <View style={styles.statCard}>
-                    <ThemedText style={styles.statLabel}>AVG / DAY</ThemedText>
-                    <ThemedText style={styles.statValue}>
+                    <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>AVG / DAY</ThemedText>
+                    <ThemedText style={[styles.statValue, { color: colors.cardText }]}>
                         {weeklyStats?.avgPerActiveDay ?? "--"}
                     </ThemedText>
                 </View>
             </View>
 
             <View style={styles.moodRow}>
-                <ThemedText style={styles.statLabel}>DOMINANT MOOD</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>DOMINANT MOOD</ThemedText>
                 <ThemedText style={styles.moodValue}>
                     {weeklyStats?.dominantMood || "—"}
                 </ThemedText>

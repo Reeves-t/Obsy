@@ -22,7 +22,7 @@ interface ExpandedDayCanvasProps {
 }
 
 export const ExpandedDayCanvas: React.FC<ExpandedDayCanvasProps> = ({ visible, date, onClose }) => {
-    const { colors, isDark } = useObsyTheme();
+    const { colors, isDark, isLight } = useObsyTheme();
     const { pixels, legend, activeColorId, setActiveColorId, addStroke, setStrokes, setPixelPhoto } = useYearInPixelsStore();
     const { captures } = useCaptureStore();
 
@@ -91,7 +91,7 @@ export const ExpandedDayCanvas: React.FC<ExpandedDayCanvasProps> = ({ visible, d
                         </TouchableOpacity>
                         <View style={styles.titleContainer}>
                             <ThemedText style={styles.dateText}>{formattedDate}</ThemedText>
-                            <ThemedText style={styles.yearText}>{dateObj.getFullYear()}</ThemedText>
+                            <ThemedText style={[styles.yearText, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>{dateObj.getFullYear()}</ThemedText>
                         </View>
                         <View style={styles.headerRight} />
                     </View>
@@ -211,7 +211,7 @@ export const ExpandedDayCanvas: React.FC<ExpandedDayCanvasProps> = ({ visible, d
                     {/* Photo Selection Area (if captures exist) */}
                     {dayCaptures.length > 0 && (
                         <View style={styles.photoPickerContainer}>
-                            <ThemedText style={styles.photoPickerTitle}>Feature a photo</ThemedText>
+                            <ThemedText style={[styles.photoPickerTitle, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>Feature a photo</ThemedText>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoList}>
                                 {dayCaptures.map((cap) => (
                                     <TouchableOpacity
@@ -239,7 +239,7 @@ export const ExpandedDayCanvas: React.FC<ExpandedDayCanvasProps> = ({ visible, d
                                     style={[styles.photoThumbnailWrapper, !selectedPhotoUri && styles.noneThumbnail]}
                                 >
                                     <Ionicons name="close" size={20} color={colors.textTertiary} />
-                                    <ThemedText style={styles.noneText}>None</ThemedText>
+                                    <ThemedText style={[styles.noneText, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>None</ThemedText>
                                 </TouchableOpacity>
                             </ScrollView>
                         </View>
@@ -250,7 +250,7 @@ export const ExpandedDayCanvas: React.FC<ExpandedDayCanvasProps> = ({ visible, d
                         <View style={[styles.activeColorCircle, { backgroundColor: isErasing ? 'transparent' : activeColor, borderWidth: isErasing ? 1 : 0, borderColor: colors.textSecondary }]}>
                             {isErasing && <Ionicons name="close" size={16} color={colors.textSecondary} />}
                         </View>
-                        <ThemedText style={styles.activeColorLabel}>{isErasing ? 'Eraser' : (legendItem?.label || 'Brush')}</ThemedText>
+                        <ThemedText style={[styles.activeColorLabel, { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)' }]}>{isErasing ? 'Eraser' : (legendItem?.label || 'Brush')}</ThemedText>
                     </View>
                 </View>
             </GestureHandlerRootView>
