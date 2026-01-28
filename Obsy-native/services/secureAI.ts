@@ -71,15 +71,32 @@ export interface InsightResponse {
 
 /**
  * Generate an AI insight via the secure edge function
- * 
+ *
  * @throws Error if not authenticated or rate limited
  */
 export async function generateSecureInsight(request: InsightRequest): Promise<string> {
-    // Get current session for auth header
-    const { data: { session } } = await supabase.auth.getSession();
+    // Try to get session, refreshing if needed
+    let { data: { session } } = await supabase.auth.getSession();
 
+    // If no session, try refreshing (handles expired access tokens)
     if (!session) {
-        throw new Error('Authentication required for AI insights');
+        console.log('[SecureAI] No session found, attempting refresh...');
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+            console.error('[SecureAI] Session refresh failed:', refreshError.message);
+        }
+        session = refreshData.session;
+    }
+
+    // Still no session? User needs to log in
+    if (!session) {
+        // Double-check with getUser() as a fallback
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            throw new Error('Authentication required for AI insights. Please sign in.');
+        }
+        // User exists but no session - this shouldn't happen, but handle it
+        throw new Error('Session expired. Please sign out and sign back in.');
     }
 
     const response = await supabase.functions.invoke<InsightResponse>('generate-insight', {
