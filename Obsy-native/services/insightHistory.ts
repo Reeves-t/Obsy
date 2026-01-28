@@ -64,6 +64,8 @@ export async function fetchInsightHistory(
     const startStr = startDate.toISOString().split("T")[0];
     const endStr = endDate.toISOString().split("T")[0];
 
+    // Use .order().limit(1) before .maybeSingle() to handle potential duplicate rows
+    // This prevents PGRST116 error when multiple rows match the query
     const { data, error } = await (supabase as any)
         .from("insight_history")
         .select("id, user_id, type, start_date, end_date, content, mood_summary, capture_ids, created_at, updated_at")
@@ -71,6 +73,8 @@ export async function fetchInsightHistory(
         .eq("type", type)
         .gte("start_date", startStr)
         .lte("end_date", endStr)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
     if (error) {

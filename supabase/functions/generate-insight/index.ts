@@ -316,7 +316,7 @@ function buildWeeklyPrompt(data: InsightRequest["data"], tone: string, customTon
     console.log(`[generate-insight] Building weekly prompt with tone: "${tone}"`);
     console.log(`[generate-insight] Weekly captures count: ${captures.length}`);
 
-    // Group captures by day and find high/low days
+    // Group captures by day
     const dayGroups: Record<string, typeof captures> = {};
     captures.forEach(c => {
         const day = c.date || "unknown";
@@ -324,17 +324,20 @@ function buildWeeklyPrompt(data: InsightRequest["data"], tone: string, customTon
         dayGroups[day].push(c);
     });
 
-    // Sort days chronologically
-    const sortedDays = Object.keys(dayGroups).sort();
-    const daysCount = sortedDays.length;
+    // CRITICAL: Use explicit array sorting to guarantee chronological order
+    // Object.entries() does NOT preserve insertion order for date strings
+    const sortedDayEntries = Object.entries(dayGroups)
+        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB));
 
-    // Build day summaries in chronological order
-    const daySummaries = sortedDays.map(day => {
-        const dayCaptures = dayGroups[day];
+    const daysCount = sortedDayEntries.length;
+
+    // Build day summaries in GUARANTEED chronological order
+    const daySummaries = sortedDayEntries.map(([day, dayCaptures], index) => {
         const moods = dayCaptures.map(c => c.mood || "neutral");
         const primaryMood = moods[0] || "neutral";
         const notes = dayCaptures.filter(c => c.note).map(c => c.note).slice(0, 2);
-        return `${day}: ${primaryMood}${notes.length ? ` — "${notes[0]?.slice(0, 50)}"` : ""}`;
+        const marker = index === 0 ? " ← START OF WEEK" : "";
+        return `${day}: ${primaryMood}${notes.length ? ` — "${notes[0]?.slice(0, 50)}"` : ""}${marker}`;
     }).join("\n");
 
     return `${SYSTEM_PROMPT}
@@ -349,15 +352,16 @@ ${toneStyle}
 TASK: WEEKLY REFLECTION FOR ${data.weekLabel || "this week"}
 ═══════════════════════════════════════════════════════════════════════════════
 
-WEEK DATA (${daysCount} day${daysCount === 1 ? "" : "s"} so far):
+↑ THE FIRST LINE BELOW IS THE START OF THE WEEK (Sunday)
+WEEK DATA (${daysCount} day${daysCount === 1 ? "" : "s"} so far, in chronological order):
 ${daySummaries || "No days recorded yet."}
 
 WEEKLY INSIGHT RULES:
 - This insight may be generated after just 1 day — write meaningfully even with limited data
 - Focus on the HIGH and LOW points of the week
 - Keep chronological order: start with how the week began, end with how it's going
-- You CAN subtly reference specific days ("Monday started with...", "By midweek...")
-- Write 3-5 sentences about the week's emotional arc
+- You CAN subtly reference specific days ("Sunday started with...", "By midweek...")
+- Write 5-8+ sentences in TWO paragraphs about the week's emotional arc
 - Weave the days into a narrative, don't list them mechanically
 - Never give advice
 - EMBODY THE TONE
@@ -374,6 +378,7 @@ function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTo
     const captures = data.captures || [];
 
     console.log(`[generate-insight] Building monthly prompt with tone: "${tone}"`);
+    console.log(`[generate-insight] Monthly captures count: ${captures.length}`);
 
     // Translate volatility score to feeling
     const volatility = signals?.volatilityScore || 0;
@@ -399,14 +404,37 @@ function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTo
         }
     });
 
-    const weeksCount = Object.keys(weekGroups).length;
-    const weekSummaries = Object.entries(weekGroups).map(([week, weekCaptures]) => {
+    // Sort weeks chronologically
+    const sortedWeekEntries = Object.entries(weekGroups)
+        .sort(([weekA], [weekB]) => {
+            const numA = parseInt(weekA.replace("Week ", ""));
+            const numB = parseInt(weekB.replace("Week ", ""));
+            return numA - numB;
+        });
+
+    const weeksCount = sortedWeekEntries.length;
+    const weekSummaries = sortedWeekEntries.map(([week, weekCaptures]) => {
         const moods = weekCaptures.map(c => c.mood || "neutral");
         const moodCounts: Record<string, number> = {};
         moods.forEach(m => moodCounts[m] = (moodCounts[m] || 0) + 1);
         const primaryMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "mixed";
         return `${week}: primarily ${primaryMood} (${weekCaptures.length} moments)`;
     }).join("\n");
+
+    // Extract KEY MOMENTS: up to 10 captures with notes, sorted by date
+    const capturesWithNotes = captures
+        .filter(c => c.note && c.note.trim().length > 0)
+        .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+        .slice(0, 10);
+
+    const keyMoments = capturesWithNotes.length > 0
+        ? capturesWithNotes.map(c => {
+            const dateStr = c.date || "unknown date";
+            const mood = c.mood || "neutral";
+            const note = c.note?.slice(0, 80) || "";
+            return `• ${dateStr} (${mood}): "${note}"`;
+        }).join("\n")
+        : "No specific notes recorded this month.";
 
     return `${SYSTEM_PROMPT}
 
@@ -423,6 +451,9 @@ TASK: MONTHLY NARRATIVE FOR ${data.monthLabel || "this month"}
 MONTH PROGRESS: ${weeksCount} week${weeksCount === 1 ? "" : "s"} so far
 ${weekSummaries || "No weeks recorded yet."}
 
+KEY MOMENTS THIS MONTH (use these for specific references):
+${keyMoments}
+
 MONTH FEELINGS (translate these to prose, never mention raw data):
 - The month was primarily colored by: ${signals?.dominantMood || "mixed feelings"}
 ${signals?.runnerUpMood ? `- With undertones of: ${signals.runnerUpMood}` : ""}
@@ -434,7 +465,8 @@ MONTHLY INSIGHT RULES:
 - This insight may be generated after just 1 week — write meaningfully even with partial data
 - Summarize the weeks chronologically: how the month started, how it evolved
 - You CAN subtly reference weeks ("The first week carried...", "As the month progressed...")
-- Write 3-5 sentences about how the month FELT
+- USE the KEY MOMENTS above to add specific, grounded details to the narrative
+- Write 6-10+ sentences in TWO paragraphs minimum about how the month FELT
 - NEVER mention numbers, percentages, or statistics
 - NEVER say "X days" or "Y percent" or "Week 1 had..."
 - Paint an emotional picture, like describing a season
