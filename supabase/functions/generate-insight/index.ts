@@ -235,6 +235,8 @@ Write 1-2 sentences about what this tag represents for the user.`;
 // ============================================
 
 serve(async (req: Request) => {
+    console.log("[generate-insight] Request received:", req.method);
+    
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
@@ -243,7 +245,11 @@ serve(async (req: Request) => {
     try {
         // 1. Verify authentication
         const authHeader = req.headers.get("Authorization");
+        console.log("[generate-insight] Auth header present:", !!authHeader);
+        console.log("[generate-insight] Auth header preview:", authHeader?.substring(0, 30) + "...");
+        
         if (!authHeader) {
+            console.log("[generate-insight] ERROR: Missing auth header");
             return new Response(
                 JSON.stringify({ error: "Missing authorization header" }),
                 { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -251,20 +257,39 @@ serve(async (req: Request) => {
         }
 
         // Initialize Supabase client with user's token
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+        
+        console.log("[generate-insight] Supabase URL present:", !!supabaseUrl);
+        console.log("[generate-insight] Supabase Anon Key present:", !!supabaseAnonKey);
+        
+        if (!supabaseUrl || !supabaseAnonKey) {
+            console.log("[generate-insight] ERROR: Missing Supabase env vars");
+            return new Response(
+                JSON.stringify({ error: "Server configuration error" }),
+                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+        }
+        
         const supabase = createClient(supabaseUrl, supabaseAnonKey, {
             global: { headers: { Authorization: authHeader } },
         });
 
         // Get user from token
+        console.log("[generate-insight] Verifying user token...");
         const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        console.log("[generate-insight] Auth result - user:", user?.id, "error:", authError?.message);
+        
         if (authError || !user) {
+            console.log("[generate-insight] ERROR: Auth failed -", authError?.message || "No user");
             return new Response(
-                JSON.stringify({ error: "Invalid or expired token" }),
+                JSON.stringify({ error: "Invalid or expired token", details: authError?.message }),
                 { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
+        
+        console.log("[generate-insight] User authenticated:", user.id);
 
         // 2. Check rate limits
         const { data: settings } = await supabase
