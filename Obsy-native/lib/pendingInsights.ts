@@ -33,9 +33,9 @@ export function getPeriod(kind: InsightKind, date: Date = new Date()): { start: 
                 end: now
             };
         case "weekly":
-            // Consistent with ensureWeeklyInsight (Monday start)
+            // Consistent with WEEK_STARTS_ON (Sunday start)
             return {
-                start: startOfWeek(date, { weekStartsOn: 1 }).getTime(),
+                start: startOfWeek(date, { weekStartsOn: 0 }).getTime(),
                 end: now
             };
         case "monthly":

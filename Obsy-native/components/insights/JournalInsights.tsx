@@ -40,8 +40,8 @@ export const JournalInsights = memo(function JournalInsights({ userId, captures,
             case 'daily':
                 return format(now, 'MMMM d, yyyy');
             case 'weekly':
-                const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-                const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+                const weekStart = startOfWeek(now, { weekStartsOn: 0 });
+                const weekEnd = endOfWeek(now, { weekStartsOn: 0 });
                 return `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d')}`;
             case 'monthly':
                 return format(now, 'MMMM yyyy');
@@ -55,9 +55,9 @@ export const JournalInsights = memo(function JournalInsights({ userId, captures,
             case 'daily':
                 return format(now, 'yyyy-MM-dd');
             case 'weekly':
-                const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-                const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-                return `${format(weekStart, 'yyyy-MM-dd')} to ${format(weekEnd, 'yyyy-MM-dd')}`;
+                const weekStart2 = startOfWeek(now, { weekStartsOn: 0 });
+                const weekEnd2 = endOfWeek(now, { weekStartsOn: 0 });
+                return `${format(weekStart2, 'yyyy-MM-dd')} to ${format(weekEnd2, 'yyyy-MM-dd')}`;
             case 'monthly':
                 return format(now, 'yyyy-MM');
         }

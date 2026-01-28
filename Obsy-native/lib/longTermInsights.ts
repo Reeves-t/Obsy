@@ -139,7 +139,7 @@ export const ensureWeeklyInsight = async (
     if (!userId || !settings || !captures) return null;
 
     const now = targetDate ?? new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
+    const weekStart = startOfWeek(now, { weekStartsOn: 0 }); // Sunday start (matches WEEK_STARTS_ON)
 
     // Fast path: use cached snapshot unless forcing regeneration
     if (!force) {

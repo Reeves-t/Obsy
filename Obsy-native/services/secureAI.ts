@@ -12,9 +12,58 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { AiToneId } from '@/lib/aiTone';
+import { AiToneId, getToneDefinition, isPresetTone } from '@/lib/aiTone';
+import { getCustomToneById } from '@/lib/customTone';
 
 export type InsightType = 'daily' | 'weekly' | 'capture' | 'album' | 'tag' | 'month';
+
+/**
+ * Resolves a tone ID to its actual prompt text.
+ * - For preset tones: returns styleGuidelines from aiTone.ts
+ * - For custom tones: fetches prompt from custom_ai_tones table
+ * Returns both the name and prompt for custom tones.
+ */
+export async function resolveTonePrompt(
+    toneId: string,
+    selectedCustomToneId?: string
+): Promise<{ resolvedTone: string; resolvedPrompt: string; toneName?: string }> {
+    // If a custom tone is selected, fetch its prompt from the database
+    if (selectedCustomToneId) {
+        try {
+            const customTone = await getCustomToneById(selectedCustomToneId);
+            if (customTone?.prompt) {
+                console.log('[SecureAI] Using custom tone:', customTone.name);
+                return {
+                    resolvedTone: customTone.name, // Return actual custom tone name, not "custom"
+                    resolvedPrompt: customTone.prompt,
+                    toneName: customTone.name
+                };
+            }
+        } catch (error) {
+            console.error('[SecureAI] Failed to fetch custom tone, falling back to preset:', error);
+        }
+    }
+
+    // For preset tones, get the styleGuidelines
+    if (isPresetTone(toneId)) {
+        const definition = getToneDefinition(toneId as AiToneId);
+        console.log('[SecureAI] Using preset tone:', definition.label);
+        return {
+            resolvedTone: toneId,
+            resolvedPrompt: definition.styleGuidelines,
+            toneName: definition.label
+        };
+    }
+
+    // Fallback to neutral
+    const neutralDef = getToneDefinition('neutral');
+    console.log('[SecureAI] Falling back to neutral tone');
+    return {
+        resolvedTone: 'neutral',
+        resolvedPrompt: neutralDef.styleGuidelines,
+        toneName: neutralDef.label
+    };
+}
 
 export interface AiSettings {
     tone: AiToneId;

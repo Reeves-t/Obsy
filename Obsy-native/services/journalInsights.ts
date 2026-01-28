@@ -118,8 +118,8 @@ export async function generateJournalWeeklyInsight(
     captures: Capture[],
     settings: AiSettings
 ): Promise<string | null> {
-    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+    const weekStart = startOfWeek(date, { weekStartsOn: 0 });
+    const weekEnd = endOfWeek(date, { weekStartsOn: 0 });
     const weekLabel = `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d')}`;
 
     // Filter journal entries for this week
@@ -193,11 +193,11 @@ export async function generateJournalMonthlyInsight(
     }
 
     // Group by week
-    const weekStarts = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 });
+    const weekStarts = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 0 });
     const groupedByDate = groupEntriesByDate(journalEntries);
 
     const weeks: JournalWeekForInsight[] = weekStarts.map(weekStartDate => {
-        const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
+        const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 0 });
         const weekLabel = `${format(weekStartDate, 'MMM d')} - ${format(weekEndDate, 'MMM d')}`;
 
         // Get all days in this week that have entries

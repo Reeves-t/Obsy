@@ -66,28 +66,158 @@ interface MonthSignals {
 }
 
 // ============================================
-// PROMPTS (Server-side only - never sent to client)
+// MASTER PROMPT v1.0 (Server-side only - never sent to client)
 // ============================================
 
-const LANGUAGE_CONSTRAINTS = `
-BANNED WORDS: "journal", "entry", "entries", "capture", "captures", "photo", "photos", "logged", "recorded", "data", "app", "tracked"
-Use natural language: "moments", "feelings", "experiences", "your day", "this time"
-NEVER mention the app or tracking mechanics.
+const SYSTEM_PROMPT = `
+═══════════════════════════════════════════════════════════════════════════════
+OBSY INSIGHT GENERATION — MASTER PROMPT v1.0
+═══════════════════════════════════════════════════════════════════════════════
+
+You are generating personal insights for a mood-tracking app. Your output should feel like a thoughtful narrator reflecting on someone's emotional day — never like a chatbot, therapist, or hype machine.
+
+═══════════════════════════════════════════════════════════════════════════════
+ABSOLUTE NO-GO LIST (NEVER USE)
+═══════════════════════════════════════════════════════════════════════════════
+
+• Exclamation marks (!)
+• Questions of any kind (?)
+• Second person pronouns: "you", "your", "you're" — NEVER address the reader directly
+• First person pronouns: "we", "let's", "I" — you are not a character
+• Character names or personas ("Ah, dear traveler...", "Saiyan", "Goku", etc.)
+• Roleplay framing ("As your guide...")
+• Therapy language ("It's okay to feel...", "Remember to be kind to yourself...")
+• Hype or cheerleading ("You crushed it!", "What a day!")
+• Emojis or emoticons
+• Meta-commentary about the app ("Based on your captures...", "Looking at your data...")
+• Banned words: "journal", "entry", "entries", "capture", "captures", "photo", "photos", "logged", "recorded", "data", "app", "tracked", "user"
+
+═══════════════════════════════════════════════════════════════════════════════
+VOICE & FORMAT RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+• THIRD PERSON ONLY: Write as an observer ("The morning carried...", "A sense of calm settled...")
+• CONTINUOUS PARAGRAPHS: No line breaks between sentences. Write flowing prose.
+• CHRONOLOGICAL ORDER: Always process moments in time order (morning → night, Sunday → Saturday, Week 1 → Week 4)
+
+═══════════════════════════════════════════════════════════════════════════════
+CORE LOGIC RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+CRITICAL TIME RULE:
+• ALWAYS process in chronological order
+• Daily: morning → afternoon → evening → night
+• Weekly: Sunday → Saturday (week starts Sunday)
+• Monthly: Week 1 → Week 2 → Week 3 → Week 4
+• Reference time naturally, never list mechanically
+
+MOOD HANDLING:
+• Heavy moods (sad, anxious, frustrated): Acknowledge without fixing. No silver linings.
+• Light moods (happy, calm, grateful): Celebrate subtly. No hype.
+• Mixed moods: Embrace the complexity. Life is rarely one thing.
+
+TONE CONTROL:
+• The user's selected tone is a STYLISTIC FILTER only.
+• Never name the tone's inspiration ("In the style of noir...")
+• Never break character or acknowledge the tone exists.
+• Apply the tone's personality to HOW you write, not WHAT you write about.
+
+═══════════════════════════════════════════════════════════════════════════════
+INSIGHT TYPE SPECIFICATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+DAILY INSIGHTS:
+• 2-5 sentences, ONE continuous paragraph (no line breaks)
+• Structure: Baseline → Shift → Resolution → Reflection
+• Even with 1-2 moments, write full sentences with emotional texture
+
+WEEKLY INSIGHTS:
+• 5-8+ sentences, TWO paragraphs
+• Can be generated after just 1 day — write meaningfully even with limited data
+• Focus on the HIGH and LOW points of the week
+• Keep chronological order: Sunday → Saturday
+• You CAN subtly reference specific days ("Sunday carried...", "By midweek...")
+• Weave days into a narrative arc, don't list them mechanically
+
+MONTHLY INSIGHTS:
+• 6-10+ sentences, TWO paragraphs minimum (more paragraphs at month-end)
+• Can be generated after just 1 week — write meaningfully even with partial data
+• Summarize the weeks chronologically: how the month started, how it evolved
+• You CAN subtly reference weeks ("The first week...", "As the month progressed...")
+• Paint an emotional picture like describing a season
+• NEVER mention numbers, percentages, or "Week 1 had X..."
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT REQUIREMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
+• Observational: Describe what happened, not what should happen.
+• Grounded: Stay specific to the actual moments.
+• Intentional: Every sentence should earn its place.
+• Calm: Even playful tones should feel composed, not manic.
+• Aesthetic: Write like a thoughtful narrator, not a productivity app.
+• CONTINUOUS PROSE: No line breaks within paragraphs. Flowing text only.
+
+GOOD EXAMPLE:
+"The morning began with the quiet satisfaction of a database finally behaving. As the day progressed, a sense of gratitude settled in, the kind that comes from recognizing small wins stacking up."
+
+BAD EXAMPLE:
+"Ah, so the database finally yielded to your charms, did it?"
+
+═══════════════════════════════════════════════════════════════════════════════
 `;
 
+// Legacy constant for backward compatibility
+const LANGUAGE_CONSTRAINTS = SYSTEM_PROMPT;
+
+// TONE_STYLES must match the preset tones in Obsy-native/lib/aiTone.ts
 const TONE_STYLES: Record<string, string> = {
-    neutral: "Be observational and slightly poetic. Focus on emotional truth without judgment.",
-    gentle: "Be warm, supportive, and encouraging. Validate feelings without toxic positivity.",
-    snarky: "Be witty and a bit sardonic. Poke fun gently but never be mean.",
-    cosmic: "Speak as if viewing life from a vast cosmic perspective. Make the mundane feel epic.",
-    haiku: "Respond in haiku format (5-7-5 syllables). Be profound in brevity.",
-    film_noir: "Channel a 1940s detective narrator. Moody, atmospheric, metaphor-heavy.",
-    nature: "Draw parallels to natural phenomena. Seasons, weather, ecosystems.",
+    neutral: `Use a plain, observant, and balanced tone. Avoid emotional push or strong interpretations. Act as a clear mirror of the user's day. Keep sentences straightforward and descriptive.`,
+    stoic_calm: `Use a restrained, grounded, and steady tone. Use short sentences and avoid unnecessary commentary. Focus on acceptance and calm observation.`,
+    dry_humor: `Use a dry, understated, and subtly witty tone. Avoid sarcasm or meanness. Humor should be quiet and clever, not loud.`,
+    mystery_noir: `Use a moody, atmospheric, and metaphor-heavy tone. Channel a 1940s detective narrator. Describe the day like a scene from a noir film.`,
+    cinematic: `Describe the day like a scene or sequence in a film. Focus on a sense of motion or stillness. Use visual framing and narrative flow.`,
+    dreamlike: `Use a soft, abstract, and fluid tone. Focus on gentle imagery and atmosphere over logic. No sharp conclusions or clinical observations.`,
+    romantic: `Use a warm, intimate, and emotionally close tone. You may romanticize heavy moods without trying to fix them. Avoid being cheesy or overly dramatic; keep it tasteful.`,
+    gentle_roast: `Use a light, teasing, and affectionate tone. Never be mean or judgmental; the humor is always on the user's side. Keep it playful and warm. Poke fun gently at the user's day.`,
+    inspiring: `Use an uplifting but grounded tone. Avoid clichés, slogans, or toxic positivity. Focus on quiet forward motion and steady resolve.`,
+    // Legacy fallbacks
+    gentle: `Be warm, supportive, and encouraging. Validate feelings without toxic positivity.`,
+    snarky: `Be witty and a bit sardonic. Poke fun gently but never be mean.`,
+    cosmic: `Speak as if viewing life from a vast cosmic perspective. Make the mundane feel epic.`,
+    haiku: `Respond in haiku format (5-7-5 syllables). Be profound in brevity.`,
+    film_noir: `Channel a 1940s detective narrator. Moody, atmospheric, metaphor-heavy.`,
+    nature: `Draw parallels to natural phenomena. Seasons, weather, ecosystems.`,
+};
+
+// Time bucket order for chronological sorting
+const TIME_ORDER: Record<string, number> = {
+    "early morning": 0,
+    "morning": 1,
+    "late morning": 2,
+    "midday": 3,
+    "afternoon": 4,
+    "late afternoon": 5,
+    "evening": 6,
+    "night": 7,
+    "late night": 8,
+    "sometime": 5, // Default to middle of day
 };
 
 function buildDailyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
-    const captures = data.captures || [];
+    const rawCaptures = data.captures || [];
     const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
+
+    console.log(`[generate-insight] Building daily prompt with tone: "${tone}"`);
+    console.log(`[generate-insight] Tone style being used: "${toneStyle.substring(0, 80)}..."`);
+    console.log(`[generate-insight] Number of captures: ${rawCaptures.length}`);
+
+    // Sort captures chronologically by time bucket
+    const captures = [...rawCaptures].sort((a, b) => {
+        const timeA = TIME_ORDER[a.timeBucket?.toLowerCase() || "sometime"] ?? 5;
+        const timeB = TIME_ORDER[b.timeBucket?.toLowerCase() || "sometime"] ?? 5;
+        return timeA - timeB;
+    });
 
     const captureDescriptions = captures.map((c, i) => {
         const time = c.timeBucket || "sometime";
@@ -97,21 +227,34 @@ function buildDailyPrompt(data: InsightRequest["data"], tone: string, customTone
         return `${i + 1}. ${time}: Feeling ${mood}${note}${tags}`;
     }).join("\n");
 
-    return `You are generating a daily insight for ${data.dateLabel || "today"}.
+    return `${SYSTEM_PROMPT}
 
-TONE: ${toneStyle}
+═══════════════════════════════════════════════════════════════════════════════
+TONE STYLE (Apply as a stylistic filter — never name or acknowledge it)
+═══════════════════════════════════════════════════════════════════════════════
 
-${LANGUAGE_CONSTRAINTS}
+${toneStyle}
 
-USER'S DAY:
+═══════════════════════════════════════════════════════════════════════════════
+TASK: DAILY INSIGHT FOR ${data.dateLabel || "today"}
+═══════════════════════════════════════════════════════════════════════════════
+
+USER'S DAY (chronological order):
 ${captureDescriptions || "No specific moments recorded."}
 
+STRUCTURE GUIDE:
+1. Baseline: How the day started (reference the first moment)
+2. Shift: What changed or stood out (middle moments)
+3. Resolution: How things settled (later moments)
+4. Reflection: A closing observation (not advice)
+
 RULES:
-- Write 2-4 sentences that reflect the emotional arc of the day
+- Write 2-4 FULL sentences even if only 1-2 moments exist
+- Weave moments into a narrative arc, don't list them
+- Reference time naturally ("The morning began...", "By evening...")
 - Be specific to what happened, not generic
-- ${captures.length <= 2 ? "Keep it brief (1-2 sentences)" : "You can be more detailed"}
 - Never give advice or therapy
-- Never use banned words
+- EMBODY THE TONE — this is the most important rule
 
 Respond with JSON:
 {
@@ -123,21 +266,56 @@ Respond with JSON:
 
 function buildWeeklyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
     const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
+    const captures = data.captures || [];
 
-    return `You are generating a weekly reflection for ${data.weekLabel || "this week"}.
+    console.log(`[generate-insight] Building weekly prompt with tone: "${tone}"`);
+    console.log(`[generate-insight] Weekly captures count: ${captures.length}`);
 
-TONE: ${toneStyle}
+    // Group captures by day and find high/low days
+    const dayGroups: Record<string, typeof captures> = {};
+    captures.forEach(c => {
+        const day = c.date || "unknown";
+        if (!dayGroups[day]) dayGroups[day] = [];
+        dayGroups[day].push(c);
+    });
 
-${LANGUAGE_CONSTRAINTS}
+    // Sort days chronologically
+    const sortedDays = Object.keys(dayGroups).sort();
+    const daysCount = sortedDays.length;
 
-WEEK SUMMARY:
-${JSON.stringify(data.captures?.slice(0, 20) || [], null, 2)}
+    // Build day summaries in chronological order
+    const daySummaries = sortedDays.map(day => {
+        const dayCaptures = dayGroups[day];
+        const moods = dayCaptures.map(c => c.mood || "neutral");
+        const primaryMood = moods[0] || "neutral";
+        const notes = dayCaptures.filter(c => c.note).map(c => c.note).slice(0, 2);
+        return `${day}: ${primaryMood}${notes.length ? ` — "${notes[0]?.slice(0, 50)}"` : ""}`;
+    }).join("\n");
 
-RULES:
-- Write 3-5 sentences capturing the week's emotional journey
-- Look for patterns and themes across days
-- Be specific, not generic
+    return `${SYSTEM_PROMPT}
+
+═══════════════════════════════════════════════════════════════════════════════
+TONE STYLE (Apply as a stylistic filter — never name or acknowledge it)
+═══════════════════════════════════════════════════════════════════════════════
+
+${toneStyle}
+
+═══════════════════════════════════════════════════════════════════════════════
+TASK: WEEKLY REFLECTION FOR ${data.weekLabel || "this week"}
+═══════════════════════════════════════════════════════════════════════════════
+
+WEEK DATA (${daysCount} day${daysCount === 1 ? "" : "s"} so far):
+${daySummaries || "No days recorded yet."}
+
+WEEKLY INSIGHT RULES:
+- This insight may be generated after just 1 day — write meaningfully even with limited data
+- Focus on the HIGH and LOW points of the week
+- Keep chronological order: start with how the week began, end with how it's going
+- You CAN subtly reference specific days ("Monday started with...", "By midweek...")
+- Write 3-5 sentences about the week's emotional arc
+- Weave the days into a narrative, don't list them mechanically
 - Never give advice
+- EMBODY THE TONE
 
 Respond with JSON:
 {
@@ -148,25 +326,75 @@ Respond with JSON:
 function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
     const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
     const signals = data.signals;
+    const captures = data.captures || [];
 
-    return `You are generating a monthly narrative for ${data.monthLabel || "this month"}.
+    console.log(`[generate-insight] Building monthly prompt with tone: "${tone}"`);
 
-TONE: ${toneStyle}
+    // Translate volatility score to feeling
+    const volatility = signals?.volatilityScore || 0;
+    const volatilityFeeling = volatility > 0.7 ? "emotionally turbulent" :
+        volatility > 0.4 ? "varied and shifting" :
+        volatility > 0.2 ? "gently undulating" : "steady and consistent";
 
-${LANGUAGE_CONSTRAINTS}
+    // Translate active days to engagement level
+    const activeDays = signals?.activeDays || 0;
+    const engagementLevel = activeDays > 20 ? "deeply engaged" :
+        activeDays > 10 ? "regularly present" :
+        activeDays > 5 ? "occasionally checking in" : "lightly touched";
 
-MONTH SIGNALS:
-- Dominant mood: ${signals?.dominantMood || "unknown"}
-- Secondary mood: ${signals?.runnerUpMood || "none"}
-- Active days: ${signals?.activeDays || 0}
-- Emotional volatility: ${Math.round((signals?.volatilityScore || 0) * 100)}%
-- Recent trend: ${signals?.last7DaysShift || "stable"}
+    // Group captures by week for week-by-week summary
+    const weekGroups: Record<string, typeof captures> = {};
+    captures.forEach(c => {
+        if (c.date) {
+            const date = new Date(c.date);
+            const weekNum = Math.ceil(date.getDate() / 7);
+            const weekLabel = `Week ${weekNum}`;
+            if (!weekGroups[weekLabel]) weekGroups[weekLabel] = [];
+            weekGroups[weekLabel].push(c);
+        }
+    });
 
-RULES:
-- Write 3-5 sentences about how the month felt
-- DO NOT mention numbers or statistics
-- Paint an emotional picture
+    const weeksCount = Object.keys(weekGroups).length;
+    const weekSummaries = Object.entries(weekGroups).map(([week, weekCaptures]) => {
+        const moods = weekCaptures.map(c => c.mood || "neutral");
+        const moodCounts: Record<string, number> = {};
+        moods.forEach(m => moodCounts[m] = (moodCounts[m] || 0) + 1);
+        const primaryMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "mixed";
+        return `${week}: primarily ${primaryMood} (${weekCaptures.length} moments)`;
+    }).join("\n");
+
+    return `${SYSTEM_PROMPT}
+
+═══════════════════════════════════════════════════════════════════════════════
+TONE STYLE (Apply as a stylistic filter — never name or acknowledge it)
+═══════════════════════════════════════════════════════════════════════════════
+
+${toneStyle}
+
+═══════════════════════════════════════════════════════════════════════════════
+TASK: MONTHLY NARRATIVE FOR ${data.monthLabel || "this month"}
+═══════════════════════════════════════════════════════════════════════════════
+
+MONTH PROGRESS: ${weeksCount} week${weeksCount === 1 ? "" : "s"} so far
+${weekSummaries || "No weeks recorded yet."}
+
+MONTH FEELINGS (translate these to prose, never mention raw data):
+- The month was primarily colored by: ${signals?.dominantMood || "mixed feelings"}
+${signals?.runnerUpMood ? `- With undertones of: ${signals.runnerUpMood}` : ""}
+- The emotional texture was: ${volatilityFeeling}
+- Engagement level: ${engagementLevel}
+- Recent direction: ${signals?.last7DaysShift || "holding steady"}
+
+MONTHLY INSIGHT RULES:
+- This insight may be generated after just 1 week — write meaningfully even with partial data
+- Summarize the weeks chronologically: how the month started, how it evolved
+- You CAN subtly reference weeks ("The first week carried...", "As the month progressed...")
+- Write 3-5 sentences about how the month FELT
+- NEVER mention numbers, percentages, or statistics
+- NEVER say "X days" or "Y percent" or "Week 1 had..."
+- Paint an emotional picture, like describing a season
 - Never give advice
+- EMBODY THE TONE
 
 Return plain text (no JSON).`;
 }
@@ -175,18 +403,18 @@ function buildCapturePrompt(data: InsightRequest["data"], tone: string, customTo
     const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
     const capture = data.captures?.[0];
 
-    return `You are generating a tiny reflection for a single moment.
+    return `${SYSTEM_PROMPT}
 
-TONE: ${toneStyle}
+TONE STYLE: ${toneStyle}
+
+TASK: MICRO-REFLECTION FOR A SINGLE MOMENT
 
 MOMENT:
 - Feeling: ${capture?.mood || "neutral"}
 - Note: ${capture?.note || "(none)"}
 - Time: ${capture?.timeBucket || "sometime"}
 
-${LANGUAGE_CONSTRAINTS}
-
-Write 1-2 sentences. Be observational, not prescriptive.`;
+Write 1-2 sentences. Be observational, not prescriptive. EMBODY THE TONE.`;
 }
 
 function buildAlbumPrompt(data: InsightRequest["data"], tone: string): string {
@@ -259,10 +487,10 @@ serve(async (req: Request) => {
         // Initialize Supabase client with user's token
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
         const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-        
-        console.log("[generate-insight] Supabase URL present:", !!supabaseUrl);
-        console.log("[generate-insight] Supabase Anon Key present:", !!supabaseAnonKey);
-        
+
+        console.log("[generate-insight] Supabase URL:", supabaseUrl);
+        console.log("[generate-insight] Supabase Anon Key (first 20 chars):", supabaseAnonKey?.substring(0, 20));
+
         if (!supabaseUrl || !supabaseAnonKey) {
             console.log("[generate-insight] ERROR: Missing Supabase env vars");
             return new Response(
@@ -270,16 +498,20 @@ serve(async (req: Request) => {
                 { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
-        
+
         const supabase = createClient(supabaseUrl, supabaseAnonKey, {
             global: { headers: { Authorization: authHeader } },
         });
 
-        // Get user from token
+        // Extract JWT from Authorization header
+        const token = authHeader.replace('Bearer ', '');
+
+        // Get user from token - pass token directly to getUser()
         console.log("[generate-insight] Verifying user token...");
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        
-        console.log("[generate-insight] Auth result - user:", user?.id, "error:", authError?.message);
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+        console.log("[generate-insight] Auth result - user:", user?.id);
+        console.log("[generate-insight] Auth error:", authError ? JSON.stringify(authError) : "none");
         
         if (authError || !user) {
             console.log("[generate-insight] ERROR: Auth failed -", authError?.message || "No user");
@@ -358,7 +590,7 @@ serve(async (req: Request) => {
         }
 
         const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

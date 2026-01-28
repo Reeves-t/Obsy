@@ -40,10 +40,11 @@ export const MoodChart = memo(function MoodChart({ captures, timeframe }: MoodCh
             }
         });
 
+        // Show ALL moods, not just top 5
         const sortedMoods = Object.entries(moodCounts)
             .sort(([, a], [, b]) => b - a)
-            .slice(0, 5) // Top 5 moods
             .map(([moodId, count]) => {
+                // Use snapshot name for custom moods, fallback to getMoodLabel
                 const label = moodSnapshots[moodId] || getMoodLabel(moodId);
                 return {
                     id: moodId,

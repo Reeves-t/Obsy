@@ -52,7 +52,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
         const checkSaved = async () => {
             if (!user || !weeklyInsight) return;
             const archives = await fetchArchives(user.id);
-            const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
             const dateStr = format(weekStart, "yyyy-MM-dd");
             const saved = archives.some(a => a.type === 'weekly' && a.date_scope.startsWith(dateStr));
             setIsSaved(saved);
@@ -77,7 +77,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
 
         setSaving(true);
         try {
-            const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
             const result = await archiveInsightWithResult({
                 userId: user.id,
                 type: 'weekly',

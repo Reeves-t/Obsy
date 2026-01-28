@@ -35,7 +35,7 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
 
     loadSnapshot: async (userId: string) => {
         const now = new Date();
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+        const weekStart = startOfWeek(now, { weekStartsOn: 0 });
         const snapshot = await fetchInsightHistory(userId, 'weekly', weekStart, now);
 
         if (snapshot) {

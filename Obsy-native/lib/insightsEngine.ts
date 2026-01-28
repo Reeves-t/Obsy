@@ -1,4 +1,4 @@
-import { AiSettings, generateDailyInsightSecure, CaptureData } from "@/services/secureAI";
+import { AiSettings, generateDailyInsightSecure, CaptureData, resolveTonePrompt } from "@/services/secureAI";
 import { InsightSentence } from "@/services/dailyInsights";
 import { fetchInsightHistory, upsertInsightHistory } from "@/services/insightHistory";
 import { archiveInsight } from "@/services/archive";
@@ -101,11 +101,17 @@ export async function ensureDailyInsight(
 
     // Get AI generated summary via secure edge function
     try {
+        // Resolve tone to actual prompt text (fetches custom tone from DB if needed)
+        const { resolvedTone, resolvedPrompt } = await resolveTonePrompt(
+            settings.tone,
+            settings.selectedCustomToneId
+        );
+
         const secureResult = await generateDailyInsightSecure(
             dateLabel,
             captureData,
-            settings.tone,
-            settings.selectedCustomToneId
+            resolvedTone,
+            resolvedPrompt  // Now passing actual prompt text, not UUID
         );
 
         // Map secure response to DailySummaryResult format

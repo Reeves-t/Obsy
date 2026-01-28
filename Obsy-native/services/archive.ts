@@ -218,8 +218,8 @@ export async function archiveInsightWithResult(input: ArchiveInput): Promise<Arc
             dateScope = format(date, "yyyy-MM-dd");
             break;
         case 'weekly':
-            const start = startOfWeek(date, { weekStartsOn: 1 });
-            const end = endOfWeek(date, { weekStartsOn: 1 });
+            const start = startOfWeek(date, { weekStartsOn: 0 });
+            const end = endOfWeek(date, { weekStartsOn: 0 });
             const startStr = format(start, "MMM d");
             const endStr = format(end, "MMM d");
             title = `Weekly Insight • ${startStr}–${endStr}`;
