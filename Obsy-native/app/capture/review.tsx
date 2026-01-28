@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
     },
     imageContainer: {
         width: '100%',
-        aspectRatio: 1, // Square 1:1 aspect ratio
+        aspectRatio: 3 / 4, // BeReal-style 3:4 aspect ratio
         borderRadius: 24,
         overflow: 'hidden',
         borderWidth: 1,

@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     },
     imageSection: {
         width: '100%',
-        aspectRatio: 1,
+        aspectRatio: 3 / 4, // BeReal-style 3:4 aspect ratio
         backgroundColor: '#18181b',
         position: 'relative',
         borderBottomWidth: 1,
