@@ -21,6 +21,7 @@ import { useMockAlbums } from '@/contexts/MockAlbumContext';
 import { uploadCaptureImage } from '@/services/storage';
 import { useCustomMoodStore } from '@/lib/customMoodStore';
 import * as FileSystem from 'expo-file-system/legacy';
+import { optimizeCapture, formatBytes } from '@/services/imageOptimizer';
 
 export default function CaptureReviewScreen() {
     const { imageUri, challengeId, challengeTemplateId, challengeTitle, albumId: initialAlbumId,
@@ -108,21 +109,32 @@ export default function CaptureReviewScreen() {
 
         setIsSaving(true);
         try {
+            // 0. Optimize image for storage efficiency (BeReal-style tiered storage)
+            // Creates: thumbnail (~10KB), preview (~80KB), full-res (~200KB)
+            // Saves ~90% storage vs raw camera output
+            console.log('[Review] Optimizing image for storage...');
+            const optimized = await optimizeCapture(imageUri);
+            console.log('[Review] Image optimized:');
+            console.log('  - Thumbnail:', optimized.thumbnail);
+            console.log('  - Preview:', optimized.preview);
+            console.log('  - Full-res (for cloud):', optimized.fullRes);
+
             // Check if user wants Obsy Notes
             const profile = await getProfile();
             let obsyNote: string | null = null;
 
             if (profile?.ai_per_photo_captions) {
                 const moodLabel = MOODS.find(m => m.id === moodId)?.label || "neutral";
-                obsyNote = await generateObsyNote(imageUri, moodLabel);
+                // Use preview for AI analysis (good enough quality, faster)
+                obsyNote = await generateObsyNote(optimized.preview, moodLabel);
             }
 
-            // 1. Create the Master Capture (always created)
+            // 1. Create the Master Capture (using preview for local display)
             // Get the mood name for the snapshot - required for historical preservation
             const moodName = getMoodById(moodId)?.name || MOODS.find(m => m.id === moodId)?.label || moodId;
 
             const newCaptureId = await createCapture(
-                imageUri,
+                optimized.preview, // Use optimized preview instead of raw image
                 moodId,
                 moodName,
                 note,
@@ -143,110 +155,66 @@ export default function CaptureReviewScreen() {
                 console.log('[Review] Albums to link:', albumIds, 'Entry ID:', newCaptureId);
 
                 if (albumIds.length > 0) {
-                    // CRITICAL: We need to upload the photo to Supabase so others can see it
-                    // The default behavior of createCapture is local-only
-                    // NOTE: createCapture MOVES the file from imageUri to captures/ folder,
-                    // so we need to fetch the actual stored path from the database
+                    // CRITICAL: Upload the optimized full-res image to cloud for sharing
+                    // This is smaller than raw (~200KB vs 2-5MB) but still high quality
                     let cloudUploadSucceeded = false;
 
                     if (user) {
-                        console.log('[Review] Album selected, triggering cloud upload for sharing...');
+                        console.log('[Review] Album selected, uploading optimized full-res for sharing...');
                         console.log('[Review] User ID:', user.id);
                         console.log('[Review] Album IDs to link:', albumIds);
+                        console.log('[Review] Using optimized full-res:', optimized.fullRes);
 
-                        // Fetch the actual photo_path from the entry (it's a filename in captures/ folder)
-                        const { data: entryData, error: entryError } = await supabase
-                            .from('entries')
-                            .select('photo_path')
-                            .eq('id', newCaptureId)
-                            .single();
+                        // Use the optimized full-res image directly (already exists, no need to fetch from DB)
+                        const localFilePath = optimized.fullRes;
 
-                        if (entryError || !entryData?.photo_path) {
-                            console.error('[Review] Failed to fetch entry photo_path:', entryError);
-                            console.error('[Review] Entry ID:', newCaptureId, 'Error:', entryError?.message);
+                        // Verify optimized full-res exists
+                        const fileInfo = await FileSystem.getInfoAsync(localFilePath);
+                        console.log('[Review] Optimized full-res check:', {
+                            exists: fileInfo.exists,
+                            size: fileInfo.exists && 'size' in fileInfo ? formatBytes(fileInfo.size) : 0,
+                            path: localFilePath
+                        });
+
+                        if (!fileInfo.exists) {
+                            console.error('[Review] Optimized full-res file does not exist, cannot upload');
                         } else {
-                            console.log('[Review] Original photo_path from DB:', entryData.photo_path);
+                            console.log('[Review] Uploading optimized full-res to cloud...');
 
-                            // Check if photo is already uploaded to cloud (path contains '/')
-                            if (entryData.photo_path.includes('/')) {
-                                console.log('[Review] Photo already in cloud, skipping upload');
-                                cloudUploadSucceeded = true;
-                            } else {
-                                // It's a local filename, need to upload to cloud
-                                // Extract just the filename in case photo_path has any path components
-                                const filename = entryData.photo_path.split('/').pop() || entryData.photo_path;
-                                const CAPTURE_DIR = FileSystem.documentDirectory + 'captures';
-                                const localFilePath = CAPTURE_DIR + '/' + filename;
+                            // Try upload with one retry
+                            let remotePath = await uploadCaptureImage(localFilePath, user.id);
 
-                                console.log('[Review] Local file path:', localFilePath);
-                                console.log('[Review] Filename extracted:', filename);
+                            if (!remotePath) {
+                                console.warn('[Review] First upload attempt failed, retrying in 1 second...');
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                remotePath = await uploadCaptureImage(localFilePath, user.id);
+                            }
 
-                                // Verify file exists before attempting upload
-                                const fileInfo = await FileSystem.getInfoAsync(localFilePath);
-                                console.log('[Review] File existence check:', {
-                                    exists: fileInfo.exists,
-                                    size: fileInfo.exists ? fileInfo.size : 0,
-                                    path: localFilePath
-                                });
+                            if (remotePath) {
+                                console.log('[Review] Upload successful. Remote path:', remotePath);
 
-                                if (!fileInfo.exists) {
-                                    console.error('[Review] Local file does not exist, cannot upload');
-                                    console.error('[Review] Directory:', CAPTURE_DIR);
+                                // Update the entry in DB with the remote path
+                                const { error: updateError } = await supabase
+                                    .from('entries')
+                                    .update({ photo_path: remotePath })
+                                    .eq('id', newCaptureId);
+
+                                if (updateError) {
+                                    console.error('[Review] Error updating photo_path after upload:', updateError);
                                 } else {
-                                    console.log('[Review] Attempting cloud upload...');
-
-                                    // Try upload with one retry
-                                    let remotePath = await uploadCaptureImage(localFilePath, user.id);
-
-                                    if (!remotePath) {
-                                        console.warn('[Review] First upload attempt failed, retrying in 1 second...');
-                                        // Wait 1 second before retry
-                                        await new Promise(resolve => setTimeout(resolve, 1000));
-                                        console.log('[Review] Retry attempt 1/1...');
-                                        remotePath = await uploadCaptureImage(localFilePath, user.id);
-                                    }
-
-                                    if (remotePath) {
-                                        console.log('[Review] Upload successful. Remote path:', remotePath);
-
-                                        // Validate the remote path contains '/' (required for album display)
-                                        if (!remotePath.includes('/')) {
-                                            console.warn('[Review] Remote path does not contain "/" - album display may fail:', remotePath);
-                                        } else {
-                                            // Update the entry in DB with the remote path
-                                            const { error: updateError } = await supabase
-                                                .from('entries')
-                                                .update({ photo_path: remotePath })
-                                                .eq('id', newCaptureId);
-
-                                            if (updateError) {
-                                                console.error('[Review] Error updating photo_path after upload:', updateError);
-                                                console.error('[Review] Update failed for entry:', newCaptureId);
-                                            } else {
-                                                console.log('[Review] Entry updated with remote photo_path:', remotePath);
-                                                console.log('[Review] Final photo_path value:', remotePath);
-                                                cloudUploadSucceeded = true;
-
-                                                // Verify the update actually persisted
-                                                const { data: verifyData, error: verifyError } = await supabase
-                                                    .from('entries')
-                                                    .select('photo_path')
-                                                    .eq('id', newCaptureId)
-                                                    .single();
-
-                                                console.log('[Review] Verification after update:', {
-                                                    expectedPath: remotePath,
-                                                    actualPath: verifyData?.photo_path,
-                                                    pathsMatch: verifyData?.photo_path === remotePath,
-                                                    verifyError
-                                                });
-                                            }
-                                        }
-                                    } else {
-                                        console.error('[Review] Photo upload failed after retry - uploadCaptureImage returned null');
-                                        console.error('[Review] Skipping album linking for entry:', newCaptureId);
-                                    }
+                                    console.log('[Review] Entry updated with remote photo_path:', remotePath);
+                                    cloudUploadSucceeded = true;
                                 }
+
+                                // Clean up local full-res after successful upload (keep preview + thumbnail)
+                                try {
+                                    await FileSystem.deleteAsync(localFilePath, { idempotent: true });
+                                    console.log('[Review] Deleted local full-res after cloud upload (saves space)');
+                                } catch (cleanupError) {
+                                    console.warn('[Review] Could not delete local full-res:', cleanupError);
+                                }
+                            } else {
+                                console.error('[Review] Photo upload failed after retry');
                             }
                         }
                     }
