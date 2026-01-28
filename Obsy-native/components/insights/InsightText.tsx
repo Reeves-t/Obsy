@@ -54,12 +54,19 @@ export function InsightText({
         return sentences.slice(0, collapsedSentences);
     }, [sentences, isExpanded, expandable, collapsedSentences]);
 
-    // Handle plain text split into paragraphs (not sentences) for natural flow
-    const fallbackParagraphs = React.useMemo(() => {
+    // Normalize text: collapse all newlines into single spaces for flowing prose
+    // This ensures AI-generated insights display as continuous text without line breaks
+    const normalizedText = React.useMemo(() => {
         return fallbackText
-            .split(/\n\n+/)
-            .filter(s => s.trim().length > 0);
+            .replace(/\n+/g, ' ')  // Replace all newlines with spaces
+            .replace(/\s+/g, ' ')  // Collapse multiple spaces into one
+            .trim();
     }, [fallbackText]);
+
+    // For plain text, keep as a single flowing block (no paragraph splitting)
+    const fallbackParagraphs = React.useMemo(() => {
+        return [normalizedText].filter(p => p.length > 0);
+    }, [normalizedText]);
 
     const visibleFallback = React.useMemo(() => {
         if (!expandable || isExpanded || fallbackParagraphs.length <= collapsedSentences) {
@@ -76,8 +83,11 @@ export function InsightText({
     const hasMoreContent = sentences.length > collapsedSentences && !isExpanded;
     const hasMoreFallback = fallbackParagraphs.length > collapsedSentences && !isExpanded;
 
-    // If we have structured sentences, render as stacked blocks with spacing
+    // If we have structured sentences, join them into flowing text
     if (sentences.length > 0) {
+        // Join all visible sentences into a single flowing paragraph
+        const flowingText = visibleSentences.map(s => s.text).join(' ');
+        
         return (
             <TouchableOpacity
                 activeOpacity={expandable ? 0.8 : 1}
@@ -85,25 +95,15 @@ export function InsightText({
                 disabled={!expandable}
             >
                 <View style={styles.sentenceContainer}>
-                    {visibleSentences.map((sentence, index) => (
-                        <View
-                            key={index}
-                            style={[
-                                styles.sentenceBlock,
-                                index < visibleSentences.length - 1 && styles.sentenceSpacing,
-                            ]}
-                        >
-                            <Text style={[styles.normalText, { color: textColor }, textStyle]}>
-                                {sentence.text}
-                            </Text>
-                        </View>
-                    ))}
+                    <Text style={[styles.normalText, { color: textColor }, textStyle]}>
+                        {flowingText}
+                    </Text>
                     {hasMoreContent && (
                         <Text style={[styles.ellipsis, { color: ellipsisColor }]}>...</Text>
                     )}
                 </View>
 
-                {expandable && (
+                {expandable && sentences.length > collapsedSentences && (
                     <View style={styles.expandIconContainer}>
                         <Ionicons
                             name={isExpanded ? 'chevron-up' : 'chevron-down'}
