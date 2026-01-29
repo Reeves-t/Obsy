@@ -22,6 +22,7 @@ import { uploadCaptureImage } from '@/services/storage';
 import { useCustomMoodStore } from '@/lib/customMoodStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { optimizeCapture, formatBytes } from '@/services/imageOptimizer';
+import { useSubscription } from '@/hooks/useSubscription';
 
 export default function CaptureReviewScreen() {
     const { imageUri, challengeId, challengeTemplateId, challengeTitle, albumId: initialAlbumId,
@@ -35,6 +36,7 @@ export default function CaptureReviewScreen() {
     const router = useRouter();
     const { createCapture, getAllTags, lastUsedAlbumId, setLastUsedAlbumId } = useCaptureStore();
     const { user } = useAuth();
+    const { tier } = useSubscription();
     const { completeChallenge: markChallengeComplete } = useDailyChallenges(user?.id ?? null);
     const { setHasSharedPublicImage } = useMockAlbums();
 
@@ -166,7 +168,8 @@ export default function CaptureReviewScreen() {
                 tags,
                 challengeId && challengeTemplateId ? { challengeId, templateId: challengeTemplateId } : undefined,
                 obsyNote,
-                usePhotoForInsight
+                usePhotoForInsight,
+                tier
             );
 
             if (challengeId && newCaptureId) {

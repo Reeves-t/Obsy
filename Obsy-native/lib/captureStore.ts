@@ -15,6 +15,10 @@ import { useTodayInsight } from "./todayInsightStore";
 import { useWeeklyInsight } from "./weeklyInsightStore";
 import { useMonthlyInsight } from "./monthlyInsightStore";
 import { decode } from 'base64-arraybuffer';
+import { getTierLimits } from "@/hooks/useSubscription";
+import { getLocalDayKey } from "@/lib/utils";
+
+type SubscriptionTier = 'guest' | 'free' | 'founder' | 'subscriber';
 
 type CaptureState = {
     captures: Capture[];
@@ -41,7 +45,8 @@ type CaptureState = {
         tags?: string[],
         challengeContext?: { challengeId: string, templateId: string },
         obsyNote?: string | null,
-        usePhotoForInsight?: boolean
+        usePhotoForInsight?: boolean,
+        tier?: SubscriptionTier
     ) => Promise<string | null>;
     deleteCapture: (id: string) => Promise<void>;
     getAllTags: () => string[];
@@ -290,10 +295,29 @@ export const useCaptureStore = create<CaptureState>()(
              * @param challengeContext - Optional challenge context object.
              * @param obsyNote - Optional AI-generated note.
              * @param usePhotoForInsight - Whether to use photo for AI insight.
+             * @param tier - User's subscription tier for limit enforcement.
              * @throws Error if imageUri, moodId, or moodName is missing or invalid.
+             * @throws Error if capture limits are exceeded for the user's tier.
              */
-            createCapture: async (imageUri, moodId, moodName, note, tags = [], challengeContext, obsyNote, usePhotoForInsight = false) => {
+            createCapture: async (imageUri, moodId, moodName, note, tags = [], challengeContext, obsyNote, usePhotoForInsight = false, tier = 'free' as SubscriptionTier) => {
                 const { data: { user } } = await supabase.auth.getUser();
+                const currentCaptures = get().captures;
+                const limits = getTierLimits(tier);
+
+                // Check daily capture limit
+                const todayKey = getLocalDayKey(new Date());
+                const todayCaptures = currentCaptures.filter(c =>
+                    getLocalDayKey(new Date(c.created_at)) === todayKey
+                ).length;
+
+                if (todayCaptures >= limits.captures_per_day) {
+                    throw new Error('Daily capture limit reached. Upgrade for unlimited captures.');
+                }
+
+                // Check total local storage limit
+                if (currentCaptures.length >= limits.max_local_captures) {
+                    throw new Error('Storage limit reached. Delete old captures or upgrade.');
+                }
 
                 // Validate required parameters
                 if (!imageUri) {
@@ -356,8 +380,9 @@ export const useCaptureStore = create<CaptureState>()(
 
                 let finalStoragePath = filename;
 
-                // 2. Cloud Backup if enabled
-                if (user && PRIVACY_FLAGS.ALLOW_CLOUD_PHOTO_UPLOAD) {
+                // 2. Cloud Backup - only for paid tiers (founder/subscriber)
+                const canCloudBackup = limits.cloud_backup && user && PRIVACY_FLAGS.ALLOW_CLOUD_PHOTO_UPLOAD;
+                if (canCloudBackup) {
                     try {
                         const base64 = await FileSystem.readAsStringAsync(destUri, { encoding: FileSystem.EncodingType.Base64 });
                         const storagePath = `${user.id}/${filename}`;
@@ -374,6 +399,8 @@ export const useCaptureStore = create<CaptureState>()(
                     } catch (err) {
                         console.warn("[captureStore] Cloud upload failed, falling back to local-only reference:", err);
                     }
+                } else if (!limits.cloud_backup) {
+                    console.log('[captureStore] Skipping cloud backup for', tier, 'tier');
                 }
 
                 // 3. Save to Store/DB

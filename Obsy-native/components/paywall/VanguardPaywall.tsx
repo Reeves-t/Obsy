@@ -249,18 +249,18 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                                     </View>
                                     <View style={styles.benefitItem}>
                                         <View style={styles.benefitIconContainer}>
-                                            <Ionicons name="sparkles" size={14} color="#fbbf24" />
+                                            <Ionicons name="infinite" size={14} color="#fbbf24" />
                                         </View>
                                         <Text style={styles.benefitText}>
-                                            <Text style={styles.benefitHighlight}>GOLD AVATAR RING</Text> (Social Flex)
+                                            <Text style={styles.benefitHighlight}>UNLIMITED INSIGHTS</Text> (Daily, Weekly, Monthly)
                                         </Text>
                                     </View>
                                     <View style={styles.benefitItem}>
                                         <View style={styles.benefitIconContainer}>
-                                            <Ionicons name="planet" size={14} color="#818cf8" />
+                                            <Ionicons name="color-palette" size={14} color="#fbbf24" />
                                         </View>
                                         <Text style={styles.benefitText}>
-                                            <Text style={styles.benefitHighlight}>FOUNDER ALBUMS ACCESS</Text> (Exclusive Community)
+                                            <Text style={styles.benefitHighlight}>ALL AI TONES</Text> (Including Custom Tones)
                                         </Text>
                                     </View>
                                 </View>

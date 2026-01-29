@@ -20,30 +20,64 @@ interface SubscriptionState {
     refresh: () => Promise<void>;
     checkLimit: (feature: FeatureName) => boolean;
     incrementLimit: (feature: FeatureName) => Promise<boolean>;
+    getLimits: () => TierLimits;
 }
 
-const LIMITS = {
+export interface TierLimits {
+    daily_insight: number;
+    group_insight: number;
+    weekly_insight: number;
+    captures_per_day: number;
+    max_local_captures: number;
+    archive_slots: number;
+    cloud_backup: boolean;
+}
+
+const LIMITS: Record<SubscriptionTier, TierLimits> = {
     guest: {
         daily_insight: 1,
         group_insight: 0,
         weekly_insight: 0,
+        captures_per_day: 3,
+        max_local_captures: 50,
+        archive_slots: 0,
+        cloud_backup: false,
     },
     free: {
         daily_insight: 3,
         group_insight: 3,
         weekly_insight: 1,
+        captures_per_day: 10,
+        max_local_captures: 200,
+        archive_slots: 30,
+        cloud_backup: false,
     },
     founder: {
         daily_insight: Infinity,
         group_insight: Infinity,
         weekly_insight: Infinity,
+        captures_per_day: Infinity,
+        max_local_captures: Infinity,
+        archive_slots: 150,
+        cloud_backup: true,
     },
     subscriber: {
         daily_insight: Infinity,
         group_insight: Infinity,
         weekly_insight: Infinity,
+        captures_per_day: Infinity,
+        max_local_captures: Infinity,
+        archive_slots: 150,
+        cloud_backup: true,
     },
 };
+
+/**
+ * Get limits for a specific tier. Exported for use in other modules.
+ */
+export function getTierLimits(tier: SubscriptionTier): TierLimits {
+    return LIMITS[tier];
+}
 
 export function useSubscription(): SubscriptionState {
     const { user } = useAuth();
@@ -160,6 +194,8 @@ export function useSubscription(): SubscriptionState {
         [user, tier, checkLimit]
     );
 
+    const getLimits = useCallback(() => LIMITS[tier], [tier]);
+
     return {
         tier,
         isFounder,
@@ -172,5 +208,6 @@ export function useSubscription(): SubscriptionState {
         refresh: fetchSettings,
         checkLimit,
         incrementLimit,
+        getLimits,
     };
 }

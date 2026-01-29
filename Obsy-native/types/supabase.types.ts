@@ -83,6 +83,8 @@ export interface Database {
                     daily_insight_count: number;
                     group_insight_count: number;
                     weekly_insight_count: number;
+                    daily_capture_count: number;
+                    capture_count_reset_at: string | null;
                     last_reset_date: string | null;
                     selected_custom_tone_id: string | null;
                     created_at: string;
@@ -101,6 +103,8 @@ export interface Database {
                     daily_insight_count?: number;
                     group_insight_count?: number;
                     weekly_insight_count?: number;
+                    daily_capture_count?: number;
+                    capture_count_reset_at?: string | null;
                     last_reset_date?: string | null;
                     selected_custom_tone_id?: string | null;
                     created_at?: string;
@@ -119,6 +123,8 @@ export interface Database {
                     daily_insight_count?: number;
                     group_insight_count?: number;
                     weekly_insight_count?: number;
+                    daily_capture_count?: number;
+                    capture_count_reset_at?: string | null;
                     last_reset_date?: string | null;
                     selected_custom_tone_id?: string | null;
                     created_at?: string;
