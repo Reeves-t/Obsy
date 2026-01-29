@@ -2,11 +2,27 @@ import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 
+type SubscriptionTier = 'guest' | 'free' | 'founder' | 'subscriber';
+
 /**
  * Uploads a local capture image to Supabase Storage.
  * Essential for album sharing so other users can see the photo.
+ * Only paid tiers (founder/subscriber) get cloud backup.
+ *
+ * @param localUri - Local file URI of the image
+ * @param userId - User ID for storage path
+ * @param tier - Subscription tier (optional, defaults to allowing upload for backwards compatibility)
  */
-export async function uploadCaptureImage(localUri: string, userId: string): Promise<string | null> {
+export async function uploadCaptureImage(
+    localUri: string,
+    userId: string,
+    tier?: SubscriptionTier
+): Promise<string | null> {
+    // Skip cloud upload for free/guest tiers
+    if (tier === 'guest' || tier === 'free') {
+        console.log('[Storage] Skipping cloud upload for', tier, 'tier');
+        return null;
+    }
     try {
         console.log('[Storage] Starting upload for:', localUri);
         console.log('[Storage] User ID:', userId);
