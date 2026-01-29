@@ -3,17 +3,9 @@ import { useState, useRef, useCallback } from 'react';
 import { Button, StyleSheet, Text, TouchableOpacity, View, Dimensions } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Colors from '@/constants/Colors';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-    withTiming,
-    interpolate,
-    runOnJS,
-} from 'react-native-reanimated';
+import { useSharedValue, runOnJS } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -28,21 +20,10 @@ const MIN_ZOOM = 0; // 0.5x ultrawide mapped to expo-camera 0
 const MAX_ZOOM = 0.65; // ~3x
 const DEFAULT_ZOOM = 0.15; // 1x
 
-// Zoom level mappings for pills and display
-const ZOOM_PRESETS = [
-    { label: '.5x', value: 0, displayScale: 0.5 },
-    { label: '1x', value: 0.15, displayScale: 1 },
-    { label: '2x', value: 0.35, displayScale: 2 },
-    { label: '3x', value: 0.65, displayScale: 3 },
-];
-
 // Flash mode cycle
 const FLASH_MODES: FlashMode[] = ['off', 'on', 'auto'];
 
-// Center indicator config
-const CENTER_INDICATOR_BASE_SIZE = 40;
-const CENTER_INDICATOR_MIN_SIZE = 24;
-const CENTER_INDICATOR_MAX_SIZE = 60;
+
 
 export default function CaptureScreen() {
     const [facing, setFacing] = useState<CameraType>('back');
@@ -58,9 +39,8 @@ export default function CaptureScreen() {
     const savedZoom = useSharedValue(DEFAULT_ZOOM);
     const [zoom, setZoom] = useState(DEFAULT_ZOOM);
     const [displayZoom, setDisplayZoom] = useState(1);
-    const [selectedPresetIndex, setSelectedPresetIndex] = useState(1); // Default to 1x
 
-    // Update display zoom, camera zoom, and preset highlight
+    // Update display zoom and camera zoom
     const updateZoomState = useCallback((zoomValue: number) => {
         // Update camera zoom
         setZoom(zoomValue);
@@ -68,18 +48,6 @@ export default function CaptureScreen() {
         // Map zoom value to display scale (0.5x - 3x)
         const scale = interpolateZoomToScale(zoomValue);
         setDisplayZoom(Math.round(scale * 10) / 10);
-
-        // Find closest preset
-        let closestIndex = 0;
-        let closestDiff = Math.abs(zoomValue - ZOOM_PRESETS[0].value);
-        ZOOM_PRESETS.forEach((preset, index) => {
-            const diff = Math.abs(zoomValue - preset.value);
-            if (diff < closestDiff) {
-                closestDiff = diff;
-                closestIndex = index;
-            }
-        });
-        setSelectedPresetIndex(closestIndex);
     }, []);
 
     // Map expo-camera zoom (0-1) to display scale (0.5-3)
@@ -119,23 +87,6 @@ export default function CaptureScreen() {
             savedZoom.value = zoomAnimated.value;
         });
 
-    // Center indicator animated style
-    const centerIndicatorStyle = useAnimatedStyle(() => {
-        // Inverse relationship: more zoom = smaller circle (narrower FOV)
-        const size = interpolate(
-            zoomAnimated.value,
-            [MIN_ZOOM, DEFAULT_ZOOM, MAX_ZOOM],
-            [CENTER_INDICATOR_MAX_SIZE, CENTER_INDICATOR_BASE_SIZE, CENTER_INDICATOR_MIN_SIZE]
-        );
-
-        return {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            opacity: withTiming(zoomAnimated.value !== DEFAULT_ZOOM ? 0.6 : 0.3, { duration: 200 }),
-        };
-    });
-
     if (!permission) {
         return <View style={styles.container} />;
     }
@@ -153,15 +104,6 @@ export default function CaptureScreen() {
 
     function toggleCameraFacing() {
         setFacing(current => (current === 'back' ? 'front' : 'back'));
-    }
-
-    function handleZoomPreset(index: number) {
-        const preset = ZOOM_PRESETS[index];
-        zoomAnimated.value = withSpring(preset.value, { damping: 15, stiffness: 150 });
-        savedZoom.value = preset.value;
-        setZoom(preset.value); // Update camera zoom
-        setSelectedPresetIndex(index);
-        setDisplayZoom(preset.displayScale);
     }
 
     function toggleFlash() {
@@ -244,7 +186,7 @@ export default function CaptureScreen() {
                             style={styles.camera}
                             facing={facing}
                             ref={cameraRef}
-                            zoom={zoom.value}
+                            zoom={zoom}
                             flash={flashMode}
                         >
                             {/* Subtle corner accents */}
@@ -252,39 +194,15 @@ export default function CaptureScreen() {
                             <View style={[styles.cornerAccent, styles.cornerTR]} />
                             <View style={[styles.cornerAccent, styles.cornerBL]} />
                             <View style={[styles.cornerAccent, styles.cornerBR]} />
-
-                            {/* Center zoom indicator */}
-                            <View style={styles.centerIndicatorContainer}>
-                                <Animated.View style={[styles.centerIndicator, centerIndicatorStyle]} />
-                            </View>
                         </CameraView>
                     </View>
                 </GestureDetector>
 
                 {/* Bottom Controls */}
                 <View style={styles.bottomControls}>
-                    {/* Zoom display */}
-                    <Text style={styles.zoomDisplayText}>{displayZoom}x</Text>
-
-                    {/* Zoom Pills */}
-                    <View style={styles.zoomPillsContainer}>
-                        {ZOOM_PRESETS.map((preset, index) => (
-                            <TouchableOpacity
-                                key={preset.label}
-                                onPress={() => handleZoomPreset(index)}
-                                style={[
-                                    styles.zoomPill,
-                                    selectedPresetIndex === index && styles.zoomPillSelected
-                                ]}
-                            >
-                                <Text style={[
-                                    styles.zoomPillText,
-                                    selectedPresetIndex === index && styles.zoomPillTextSelected
-                                ]}>
-                                    {preset.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                    {/* Single zoom indicator */}
+                    <View style={styles.zoomIndicator}>
+                        <Text style={styles.zoomIndicatorText}>{displayZoom}x</Text>
                     </View>
 
                     {/* Shutter Row */}
@@ -389,18 +307,6 @@ const styles = StyleSheet.create({
         borderBottomRightRadius: 8,
     },
 
-    // Center zoom indicator
-    centerIndicatorContainer: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    centerIndicator: {
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.4)',
-        backgroundColor: 'transparent',
-    },
-
     // Controls
     iconButton: {
         width: 44,
@@ -429,39 +335,21 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
 
-    // Zoom display
-    zoomDisplayText: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 13,
-        fontWeight: '500',
-        textAlign: 'center',
-        letterSpacing: 0.5,
-    },
-
-    // Zoom pills
-    zoomPillsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    zoomPill: {
-        paddingHorizontal: 14,
+    // Single zoom indicator
+    zoomIndicator: {
+        alignSelf: 'center',
+        paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    zoomPillSelected: {
-        backgroundColor: 'rgba(255,255,255,0.25)',
+        backgroundColor: 'rgba(255,255,255,0.15)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)',
+        borderColor: 'rgba(255,255,255,0.2)',
     },
-    zoomPillText: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    zoomPillTextSelected: {
+    zoomIndicatorText: {
         color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+        letterSpacing: 0.5,
     },
 
     // Shutter row

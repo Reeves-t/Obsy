@@ -14,22 +14,29 @@ export function resolveMood(moodId: string): Mood | null {
 
 /**
  * Gets a human-readable label for a mood ID.
- * Priority: nameSnapshot (historical truth) > resolved mood from store > capitalized ID.
+ * Priority: nameSnapshot (historical truth) > resolved mood from cache > capitalized ID.
  */
 export function getMoodLabel(moodId: string, nameSnapshot?: string): string {
-    // 1. If we have a snapshot, it's the most reliable source for "what the user meant at the time"
-    // and it's available even before stores hydrate.
-    if (nameSnapshot && nameSnapshot !== moodId) {
+    // 1. If we have a valid snapshot (not the ID itself, not starting with custom_), use it
+    if (nameSnapshot && nameSnapshot !== moodId && !nameSnapshot.startsWith('custom_')) {
         return nameSnapshot;
     }
 
-    // 2. Try resolving from store
+    // 2. Try resolving from mood cache (includes custom moods)
     const mood = resolveMood(moodId);
     if (mood) return mood.name;
 
-    // 3. Last fallback: capitalize the ID (e.g. "happy" -> "Happy")
-    // If it looks like a custom ID (has custom_), just return the snapshot or ID
-    if (moodId.startsWith('custom_')) return nameSnapshot || 'Custom Mood';
+    // 3. For custom moods, try harder before falling back
+    if (moodId.startsWith('custom_')) {
+        // Last resort: use snapshot if available, even if it looks like an ID
+        if (nameSnapshot && nameSnapshot.length > 0) {
+            return nameSnapshot;
+        }
+        // Only show "Custom Mood" if truly nothing else available
+        return 'Custom Mood';
+    }
+
+    // 4. Capitalize the ID for system moods (e.g. "happy" -> "Happy")
     return moodId.charAt(0).toUpperCase() + moodId.slice(1);
 }
 
