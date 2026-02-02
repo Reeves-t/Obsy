@@ -145,6 +145,10 @@ export function useSubscription(): SubscriptionState {
 
     const checkLimit = useCallback(
         (feature: FeatureName): boolean => {
+            // While loading, be optimistic and allow the action
+            // This prevents blocking founders/subscribers while settings are being fetched
+            if (loading && user) return true;
+
             if (tier === 'founder' || tier === 'subscriber') return true;
             if (feature === 'albums' && tier === 'guest') return false; // Guests can't access albums
             if (feature === 'albums') return true; // Free users can access albums
@@ -162,7 +166,7 @@ export function useSubscription(): SubscriptionState {
             const limit = LIMITS[tier][feature as keyof typeof LIMITS.guest];
             return currentCount < limit;
         },
-        [tier, settings]
+        [tier, settings, loading, user]
     );
 
     const incrementLimit = useCallback(
