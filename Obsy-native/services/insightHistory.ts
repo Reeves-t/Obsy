@@ -177,6 +177,27 @@ export async function upsertInsightHistory(
     const startStr = startDate.toISOString().split("T")[0];
     const endStr = endDate.toISOString().split("T")[0];
 
+    // Validate mood_flow before saving (graceful degradation - log but don't block)
+    if (type === 'daily' && moodSummary) {
+        const moodFlow = moodSummary.mood_flow;
+        if (!moodFlow || !Array.isArray(moodFlow) || moodFlow.length === 0) {
+            console.warn(`[upsertInsightHistory] Daily insight for ${startStr} has missing or empty mood_flow`);
+        } else {
+            // Validate each segment has required fields
+            const invalidSegments = moodFlow.filter(
+                (s: any) => !s.mood || typeof s.percentage !== 'number' || !s.color
+            );
+            if (invalidSegments.length > 0) {
+                console.warn(`[upsertInsightHistory] mood_flow has ${invalidSegments.length} invalid segments`);
+            }
+            // Check percentage sum
+            const totalPercentage = moodFlow.reduce((sum: number, s: any) => sum + (s.percentage || 0), 0);
+            if (Math.abs(totalPercentage - 100) > 1) {
+                console.warn(`[upsertInsightHistory] mood_flow percentages sum to ${totalPercentage}, not 100`);
+            }
+        }
+    }
+
     // UPSERT using unique index on (user_id, type, start_date)
     // The start_date alone uniquely identifies a time period (day, week start, or month start)
     const { data, error } = await (supabase as any)

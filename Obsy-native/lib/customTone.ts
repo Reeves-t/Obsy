@@ -9,7 +9,10 @@ export interface CustomTone extends CustomAiToneRow { }
 export const CUSTOM_TONE_RULES = {
     MAX_NAME_LENGTH: 50,
     MAX_PROMPT_LENGTH: 250,
-    BANNED_PHRASES: ['act as', 'pretend', 'you are', 'roleplay', 'impersonate', 'system prompt'],
+    BANNED_PHRASES: [
+        'act as', 'pretend', 'you are', 'roleplay', 'impersonate', 'system prompt',
+        'like a', 'as a', 'from the perspective of'  // Often precede character names
+    ],
     MARKDOWN_CHARS: ['*', '_', '#', '[', ']', '`'],
     EMOJI_REGEX: /[\u{1F300}-\u{1F9FF}]/u,
 };

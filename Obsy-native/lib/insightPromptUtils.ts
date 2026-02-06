@@ -12,7 +12,7 @@ export function buildCaptureTimelineBlock(captures: CaptureForInsight[]): string
 
     return captures
         .map((c, index) => `
-[${index + 1}] Time: ${c.localTimeLabel} (${c.timeBucket})
+[${index + 1}] Time: ${c.localTimeLabel} (${c.dayPart})
 Feeling: ${transformMoodToNaturalLanguage(c.mood)}
 Journal: ${c.journalSnippet ?? 'none'}
 Tags: ${c.tags?.join(', ') || 'none'}

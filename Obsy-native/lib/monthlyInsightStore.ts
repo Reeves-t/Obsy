@@ -1,83 +1,163 @@
 import { create } from 'zustand';
 import { Capture } from '@/types/capture';
-import { AiSettings } from '@/services/secureAI';
-import { InsightHistory, fetchInsightHistory } from '@/services/insightHistory';
-import { ensureMonthlyInsight } from '@/lib/longTermInsights';
-import { startOfMonth } from 'date-fns';
-import { PendingInsightInfo, computePendingInsights, createSnapshotFromHistory } from '@/lib/pendingInsights';
+import { format } from 'date-fns';
+import { callMonthly } from '@/services/monthlyInsightClient';
+import { getCapturesForMonth, MonthSignals } from '@/lib/captureData';
+import { getMonthSignals } from '@/services/monthlySummaries';
+import { formatMonthKey } from '@/lib/dailyMoodFlows';
 
 interface MonthlyInsightState {
-    monthlyInsight: InsightHistory | null;
-    isGenerating: boolean;
-    pendingInfo: PendingInsightInfo;
+    status: 'idle' | 'loading' | 'success' | 'error';
+    text: string | null;
+    error: {
+        stage: string;
+        message: string;
+        requestId?: string;
+    } | null;
+    lastUpdated: Date | null;
+    requestId: string | null;
     currentMonth: Date;
 
     // Actions
+    setMonthlyInsight: (text: string | null, month: Date) => void;
     setCurrentMonth: (month: Date) => void;
-    loadSnapshot: (userId: string, month: Date) => Promise<void>;
     refreshMonthlyInsight: (
         userId: string,
-        settings: AiSettings,
-        captures: Capture[],
+        tone: string,
+        customTonePrompt: string | undefined,
+        allCaptures: Capture[],
         targetMonth: Date,
         force?: boolean
     ) => Promise<void>;
+    clearError: () => void;
     computePending: (captures: Capture[]) => void;
 }
 
 export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
-    monthlyInsight: null,
-    isGenerating: false,
-    pendingInfo: { pendingCount: 0, totalEligible: 0 },
+    status: 'idle',
+    text: null,
+    error: null,
+    lastUpdated: null,
+    requestId: null,
     currentMonth: new Date(),
+
+    setMonthlyInsight: (text, month) => {
+        set({
+            status: 'success',
+            text,
+            currentMonth: month,
+            error: null,
+            lastUpdated: new Date(),
+        });
+    },
 
     setCurrentMonth: (month: Date) => {
         set({ currentMonth: month });
     },
 
-    loadSnapshot: async (userId: string, month: Date) => {
-        const monthStart = startOfMonth(month);
-        const snapshot = await fetchInsightHistory(userId, 'monthly', monthStart, monthStart);
+    refreshMonthlyInsight: async (_userId, tone, customTonePrompt, allCaptures, targetMonth, force = false) => {
+        if (get().status === 'loading') return;
 
-        if (snapshot) {
-            set({ monthlyInsight: snapshot });
-        } else {
-            set({ monthlyInsight: null });
-        }
-    },
+        set({ status: 'loading', error: null });
 
-    refreshMonthlyInsight: async (userId, settings, captures, targetMonth, force = false) => {
-        if (get().isGenerating) return;
-
-        set({ isGenerating: true });
         try {
-            const insight = await ensureMonthlyInsight(
-                userId,
-                settings,
-                captures,
-                targetMonth,
-                force
+            const monthStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
+            const isCurrentMonth =
+                targetMonth.getFullYear() === new Date().getFullYear() &&
+                targetMonth.getMonth() === new Date().getMonth();
+            const throughDate = isCurrentMonth
+                ? new Date()
+                : new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
+            const dayOfMonth = throughDate.getDate();
+
+            const monthCaptures = getCapturesForMonth(monthStart, allCaptures, throughDate);
+
+            const signals: MonthSignals = getMonthSignals(
+                allCaptures,
+                formatMonthKey(targetMonth),
+                throughDate.toISOString()
             );
 
-            if (insight) {
-                set({ monthlyInsight: insight });
+            const eligible = dayOfMonth >= 7 && signals.activeDays >= 7;
+            if (!eligible && !force) {
+                set({
+                    status: 'idle',
+                    text: null,
+                    requestId: null,
+                    lastUpdated: new Date(),
+                    currentMonth: targetMonth,
+                });
+                return;
             }
-            get().computePending(captures);
-        } catch (error) {
-            console.error("[MonthlyInsightStore] Refresh failed:", error);
-        } finally {
-            set({ isGenerating: false });
+
+            if (!monthCaptures.length && !force) {
+                set({
+                    status: 'idle',
+                    text: null,
+                    requestId: null,
+                    lastUpdated: new Date(),
+                    currentMonth: targetMonth,
+                });
+                return;
+            }
+
+            const monthLabel = format(targetMonth, 'MMMM yyyy');
+
+            const response = await callMonthly(monthLabel, signals, tone, customTonePrompt);
+
+            if (response.ok && response.text) {
+                set({
+                    status: 'success',
+                    text: response.text,
+                    requestId: response.requestId || null,
+                    lastUpdated: new Date(),
+                    currentMonth: targetMonth,
+                    error: null,
+                });
+                return;
+            }
+
+            if (response.error) {
+                set({
+                    status: 'error',
+                    error: {
+                        stage: response.error.stage,
+                        message: response.error.message,
+                        requestId: response.requestId,
+                    },
+                    requestId: response.requestId || null,
+                    currentMonth: targetMonth,
+                    lastUpdated: new Date(),
+                });
+                return;
+            }
+
+            set({
+                status: 'error',
+                error: {
+                    stage: 'parse',
+                    message: 'Unexpected response shape',
+                },
+                requestId: response.requestId || null,
+                currentMonth: targetMonth,
+                lastUpdated: new Date(),
+            });
+        } catch (error: any) {
+            set({
+                status: 'error',
+                error: {
+                    stage: 'unknown',
+                    message: error?.message || 'Unexpected error',
+                },
+                requestId: null,
+                currentMonth: targetMonth,
+                lastUpdated: new Date(),
+            });
         }
     },
 
-    computePending: (captures: Capture[]) => {
-        const { monthlyInsight } = get();
-        if (!captures.length) return;
+    clearError: () => set({ error: null }),
 
-        const snapshot = createSnapshotFromHistory(monthlyInsight, 'monthly');
-        const snapshots = snapshot ? { monthly: snapshot } : {};
-
-        const pending = computePendingInsights(captures, snapshots);
-        set({ pendingInfo: pending.monthly });
-    }
+    // Legacy compatibility: pending computation no-op
+    computePending: () => undefined,
 }));

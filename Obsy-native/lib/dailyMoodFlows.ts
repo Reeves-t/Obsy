@@ -2,13 +2,44 @@ import { Capture } from "@/types/capture";
 import { resolveMoodColorById, getMoodLabel } from "@/lib/moodUtils";
 
 /**
- * A segment in the mood flow bar
+ * A segment in the mood flow bar (old/legacy format)
  */
 export interface MoodSegment {
     mood: string;
     percentage: number;
     color: string;
     context?: string;
+}
+
+/**
+ * A named mood flow reading (new format)
+ */
+export interface MoodFlowReading {
+    title: string;
+    subtitle: string;
+    confidence: number;
+    tags?: string[];
+}
+
+/**
+ * Union type for mood flow data - supports both old and new formats
+ */
+export type MoodFlowData = MoodSegment[] | MoodFlowReading;
+
+/**
+ * Type guard to check if mood flow data is in the new Reading format
+ */
+export function isMoodFlowReading(data: any): data is MoodFlowReading {
+    return data && typeof data === 'object' && !Array.isArray(data) &&
+           typeof data.title === 'string' && typeof data.subtitle === 'string';
+}
+
+/**
+ * Type guard to check if mood flow data is in the old Segments format
+ */
+export function isMoodFlowSegments(data: any): data is MoodSegment[] {
+    return Array.isArray(data) && (data.length === 0 ||
+           (data[0] && typeof data[0].mood === 'string' && typeof data[0].percentage === 'number'));
 }
 
 /**

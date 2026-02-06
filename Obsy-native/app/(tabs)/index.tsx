@@ -27,7 +27,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTodayInsight } from '@/lib/todayInsightStore';
 import Colors from '@/constants/Colors';
 import { format, isSameDay } from 'date-fns';
-import { ensureDailyInsight } from '@/lib/insightsEngine';
 import { getProfile } from '@/services/profile';
 import { PremiumGate } from '@/components/PremiumGate';
 import { NotificationBadge } from '@/components/ui/NotificationBadge';

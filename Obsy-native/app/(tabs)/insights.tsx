@@ -20,9 +20,7 @@ import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useCaptureStore } from '@/lib/captureStore';
-import { ensureDailyInsight } from '@/lib/insightsEngine';
 import { ensureRecentSnapshots } from '@/lib/dailySnapshotSync';
-import { ensureMonthlyInsight, ensureWeeklyInsight } from '@/lib/longTermInsights';
 import { generateTagInsight } from '@/lib/tagInsights';
 import { buildWeeklyStatsFromDaily, buildWeeklyStatsFromCaptures, DailyInsightSnapshot, WeeklyStats } from '@/lib/insightsAnalytics';
 import { getWeekRangeForUser } from '@/lib/dateUtils';
@@ -48,13 +46,13 @@ import { countArchivedInsights, fetchArchives } from '@/services/archive';
 import { ToneTriggerButton } from '@/components/insights/ToneTriggerButton';
 import { MoodSignal } from '@/components/insights/MoodSignal';
 import { useCustomTones } from '@/hooks/useCustomTones';
+import { InsightErrorDisplay } from '@/components/insights/InsightErrorDisplay';
 
 import { useInsightsStats } from '@/hooks/useInsightsStats';
 import { PremiumGate } from '@/components/PremiumGate';
-import { DailyInsight } from '@/services/dailyInsights';
 import { TodayInsightCard } from '@/components/home/TodayInsightCard';
 import { useTodayInsight } from '@/lib/todayInsightStore';
-import { DailyMoodFlowData, formatMonthKey, filterCapturesForDate, getUniqueDateKeys } from '@/lib/dailyMoodFlows';
+import { DailyMoodFlowData, formatMonthKey, filterCapturesForDate, getUniqueDateKeys, formatDateKey, MoodFlowData } from '@/lib/dailyMoodFlows';
 import { fetchDailyMoodFlows, backfillDailyMoodFlows, getMonthDateRange } from '@/services/dailyMoodFlows';
 import { fetchMonthlySummary, computeMonthMoodTotals, generateMonthPhraseReasoning, upsertMonthlySummary, isMonthlySummaryStale, getMonthSignals } from '@/services/monthlySummaries';
 import { getBannedMoodWords } from '@/lib/moodColors';
@@ -109,34 +107,32 @@ export default function InsightsScreen() {
     const { colors, isLight } = useObsyTheme();
     const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month'>('week');
     const {
-        todayInsight: dailyInsight,
-        isRefreshing: dailyInsightLoading,
+        status: dailyStatus,
+        text: dailyText,
+        error: dailyError,
         refreshTodayInsight,
-        pendingInsights
+        checkMidnightReset,
     } = useTodayInsight();
 
     const {
-        weeklyInsight,
-        weeklyStats,
-        isGenerating: isGeneratingWeekly,
-        pendingInfo: weeklyPending,
+        status: weeklyStatus,
+        text: weeklyText,
+        error: weeklyError,
         refreshWeeklyInsight,
-        loadSnapshot: loadWeeklySnapshot,
-        setWeeklyStats
     } = useWeeklyInsight();
 
     const {
-        monthlyInsight,
-        isGenerating: isGeneratingMonthly,
-        pendingInfo: monthlyPending,
+        status: monthlyStatus,
+        text: monthlyText,
+        error: monthlyError,
         currentMonth,
         setCurrentMonth,
         refreshMonthlyInsight,
-        loadSnapshot: loadMonthlySnapshot
     } = useMonthlyInsight();
 
     const [pastInsights, setPastInsights] = useState<DailyInsightSnapshot[]>([]);
     const [pastInsightArchives, setPastInsightArchives] = useState<InsightHistory[]>([]);
+    const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null);
     const [selectedPastDay, setSelectedPastDay] = useState<DailyInsightSnapshot | null>(null);
     const [selectedPastInsight, setSelectedPastInsight] = useState<InsightHistory | null>(null);
     const [generatedTagInsight, setGeneratedTagInsight] = useState<string | null>(null);
@@ -144,6 +140,7 @@ export default function InsightsScreen() {
 
     const [isExpanded, setIsExpanded] = useState(false);
     const [monthDailyFlows, setMonthDailyFlows] = useState<Record<string, DailyMoodFlowData>>({});
+    const [todayMoodFlow, setTodayMoodFlow] = useState<MoodFlowData | null>(null);
     const [aiReasoning, setAiReasoning] = useState<string | null>(null);
     const [monthPhrase, setMonthPhrase] = useState<string | null>(null);
     const [isEligibleForInsight, setIsEligibleForInsight] = useState(false);
@@ -201,11 +198,21 @@ export default function InsightsScreen() {
         fetchCaptures(user);
     }, [user]);
 
+    useEffect(() => {
+        if (!user) return;
+        loadTodayMoodFlow();
+    }, [user?.id, capturesCount]);
+
+    useEffect(() => {
+        if (!user) return;
+        loadTodayMoodFlow();
+    }, [user?.id, capturesCount]);
+
     // Animation for loading state
     const rotation = useSharedValue(0);
 
     useEffect(() => {
-        if (dailyInsightLoading) {
+        if (dailyStatus === 'loading') {
             rotation.value = withRepeat(
                 withTiming(360, {
                     duration: 1000,
@@ -217,7 +224,7 @@ export default function InsightsScreen() {
             cancelAnimation(rotation);
             rotation.value = 0;
         }
-    }, [dailyInsightLoading]);
+    }, [dailyStatus]);
 
     const animatedStyle = useAnimatedStyle(() => {
         return {
@@ -233,19 +240,6 @@ export default function InsightsScreen() {
         fetchInsightsData();
         loadArchiveCount();
     }, [user, capturesCount]);
-
-    // Mount-time fast-load for stores
-    useEffect(() => {
-        if (!user) return;
-
-        if (!weeklyInsight) {
-            loadWeeklySnapshot(user.id);
-        }
-
-        if (!monthlyInsight) {
-            loadMonthlySnapshot(user.id, currentMonth);
-        }
-    }, [user?.id, currentMonth.getTime()]);
 
     const loadArchiveCount = async () => {
         if (!user) return;
@@ -299,9 +293,9 @@ export default function InsightsScreen() {
 
             await refreshTodayInsight(
                 config.profile.id,
-                config.settings,
-                captures,
-                forceRefresh
+                config.settings.tone,
+                config.settings.selectedCustomToneId,
+                captures
             );
         } catch (error) {
             console.error("Error loading insight:", error);
@@ -315,9 +309,10 @@ export default function InsightsScreen() {
             if (!config) return;
             await refreshWeeklyInsight(
                 config.profile.id,
-                config.settings,
+                config.settings.tone,
+                config.settings.selectedCustomToneId,
                 captures,
-                force
+                undefined
             );
         } catch (error) {
             console.error("Error loading weekly insight:", error);
@@ -331,7 +326,8 @@ export default function InsightsScreen() {
             if (!config) return;
             await refreshMonthlyInsight(
                 config.profile.id,
-                config.settings,
+                config.settings.tone,
+                config.settings.selectedCustomToneId,
                 captures,
                 currentMonth,
                 force
@@ -491,6 +487,19 @@ export default function InsightsScreen() {
         }
     };
 
+    const loadTodayMoodFlow = async () => {
+        if (!user) return;
+        try {
+            const todayKey = formatDateKey(new Date());
+            const flows = await fetchDailyMoodFlows(user.id, todayKey, todayKey);
+            const flow = flows[todayKey]?.segments ?? null;
+            setTodayMoodFlow(flow);
+        } catch (error) {
+            console.error("Error loading today mood flow:", error);
+            setTodayMoodFlow(null);
+        }
+    };
+
     const handleToneSelect = async (toneId: AiToneId) => {
         try {
             // Check if this is a preset tone or a custom tone UUID
@@ -602,25 +611,45 @@ export default function InsightsScreen() {
 
                 {selectedTimeframe === 'month' ? (
                     isReady && (
-                        <MonthView
-                            currentMonth={currentMonth}
-                            onMonthChange={handleMonthChange}
-                            monthlyInsight={monthlyInsight}
-                            onGenerate={() => loadMonthlyInsight(true)}
-                            isGenerating={isGeneratingMonthly}
-                            captures={captures}
-                            dailyFlows={monthDailyFlows}
-                            aiReasoning={aiReasoning}
-                            monthPhrase={monthPhrase}
-                            onArchiveFull={() => setIsArchiveFullModalVisible(true)}
-                            isEligibleForInsight={isEligibleForInsight}
-                            capturedDaysCount={capturedDaysCount}
-                            pendingCount={monthlyPending.pendingCount}
-                        />
+                        <>
+                            {monthlyStatus === 'loading' && <ActivityIndicator style={{ marginVertical: 12 }} />}
+                            {monthlyStatus === 'error' && monthlyError && (
+                                <InsightErrorDisplay
+                                    message={monthlyError.message}
+                                    stage={monthlyError.stage}
+                                    requestId={monthlyError.requestId}
+                                />
+                            )}
+                            <MonthView
+                                text={monthlyText}
+                                currentMonth={currentMonth}
+                                onMonthChange={handleMonthChange}
+                                onGenerate={() => loadMonthlyInsight(true)}
+                                isGenerating={monthlyStatus === 'loading'}
+                                captures={captures}
+                                dailyFlows={monthDailyFlows}
+                                aiReasoning={aiReasoning}
+                                monthPhrase={monthPhrase}
+                                onArchiveFull={() => setIsArchiveFullModalVisible(true)}
+                                isEligibleForInsight={isEligibleForInsight}
+                                capturedDaysCount={capturedDaysCount}
+                                pendingCount={0}
+                            />
+                        </>
                     )
                 ) : (
                     <>
+                        {dailyStatus === 'loading' && <ActivityIndicator style={{ marginVertical: 12 }} />}
+                        {dailyStatus === 'error' && dailyError && (
+                            <InsightErrorDisplay
+                                message={dailyError.message}
+                                stage={dailyError.stage}
+                                requestId={dailyError.requestId}
+                            />
+                        )}
                         <TodayInsightCard
+                            text={dailyText}
+                            onRefresh={() => loadInsight(true)}
                             flat
                             onArchiveFull={() => setIsArchiveFullModalVisible(true)}
                         />
@@ -631,7 +660,7 @@ export default function InsightsScreen() {
                                 {/* DAILY FLOW - Mood Flow as a timeline trace */}
                                 <SoftFadeDivider />
                                 <SectionHeader title="DAILY FLOW" />
-                                <MoodFlow moodFlow={dailyInsight?.mood_flow} loading={dailyInsightLoading} flat />
+                                <MoodFlow moodFlow={todayMoodFlow} loading={dailyStatus === 'loading'} flat />
 
                                 {/* MOOD SIGNAL - Weekly pattern analytics */}
                                 <SectionHeader title="MOOD SIGNAL" />
@@ -772,14 +801,15 @@ export default function InsightsScreen() {
                                 <SoftFadeDivider />
                                 <SectionHeader title="WEEKLY RECAP" />
                                 <WeeklySummaryCard
-                                    weeklyInsight={weeklyInsight}
+                                    text={weeklyText}
                                     weeklyStats={weeklyStats}
-                                    isGenerating={isGeneratingWeekly}
+                                    isGenerating={weeklyStatus === 'loading'}
                                     onGenerate={() => loadWeeklyInsight(true)}
                                     onViewHistory={() => { }}
                                     flat
                                     onArchiveFull={() => setIsArchiveFullModalVisible(true)}
-                                    pendingCount={weeklyPending.pendingCount}
+                                    pendingCount={0}
+                                    error={weeklyError}
                                 />
                                 <MicroDivider width="40%" />
                                 <ObjectOfWeek objectOfWeek={weeklyStats?.objectOfWeek || undefined} flat />

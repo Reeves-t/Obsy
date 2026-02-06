@@ -4,6 +4,7 @@ import { PRIVACY_FLAGS } from "@/lib/privacyFlags";
 import {
     CaptureForInsight,
     getTimeBucketForDate,
+    getDayPart,
     formatLocalTimeLabel,
     WeekSummaryForInsight,
     MonthSummaryForInsight,
@@ -82,6 +83,7 @@ function mapToCaptureForInsight(input: CaptureInsightInput, index: number): Capt
         capturedAt: input.capturedAt || date.toISOString(),
         localTimeLabel: formatLocalTimeLabel(date),
         timeBucket: getTimeBucketForDate(date),
+        dayPart: getDayPart(date),
         mood: input.mood || "neutral",
         hasJournal: !!input.note,
         journalSnippet: input.note,

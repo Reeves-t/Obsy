@@ -1,80 +1,197 @@
 import { create } from 'zustand';
-import { DailyInsight } from '@/services/dailyInsights';
-import { ensureDailyInsight } from '@/lib/insightsEngine';
 import { Capture } from '@/types/capture';
-import { AiSettings } from '@/services/secureAI';
 import { getLocalDayKey } from '@/lib/utils';
-import { PendingInsights, computePendingInsights, createSnapshotFromHistory, InsightSnapshot } from '@/lib/pendingInsights';
+import { callDaily } from '@/services/dailyInsightClient';
+import { getCapturesForDaily, CaptureData } from '@/lib/captureData';
+import { getMoodLabel } from '@/lib/moodUtils';
+import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
+
+/**
+ * Validates and sanitizes a mood string.
+ * Returns the trimmed string if valid, null otherwise.
+ */
+function validateMoodString(mood: string | null | undefined): string | null {
+    if (!mood || typeof mood !== 'string') return null;
+    const trimmed = mood.trim();
+    return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Resolves mood value with comprehensive fallback chain.
+ * Priority: mood_name_snapshot > getMoodLabel > "Neutral"
+ * Logs warnings when fallbacks are used for debugging.
+ */
+function resolveMoodWithFallback(
+    moodId: string,
+    moodNameSnapshot: string | null | undefined,
+    captureId: string
+): string {
+    const validSnapshot = validateMoodString(moodNameSnapshot);
+    if (validSnapshot) {
+        return validSnapshot;
+    }
+
+    const resolvedMood = getMoodLabel(moodId);
+    const validResolved = validateMoodString(resolvedMood);
+    if (validResolved) {
+        if (!moodNameSnapshot) {
+            console.warn(
+                `[TodayInsight] Capture ${captureId}: mood_name_snapshot is empty, using resolved mood "${validResolved}"`
+            );
+        }
+        return validResolved;
+    }
+
+    console.warn(
+        `[TodayInsight] Capture ${captureId}: Both mood_name_snapshot and getMoodLabel failed, falling back to "Neutral". moodId: ${moodId}, snapshot: ${moodNameSnapshot}`
+    );
+    return "Neutral";
+}
 
 interface TodayInsightState {
-    todayInsight: DailyInsight | null;
-    isRefreshing: boolean;
+    status: 'idle' | 'loading' | 'success' | 'error';
+    text: string | null;
+    error: {
+        stage: string;
+        message: string;
+        requestId?: string;
+    } | null;
+    lastUpdated: Date | null;
+    requestId: string | null;
     dateKey: string | null; // YYYY-MM-DD
-    hasGeneratedToday: boolean; // Tracks if we've auto-generated today
-    pendingInsights: PendingInsights;
+    hasGeneratedToday: boolean;
 
     // Actions
-    setTodayInsight: (insight: DailyInsight | null) => void;
+    setTodayInsight: (text: string | null) => void;
     refreshTodayInsight: (
         userId: string,
-        settings: AiSettings,
-        captures: Capture[],
-        force?: boolean
+        tone: string,
+        customTonePrompt: string | undefined,
+        allCaptures: Capture[]
     ) => Promise<void>;
     checkMidnightReset: () => void;
+    clearError: () => void;
     computePending: (captures: Capture[]) => void;
 }
 
-const INITIAL_PENDING: PendingInsights = {
-    daily: { pendingCount: 0, totalEligible: 0 },
-    weekly: { pendingCount: 0, totalEligible: 0 },
-    monthly: { pendingCount: 0, totalEligible: 0 },
-};
-
 export const useTodayInsight = create<TodayInsightState>((set, get) => ({
-    todayInsight: null,
-    isRefreshing: false,
-    dateKey: null,
+    status: 'idle',
+    text: null,
+    error: null,
+    lastUpdated: null,
+    requestId: null,
+    dateKey: getLocalDayKey(new Date()),
     hasGeneratedToday: false,
-    pendingInsights: INITIAL_PENDING,
 
-    setTodayInsight: (insight) => {
+    setTodayInsight: (text) => {
         set({
-            todayInsight: insight,
-            dateKey: insight ? getLocalDayKey(new Date(insight.date)) : getLocalDayKey(new Date()),
+            status: 'success',
+            text,
+            error: null,
+            lastUpdated: new Date(),
+            dateKey: getLocalDayKey(new Date()),
         });
-        get().computePending([]); // Trigger recompute with existing captures in store via useCaptureStore if needed, or caller passes them
     },
 
-    refreshTodayInsight: async (userId, settings, captures, force = false) => {
-        if (get().isRefreshing) return;
+    refreshTodayInsight: async (_userId, tone, customTonePrompt, allCaptures) => {
+        if (get().status === 'loading') return;
 
-        set({ isRefreshing: true });
+        set({ status: 'loading', error: null });
+
         try {
-            const insight = await ensureDailyInsight(
-                userId,
-                settings,
-                new Date(),
-                captures,
-                force
-            );
+            const todayCaptures = getCapturesForDaily(new Date(), allCaptures);
 
-            const updates: Partial<TodayInsightState> = {
-                todayInsight: insight || get().todayInsight, // Keep old one if new fails/returns null
-                isRefreshing: false,
-            };
-
-            if (insight) {
-                updates.dateKey = getLocalDayKey(new Date(insight.date));
-                updates.hasGeneratedToday = true;
+            if (!todayCaptures.length) {
+                set({ status: 'idle', text: null, requestId: null, lastUpdated: new Date() });
+                return;
             }
 
-            set(updates);
-            get().computePending(captures);
-        } catch (error) {
-            console.error("[useTodayInsight] Refresh failed:", error);
-            set({ isRefreshing: false });
-            throw error;
+            const captureData: CaptureData[] = todayCaptures.map((c) => {
+                const date = new Date(c.created_at);
+                const mood = resolveMoodWithFallback(
+                    c.mood_id,
+                    c.mood_name_snapshot,
+                    c.id
+                );
+                return {
+                    mood,
+                    note: c.note ?? c.journal_entry ?? undefined,
+                    capturedAt: c.created_at,
+                    tags: c.tags ?? [],
+                    timeBucket: c.timeBucket ?? getTimeBucketForDate(date),
+                    dayPart: c.dayPart ?? getDayPart(date),
+                    localTimeLabel: c.localTimeLabel,
+                };
+            });
+
+            const invalidCaptures = captureData.filter((c) => !validateMoodString(c.mood));
+            if (invalidCaptures.length > 0) {
+                console.error(
+                    `[TodayInsight] Found ${invalidCaptures.length} captures with invalid mood values after resolution. This should never happen.`,
+                    invalidCaptures
+                );
+                set({
+                    status: 'error',
+                    error: {
+                        stage: 'validation',
+                        message: 'Invalid mood data detected',
+                    },
+                    requestId: null,
+                });
+                return;
+            }
+
+            const dateLabel = new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+            });
+
+            const response = await callDaily(dateLabel, captureData, tone, customTonePrompt);
+
+            if (response.ok && response.text) {
+                set({
+                    status: 'success',
+                    text: response.text,
+                    requestId: response.requestId || null,
+                    lastUpdated: new Date(),
+                    error: null,
+                    hasGeneratedToday: true,
+                    dateKey: getLocalDayKey(new Date()),
+                });
+                return;
+            }
+
+            if (response.error) {
+                set({
+                    status: 'error',
+                    error: {
+                        stage: response.error.stage,
+                        message: response.error.message,
+                        requestId: response.requestId,
+                    },
+                    requestId: response.requestId || null,
+                });
+                return;
+            }
+
+            set({
+                status: 'error',
+                error: {
+                    stage: 'parse',
+                    message: 'Unexpected response shape',
+                },
+                requestId: response.requestId || null,
+            });
+        } catch (error: any) {
+            set({
+                status: 'error',
+                error: {
+                    stage: 'unknown',
+                    message: error?.message || 'Unexpected error',
+                },
+                requestId: null,
+            });
         }
     },
 
@@ -83,45 +200,20 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
         const { dateKey } = get();
 
         if (dateKey && dateKey !== today) {
-            console.log("[useTodayInsight] Midnight reset triggered");
             set({
-                todayInsight: null,
-                dateKey: today,
+                status: 'idle',
+                text: null,
+                error: null,
                 hasGeneratedToday: false,
-                pendingInsights: INITIAL_PENDING,
+                dateKey: today,
+                requestId: null,
             });
         }
     },
 
-    computePending: (captures: Capture[]) => {
-        const { todayInsight } = get();
-        if (!captures.length) return;
+    clearError: () => set({ error: null }),
 
-        const snapshots: Partial<Record<string, InsightSnapshot>> = {};
-        if (todayInsight) {
-            snapshots.daily = {
-                kind: 'daily',
-                generatedAt: new Date(todayInsight.created_at).getTime(),
-                periodStart: startOfDay(new Date(todayInsight.date)).getTime(),
-                periodEnd: endOfDay(new Date(todayInsight.date)).getTime(),
-                includedCaptureIds: todayInsight.capture_ids || []
-            };
-        }
-
-        const pending = computePendingInsights(captures, snapshots as any);
-        set({ pendingInsights: pending });
-    }
+    // Legacy compatibility: pending computation no-op (stores no longer track pending)
+    computePending: () => undefined,
 }));
-
-function startOfDay(date: Date) {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d;
-}
-
-function endOfDay(date: Date) {
-    const d = new Date(date);
-    d.setHours(23, 59, 59, 999);
-    return d;
-}
 

@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useEffect } from "react";
 import { ActivityIndicator, StyleSheet, TouchableOpacity, View, Alert } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from "@expo/vector-icons";
@@ -6,9 +6,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
 import { InsightText } from "@/components/insights/InsightText";
 import Colors from "@/constants/Colors";
-import { InsightHistory } from "@/services/insightHistory";
 import { WeeklyStats } from "@/lib/insightsAnalytics";
-import { InsightSentence } from "@/services/dailyInsights";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
 import { BookmarkButton } from "@/components/insights/BookmarkButton";
 import * as Haptics from "expo-haptics";
@@ -17,9 +15,12 @@ import { startOfWeek, format } from "date-fns";
 import { useCaptureStore } from "@/lib/captureStore";
 import { PendingInsightMessage } from "./PendingInsightMessage";
 import { useObsyTheme } from "@/contexts/ThemeContext";
+import { getUserFriendlyErrorMessage } from "@/lib/insightErrorUtils";
+
+type InsightError = { stage: string; message: string; requestId?: string } | null;
 
 interface WeeklySummaryCardProps {
-    weeklyInsight: InsightHistory | null;
+    text: string | null;
     weeklyStats: WeeklyStats | null;
     isGenerating: boolean;
     onGenerate: () => void;
@@ -27,10 +28,11 @@ interface WeeklySummaryCardProps {
     flat?: boolean;
     onArchiveFull?: () => void;
     pendingCount?: number;
+    error?: InsightError;
 }
 
 export const WeeklySummaryCard = memo(function WeeklySummaryCard({
-    weeklyInsight,
+    text,
     weeklyStats,
     isGenerating,
     onGenerate,
@@ -38,19 +40,30 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     flat = false,
     onArchiveFull,
     pendingCount = 0,
+    error = null,
 }: WeeklySummaryCardProps) {
     const { colors, isLight } = useObsyTheme();
     const { user } = useAuth();
     const { captures } = useCaptureStore();
-    const hasInsight = !!weeklyInsight;
+    const hasInsight = !!text;
 
     const [isSaved, setIsSaved] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
 
+    useEffect(() => {
+        if (error) {
+            console.error("[WeeklySummaryCard] Displaying error to user:", {
+                stage: error.stage,
+                message: getUserFriendlyErrorMessage(error),
+                requestId: error.requestId,
+            });
+        }
+    }, [error]);
+
     // Check if saved
     React.useEffect(() => {
         const checkSaved = async () => {
-            if (!user || !weeklyInsight) return;
+            if (!user || !text) return;
             const archives = await fetchArchives(user.id);
             const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
             const dateStr = format(weekStart, "yyyy-MM-dd");
@@ -58,14 +71,14 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
             setIsSaved(saved);
         };
         checkSaved();
-    }, [user?.id, weeklyInsight?.id]);
+    }, [user?.id, text]);
 
     const handleSave = async () => {
         if (!user) {
             Alert.alert("Sign In Required", "Please sign in to save insights to your archive.");
             return;
         }
-        if (!weeklyInsight || isSaved || saving) return;
+        if (!text || isSaved || saving) return;
 
         if (onArchiveFull) {
             const archives = await fetchArchives(user.id);
@@ -81,8 +94,8 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
             const result = await archiveInsightWithResult({
                 userId: user.id,
                 type: 'weekly',
-                insightText: weeklyInsight.content,
-                relatedCaptureIds: weeklyInsight.capture_ids || [],
+                insightText: text,
+                relatedCaptureIds: [],
                 date: weekStart,
             });
 
@@ -149,16 +162,25 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
             <View style={styles.insightBody}>
                 {hasInsight ? (
                     <InsightText
-                        sentences={weeklyInsight?.mood_summary?.sentences as InsightSentence[] | undefined}
-                        fallbackText={weeklyInsight?.content}
+                        fallbackText={text || ''}
                         collapsedSentences={4}
                         expandable={true}
                     />
                 ) : (
                     <View style={styles.emptyState}>
                         <ThemedText style={[styles.emptyText, { color: colors.cardTextSecondary }]}>
-                            Generate a weekly narrative to see your week's arc.
+                            {error ? getUserFriendlyErrorMessage(error) : "Generate a weekly narrative to see your week's arc."}
                         </ThemedText>
+                        {error && (
+                            <ThemedText style={[styles.emptyText, { color: colors.cardTextSecondary }]}>
+                                ({error.stage}) {error.message}
+                            </ThemedText>
+                        )}
+                        {error?.requestId && (
+                            <ThemedText style={[styles.errorMeta, { color: colors.cardTextSecondary }]}>
+                                Error ID: {error.requestId}
+                            </ThemedText>
+                        )}
                         <TouchableOpacity onPress={onGenerate} disabled={isGenerating}>
                             <LinearGradient
                                 colors={['#8B5CF6', '#6D28D9']}
@@ -276,6 +298,10 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         color: "rgba(255,255,255,0.6)",
+    },
+    errorMeta: {
+        fontSize: 12,
+        opacity: 0.75,
     },
     generateBtn: {
         paddingVertical: 10,

@@ -14,6 +14,7 @@
 import { supabase } from '@/lib/supabase';
 import { AiToneId, getToneDefinition, isPresetTone } from '@/lib/aiTone';
 import { getCustomToneById } from '@/lib/customTone';
+import { MoodSegment, MoodFlowReading, MoodFlowData } from '@/lib/dailyMoodFlows';
 
 export type InsightType = 'daily' | 'weekly' | 'capture' | 'album' | 'tag' | 'month';
 
@@ -65,6 +66,36 @@ export async function resolveTonePrompt(
     };
 }
 
+async function invokeGenerateInsight(request: InsightRequest): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        throw new Error('Authentication required for AI insights. Please sign in.');
+    }
+
+    const response = await supabase.functions.invoke<InsightResponse>('generate-insight', {
+        body: request,
+        headers: {
+            Authorization: `Bearer ${session.access_token}`
+        }
+    });
+
+    if (response.error) {
+        throw new Error(response.error.message || 'AI generation failed');
+    }
+
+    const data = response.data;
+    if (!data) {
+        throw new Error('No response from AI service');
+    }
+    if (!data.ok && data.error) {
+        throw new Error(`[${data.error.stage}] ${data.error.message}`);
+    }
+    if (!data.result) {
+        throw new Error('Empty response from AI service');
+    }
+    return data.result;
+}
+
 export interface AiSettings {
     tone: AiToneId;
     selectedCustomToneId?: string;
@@ -78,6 +109,8 @@ export interface CaptureData {
     capturedAt: string;
     tags?: string[];
     timeBucket?: string;
+    dayPart?: string;
+    localTimeLabel?: string;
 }
 
 export interface AlbumEntry {
@@ -111,142 +144,116 @@ export interface InsightRequest {
 }
 
 export interface InsightResponse {
+    ok: boolean;
     result?: string;
-    error?: string;
-    limit?: number;
-    current?: number;
-    tier?: string;
+    requestId?: string;
+    error?: {
+        stage: 'auth' | 'fetch' | 'model' | 'parse' | 'validate' | 'unknown';
+        message: string;
+        requestId: string;
+        status: number;
+    };
+}
+
+
+/**
+ * Generate fallback mood flow from captures when AI fails to provide one.
+ * Groups captures by mood, calculates percentages, and assigns colors.
+ * Exported for testing purposes.
+ */
+export function generateFallbackMoodFlow(captures: CaptureData[]): MoodSegment[] {
+    if (!captures || captures.length === 0) {
+        return [];
+    }
+
+    // Sort captures chronologically
+    const sortedCaptures = [...captures].sort((a, b) =>
+        new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime()
+    );
+
+    // Group by mood and count occurrences
+    const moodCounts: Record<string, { count: number; firstIndex: number }> = {};
+    sortedCaptures.forEach((c, index) => {
+        const mood = c.mood || 'neutral';
+        if (!moodCounts[mood]) {
+            moodCounts[mood] = { count: 0, firstIndex: index };
+        }
+        moodCounts[mood].count++;
+    });
+
+    // Convert to segments with percentages
+    const totalCaptures = sortedCaptures.length;
+    const segments: MoodSegment[] = Object.entries(moodCounts)
+        .sort(([, a], [, b]) => a.firstIndex - b.firstIndex) // Sort by first occurrence (chronological)
+        .map(([mood, data]) => {
+            const percentage = Math.round((data.count / totalCaptures) * 100);
+            // Use a simple color mapping for fallback
+            const color = getFallbackMoodColor(mood);
+            return {
+                mood: formatMoodPhrase(mood),
+                percentage,
+                color
+            };
+        });
+
+    // Ensure percentages sum to 100
+    const totalPercentage = segments.reduce((sum, s) => sum + s.percentage, 0);
+    if (totalPercentage !== 100 && segments.length > 0) {
+        segments[segments.length - 1].percentage += (100 - totalPercentage);
+    }
+
+    console.log('[generateFallbackMoodFlow] Generated fallback with', segments.length, 'segments');
+    return segments;
 }
 
 /**
- * Generate an AI insight via the secure edge function
- *
- * @throws Error if not authenticated or rate limited
+ * Get a fallback color for a mood (used when AI doesn't provide one)
  */
-export async function generateSecureInsight(request: InsightRequest): Promise<string> {
-    // Try to get session, refreshing if needed
-    let { data: { session } } = await supabase.auth.getSession();
+function getFallbackMoodColor(mood: string): string {
+    const moodLower = mood.toLowerCase();
+    // Simple color mapping for common moods
+    const colorMap: Record<string, string> = {
+        'happy': '#FFD93D',
+        'content': '#A8E6CF',
+        'calm': '#87CEEB',
+        'peaceful': '#B4D7E8',
+        'excited': '#FF6B6B',
+        'energetic': '#FF8C42',
+        'anxious': '#9B59B6',
+        'stressed': '#E74C3C',
+        'sad': '#5DADE2',
+        'tired': '#95A5A6',
+        'frustrated': '#E67E22',
+        'neutral': '#9CA3AF'
+    };
+    return colorMap[moodLower] || '#9CA3AF';
+}
 
-    // If no session, try refreshing (handles expired access tokens)
-    if (!session) {
-        console.log('[SecureAI] No session found, attempting refresh...');
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-            console.error('[SecureAI] Session refresh failed:', refreshError.message);
-        }
-        session = refreshData.session;
-    }
-
-    // Still no session? User needs to log in
-    if (!session) {
-        // Double-check with getUser() as a fallback
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            throw new Error('Authentication required for AI insights. Please sign in.');
-        }
-        // User exists but no session - this shouldn't happen, but handle it
-        throw new Error('Session expired. Please sign out and sign back in.');
-    }
-
-    const response = await supabase.functions.invoke<InsightResponse>('generate-insight', {
-        body: request,
-        headers: {
-            Authorization: `Bearer ${session.access_token}`
-        }
-    });
-
-    if (response.error) {
-        console.error('[SecureAI] Edge function error:', response.error);
-        throw new Error(response.error.message || 'AI generation failed');
-    }
-
-    const data = response.data;
-
-    if (!data) {
-        throw new Error('No response from AI service');
-    }
-
-    if (data.error) {
-        if (data.error === 'Rate limit exceeded') {
-            throw new Error(`Rate limit reached (${data.current}/${data.limit} for ${data.tier} tier)`);
-        }
-        throw new Error(data.error);
-    }
-
-    if (!data.result) {
-        throw new Error('Empty response from AI service');
-    }
-
-    return data.result;
+/**
+ * Format a raw mood label into a descriptive phrase
+ */
+function formatMoodPhrase(mood: string): string {
+    const phraseMap: Record<string, string> = {
+        'happy': 'quiet contentment',
+        'content': 'settled satisfaction',
+        'calm': 'gentle stillness',
+        'peaceful': 'serene ease',
+        'excited': 'bright energy',
+        'energetic': 'vibrant momentum',
+        'anxious': 'restless undercurrent',
+        'stressed': 'tense pressure',
+        'sad': 'heavy weight',
+        'tired': 'quiet fatigue',
+        'frustrated': 'simmering tension',
+        'neutral': 'steady baseline'
+    };
+    return phraseMap[mood.toLowerCase()] || mood;
 }
 
 /**
  * Generate a daily insight
+ * Supports both old schema (mood_flow array) and new schema (mood_flow object)
  */
-export async function generateDailyInsightSecure(
-    dateLabel: string,
-    captures: CaptureData[],
-    tone: string,
-    customTonePrompt?: string
-): Promise<{ insight: string; vibe_tags?: string[]; mood_colors?: string[] }> {
-    const result = await generateSecureInsight({
-        type: 'daily',
-        data: { dateLabel, captures },
-        tone,
-        customTonePrompt,
-    });
-
-    // Try to parse JSON response
-    try {
-        const cleaned = result.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleaned);
-    } catch {
-        // Return plain text as insight
-        return { insight: result };
-    }
-}
-
-/**
- * Generate a weekly insight
- */
-export async function generateWeeklyInsightSecure(
-    weekLabel: string,
-    captures: CaptureData[],
-    tone: string,
-    customTonePrompt?: string
-): Promise<{ insight: string }> {
-    const result = await generateSecureInsight({
-        type: 'weekly',
-        data: { weekLabel, captures },
-        tone,
-        customTonePrompt,
-    });
-
-    try {
-        const cleaned = result.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleaned);
-    } catch {
-        return { insight: result };
-    }
-}
-
-/**
- * Generate a monthly narrative
- */
-export async function generateMonthlyInsightSecure(
-    monthLabel: string,
-    signals: MonthSignals,
-    tone: string,
-    customTonePrompt?: string
-): Promise<string> {
-    return generateSecureInsight({
-        type: 'month',
-        data: { monthLabel, signals },
-        tone,
-        customTonePrompt,
-    });
-}
-
 /**
  * Generate a single-capture reflection
  */
@@ -255,7 +262,7 @@ export async function generateCaptureInsightSecure(
     tone: string,
     customTonePrompt?: string
 ): Promise<string> {
-    return generateSecureInsight({
+    return invokeGenerateInsight({
         type: 'capture',
         data: { captures: [capture] },
         tone,
@@ -270,7 +277,7 @@ export async function generateAlbumInsightSecure(
     albumContext: AlbumEntry[],
     tone: string
 ): Promise<string> {
-    return generateSecureInsight({
+    return invokeGenerateInsight({
         type: 'album',
         data: { albumContext },
         tone,
@@ -285,7 +292,7 @@ export async function generateTagInsightSecure(
     captures: CaptureData[],
     tone: string
 ): Promise<string> {
-    return generateSecureInsight({
+    return invokeGenerateInsight({
         type: 'tag',
         data: { tag, captures },
         tone,

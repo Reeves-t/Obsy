@@ -7,16 +7,10 @@ import { ThemedText } from "@/components/ui/ThemedText";
 import Colors from "@/constants/Colors";
 import { useMoodResolver } from "@/hooks/useMoodResolver";
 import { useObsyTheme } from "@/contexts/ThemeContext";
-
-type MoodSegment = {
-    mood: string;
-    percentage: number;
-    color: string;
-    context?: string;
-};
+import { MoodSegment, MoodFlowReading, MoodFlowData, isMoodFlowReading, isMoodFlowSegments } from "@/lib/dailyMoodFlows";
 
 interface MoodFlowProps {
-    moodFlow?: MoodSegment[] | null;
+    moodFlow?: MoodFlowData | null;
     loading?: boolean;
     flat?: boolean;
 }
@@ -63,12 +57,35 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
     const { colors, isLight } = useObsyTheme();
     const [expanded, setExpanded] = useState(false);
     const { isLoading: isMoodCacheLoading } = useMoodResolver();
-    const segments = moodFlow || [];
+
+    // Detect format: Reading (new) vs Segments (old)
+    const isReadingFormat = useMemo(() => {
+        return moodFlow && isMoodFlowReading(moodFlow);
+    }, [moodFlow]);
+
+    const isSegmentsFormat = useMemo(() => {
+        return moodFlow && isMoodFlowSegments(moodFlow);
+    }, [moodFlow]);
+
+    // Validate and filter segments to ensure only valid ones are used
+    const segments = useMemo(() => {
+        if (isReadingFormat) return []; // Reading format has no segments
+        if (!moodFlow || !Array.isArray(moodFlow)) return [];
+        // Filter out invalid segments that are missing required fields
+        return moodFlow.filter(s => s.mood && typeof s.percentage === 'number' && s.color);
+    }, [moodFlow, isReadingFormat]);
 
     // Combine loading states to prevent flash of raw mood IDs
     const isLoadingMoods = loading || isMoodCacheLoading;
 
-    const gradientColors = useMemo(() => buildGradientColors(segments), [segments]);
+    // For Reading format, use a neutral gradient; for Segments, use computed gradient
+    const gradientColors = useMemo(() => {
+        if (isReadingFormat) {
+            // Use a subtle neutral gradient for reading format
+            return ["#4B5563", "#374151"] as [string, string];
+        }
+        return buildGradientColors(segments);
+    }, [segments, isReadingFormat]);
 
     const toggle = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -84,11 +101,12 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
                         Mood Flow
                     </ThemedText>
                 </View>
-                <TouchableOpacity onPress={toggle} disabled={isLoadingMoods || !segments.length}>
+                {/* Only show toggle for segments format (Reading format has no expandable segments) */}
+                <TouchableOpacity onPress={toggle} disabled={isLoadingMoods || isReadingFormat || !segments.length}>
                     <Ionicons
                         name={expanded ? "chevron-up" : "chevron-down"}
                         size={18}
-                        color={colors.cardTextSecondary}
+                        color={isReadingFormat ? 'transparent' : colors.cardTextSecondary}
                     />
                 </TouchableOpacity>
             </View>
@@ -102,17 +120,41 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
                 />
             </View>
 
+            {/* Reading format: show title, subtitle, and confidence badge */}
+            {isReadingFormat && !isLoadingMoods && (
+                <View style={styles.readingContainer}>
+                    <ThemedText style={[styles.readingTitle, { color: colors.cardText }]}>
+                        {(moodFlow as MoodFlowReading).title}
+                    </ThemedText>
+                    <ThemedText style={[styles.readingSubtitle, { color: colors.cardTextSecondary }]}>
+                        {(moodFlow as MoodFlowReading).subtitle}
+                    </ThemedText>
+                    {(moodFlow as MoodFlowReading).confidence >= 70 && (
+                        <View style={styles.confidenceBadge}>
+                            <Ionicons name="checkmark-circle" size={14} color="#34D399" />
+                            <ThemedText style={styles.confidenceText}>
+                                {(moodFlow as MoodFlowReading).confidence}% confidence
+                            </ThemedText>
+                        </View>
+                    )}
+                </View>
+            )}
+
             {isLoadingMoods && (
                 <ThemedText style={[styles.placeholder, { color: colors.cardTextSecondary }]}>Generating today's mood flow...</ThemedText>
             )}
 
-            {!isLoadingMoods && segments.length === 0 && (
+            {/* Empty state: only show if not loading, not Reading format, and no segments */}
+            {!isLoadingMoods && !isReadingFormat && segments.length === 0 && (
                 <ThemedText style={[styles.placeholder, { color: colors.cardTextSecondary }]}>
-                    Capture moments today to see your mood transitions.
+                    {moodFlow && Array.isArray(moodFlow) && moodFlow.length > 0
+                        ? "Mood flow unavailable. Try regenerating this insight."
+                        : "Capture moments today to see your mood transitions."}
                 </ThemedText>
             )}
 
-            {expanded && segments.length > 0 && (
+            {/* Segments format: expandable segment list */}
+            {isSegmentsFormat && expanded && segments.length > 0 && (
                 <View style={styles.segmentList}>
                     {segments.map((segment) => (
                         <View key={`${segment.mood}-${segment.percentage}`} style={styles.segmentCard}>
@@ -214,5 +256,30 @@ const styles = StyleSheet.create({
         color: "rgba(255,255,255,0.7)",
         fontSize: 13,
         lineHeight: 18,
+    },
+    // Reading format styles
+    readingContainer: {
+        gap: 8,
+        paddingTop: 4,
+    },
+    readingTitle: {
+        fontSize: 16,
+        fontWeight: "600",
+        letterSpacing: 0.3,
+    },
+    readingSubtitle: {
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    confidenceBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 4,
+    },
+    confidenceText: {
+        fontSize: 12,
+        color: "#34D399",
+        fontFamily: "SpaceMono",
     },
 });

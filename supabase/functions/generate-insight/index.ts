@@ -46,8 +46,11 @@ interface CaptureData {
     mood: string;
     note?: string;
     capturedAt: string;
+    date?: string;  // ISO date string for grouping (YYYY-MM-DD)
     tags?: string[];
     timeBucket?: string;
+    dayPart?: string;  // "Late night" | "Morning" | "Midday" | "Evening" | "Night"
+    localTimeLabel?: string;  // "12:06 AM", "3:45 PM"
 }
 
 interface AlbumEntry {
@@ -101,14 +104,25 @@ BANNED LANGUAGE:
 BANNED PHRASES (NEVER USE THESE)
 ═══════════════════════════════════════════════════════════════════════════════
 
-INTERJECTIONS (NO):
-• "Ah," / "Ah!" / "Oh," / "Well," / "So,"
+INTERJECTIONS (ABSOLUTELY BANNED — even with custom tones):
+• "Ah" (in any form: "Ah,", "Ah!", "Ah...")
+• "Oh" (in any form: "Oh,", "Oh!", "Oh...")
+• "Well" (as sentence starter: "Well,", "Well...")
+• "So" (as sentence starter: "So,", "So...")
+• "Hmm" / "Hm" (in any form)
+• Any exclamatory sounds or filler words
 
 TAG QUESTIONS (NO):
 • "didn't it?" / "right?" / "eh?" / "wasn't it?"
 
 SECOND PERSON (NO):
 • "you" / "your" / "you're"
+
+CHARACTER REFERENCES (ABSOLUTELY BANNED):
+• Never name fictional characters, personas, or archetypes
+• Examples of BANNED references: "Goku", "Saiyan", "detective", "warrior", "traveler", "guide"
+• If a custom tone implies a character, adopt their PERSPECTIVE (what they notice), not their IDENTITY (who they are)
+• Write as an observer, never as a character
 
 ═══════════════════════════════════════════════════════════════════════════════
 REQUIRED FIRST WORDS
@@ -134,12 +148,13 @@ VOICE & FORMAT RULES
 CORE LOGIC RULES
 ═══════════════════════════════════════════════════════════════════════════════
 
-CRITICAL TIME RULE:
-• ALWAYS process in chronological order
-• Daily: morning → afternoon → evening → night
-• Weekly: Sunday → Saturday (week starts Sunday)
-• Monthly: Week 1 → Week 2 → Week 3 → Week 4
-• Reference time naturally, never list mechanically
+CRITICAL TIME RULE (HIGHEST PRIORITY):
+• ALWAYS process in chronological order, this is NON-NEGOTIABLE
+• Daily: morning → afternoon → evening → night (sorted by timeBucket)
+• Weekly: Sunday → Saturday (week starts Sunday, sorted by date)
+• Monthly: Week 1 → Week 2 → Week 3 → Week 4 (sorted by week number)
+• Reference time naturally in prose, never list mechanically
+• The narrative MUST flow forward in time (first moment → last moment)
 
 MOOD HANDLING:
 • Heavy moods (sad, anxious, frustrated): Acknowledge without fixing. No silver linings.
@@ -157,12 +172,19 @@ INSIGHT TYPE SPECIFICATIONS
 ═══════════════════════════════════════════════════════════════════════════════
 
 DAILY INSIGHTS:
-• 2-5 sentences, ONE continuous paragraph (no line breaks)
+• Paragraph count scales with capture count:
+  - 1 capture: 1 strong paragraph (3-4 sentences)
+  - 2-3 captures: 2-3 paragraphs (separated by blank lines)
+  - 4+ captures: 3 paragraphs maximum
+• Separate paragraphs with double newlines (\n\n)
 • Structure: Baseline → Shift → Resolution → Reflection
-• Even with 1-2 moments, write full sentences with emotional texture
+• Ground insights in concrete details from notes. Avoid generic lines like "a sense of productivity" unless backed by detail.
+• Even with 1 moment, write FULL sentences with emotional texture (not bland summaries)
 
-GOOD DAILY EXAMPLE:
-"The morning began with the quiet satisfaction of a database finally behaving. As the day progressed, a sense of gratitude settled in, the kind that comes from recognizing small wins stacking up."
+GOOD DAILY EXAMPLE (multi-paragraph):
+"The late night hours carried a quiet focus, the kind that comes when the world goes silent and the mind finally settles. A database finally behaving, small wins stacking up in the stillness.
+
+By the time sleep called, there was something earned in the exhaustion. Not productivity for its own sake, but the satisfaction of seeing something through."
 
 BAD DAILY EXAMPLE:
 "Ah, so the database finally yielded to your charms, didn't it?"
@@ -170,11 +192,16 @@ BAD DAILY EXAMPLE:
 ---
 
 WEEKLY INSIGHTS:
-• 5-8+ sentences, TWO paragraphs
-• Can be generated after just 1 day — write meaningfully even with limited data
-• Focus on the HIGH and LOW points of the week
-• Keep chronological order: Sunday → Saturday
-• You CAN subtly reference specific days ("Sunday carried...", "By midweek...")
+• Length scales with data:
+  - 1 day: 2 short paragraphs
+  - 2-3 days: 2-3 paragraphs
+  - 4-7 days: 2-3 paragraphs
+• Maximum 120 words total
+• Can be generated after just 1 day, write meaningfully even with limited data
+• CRITICAL: Process days in chronological order (Sunday → Saturday)
+• Acknowledge if week is in progress with "so far" language
+• 4-part narrative arc: Opening Context → Midweek Shifts → Current State → Forward-Looking Hint (if incomplete)
+• You CAN subtly reference specific days ("Sunday carried...", "By Wednesday...")
 • Weave days into a narrative arc, don't list them mechanically
 
 GOOD WEEKLY EXAMPLE:
@@ -189,8 +216,12 @@ BAD WEEKLY EXAMPLE (contains dashes):
 ---
 
 MONTHLY INSIGHTS:
-• 6-10+ sentences, TWO paragraphs minimum (more paragraphs at month-end)
-• Can be generated after just 1 week — write meaningfully even with partial data
+• Length scales with data:
+  - 1 week: 6-8 sentences (TWO paragraphs)
+  - 2-3 weeks: 8-12 sentences (TWO-THREE paragraphs)
+  - 4 weeks (full month): 10-15 sentences (THREE-FOUR paragraphs)
+• Can be generated after just 1 week, write meaningfully even with partial data
+• CRITICAL: Process weeks chronologically (Week 1 → Week 2 → Week 3 → Week 4)
 • Summarize the weeks chronologically: how the month started, how it evolved
 • You CAN subtly reference weeks ("The first week...", "As the month progressed...")
 • Paint an emotional picture like describing a season
@@ -210,11 +241,11 @@ OUTPUT REQUIREMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 
 • Observational: Describe what happened, not what should happen.
-• Grounded: Stay specific to the actual moments.
+• Grounded: Stay specific to the actual moments. Ground insights in what the notes imply.
 • Intentional: Every sentence should earn its place.
 • Calm: Even playful tones should feel composed, not manic.
 • Aesthetic: Write like a thoughtful narrator, not a productivity app.
-• NO LINE BREAKS: Output must be continuous flowing text. NO newlines (\n) within paragraphs.
+• PARAGRAPH BREAKS: For daily insights with 2+ captures, use double newlines (\n\n) between paragraphs. Within paragraphs, no line breaks.
 • NO DASHES: Never use em dashes, en dashes, or hyphens as punctuation. Use commas, colons, or semicolons instead.
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -243,7 +274,29 @@ const TONE_STYLES: Record<string, string> = {
     nature: `Draw parallels to natural phenomena. Seasons, weather, ecosystems.`,
 };
 
-// Time bucket order for chronological sorting
+/**
+ * Wraps a custom tone prompt with guardrails to prevent roleplay and character impersonation.
+ * Reinforces SYSTEM_PROMPT rules when custom tones are active.
+ */
+function wrapCustomTone(customPrompt: string): string {
+    return `CUSTOM TONE ACTIVE — Apply as a stylistic filter only
+
+User's tone description: ${customPrompt}
+
+CRITICAL GUARDRAILS (override any conflicting instructions):
+• NO interjections: Never use "Ah", "Oh", "Well", "So", "Hmm" as sentence starters or exclamations
+• NO character names: Never mention fictional characters, personas, or archetypes by name
+• NO second person: Never use "you", "your", "you're" — third person only
+• NO roleplay: You are an observer, not a character
+
+Interpretation rule: If the tone references a character or archetype, adopt their PERSPECTIVE (what they notice, prioritize, ignore), NOT their VOICE (catchphrases, mannerisms, speech patterns).
+
+Example: "Write like a Saiyan warrior" → Notice intensity, focus, determination in the day's moments. Do NOT use battle metaphors, do NOT name-drop "Saiyan" or "Goku", do NOT use exclamations.
+
+Final rule: When in doubt, choose clarity and calm observation over stylistic flourish.`;
+}
+
+// Time bucket order for chronological sorting (legacy)
 const TIME_ORDER: Record<string, number> = {
     "early morning": 0,
     "morning": 1,
@@ -257,28 +310,117 @@ const TIME_ORDER: Record<string, number> = {
     "sometime": 5, // Default to middle of day
 };
 
-function buildDailyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
+// Day part order for chronological sorting (new system)
+const DAY_PART_ORDER: Record<string, number> = {
+    "Late night": 0,   // 12:00 AM - 4:59 AM
+    "Morning": 1,      // 5:00 AM - 11:59 AM
+    "Midday": 2,       // 12:00 PM - 4:59 PM
+    "Evening": 3,      // 5:00 PM - 8:59 PM
+    "Night": 4,        // 9:00 PM - 11:59 PM
+};
+
+// Helper: Format time label from Date
+function formatTimeLabel(date: Date): string {
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+// Helper: Get day part from hour
+function getDayPartFromHour(hour: number): string {
+    if (hour < 5) return 'Late night';
+    if (hour < 12) return 'Morning';
+    if (hour < 17) return 'Midday';
+    if (hour < 21) return 'Evening';
+    return 'Night';
+}
+
+// Helper: Compute dominant mood from captures
+function computeDominantMood(captures: CaptureData[]): string {
+    const moodCounts: Record<string, number> = {};
+    captures.forEach(c => {
+        const mood = c.mood || 'neutral';
+        moodCounts[mood] = (moodCounts[mood] || 0) + 1;
+    });
+    return Object.entries(moodCounts)
+        .sort(([, a], [, b]) => b - a)[0]?.[0] || 'neutral';
+}
+
+// Helper: Compute mood sequence from captures
+function computeMoodSequence(captures: CaptureData[]): string[] {
+    return captures.map(c => c.mood || 'neutral');
+}
+
+// Helper: Compute day part span from captures
+function computeDayPartSpan(captures: CaptureData[]): string[] {
+    const dayParts = new Set(captures.map(c => c.dayPart).filter(Boolean));
+    return Array.from(dayParts) as string[];
+}
+
+interface NowLocalContext {
+    iso: string;
+    timeLabel: string;
+    dayPart: string;
+    weekday: string;
+}
+
+function buildDailyPrompt(
+    data: InsightRequest["data"],
+    tone: string,
+    customTonePrompt?: string,
+    nowLocal?: NowLocalContext
+): string {
     const rawCaptures = data.captures || [];
-    const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
+    const toneStyle = customTonePrompt
+        ? wrapCustomTone(customTonePrompt)
+        : (TONE_STYLES[tone] || TONE_STYLES.neutral);
 
     console.log(`[generate-insight] Building daily prompt with tone: "${tone}"`);
     console.log(`[generate-insight] Tone style being used: "${toneStyle.substring(0, 80)}..."`);
     console.log(`[generate-insight] Number of captures: ${rawCaptures.length}`);
 
-    // Sort captures chronologically by time bucket
+    // Sort captures chronologically by dayPart (new system) with fallback to timeBucket (legacy)
     const captures = [...rawCaptures].sort((a, b) => {
+        // Prefer dayPart if available
+        if (a.dayPart && b.dayPart) {
+            const timeA = DAY_PART_ORDER[a.dayPart] ?? 2;
+            const timeB = DAY_PART_ORDER[b.dayPart] ?? 2;
+            return timeA - timeB;
+        }
+        // Fallback to timeBucket
         const timeA = TIME_ORDER[a.timeBucket?.toLowerCase() || "sometime"] ?? 5;
         const timeB = TIME_ORDER[b.timeBucket?.toLowerCase() || "sometime"] ?? 5;
         return timeA - timeB;
     });
 
+    // Compute mood flow inputs
+    const dominantMood = computeDominantMood(captures);
+    const moodSequence = computeMoodSequence(captures);
+    const dayPartSpan = computeDayPartSpan(captures);
+
+    // Build capture descriptions using dayPart and localTimeLabel
     const captureDescriptions = captures.map((c, i) => {
-        const time = c.timeBucket || "sometime";
+        const timeLabel = c.localTimeLabel || c.capturedAt?.split('T')[1]?.slice(0, 5) || "sometime";
+        const dayPart = c.dayPart || c.timeBucket || "sometime";
         const mood = c.mood || "neutral";
-        const note = c.note ? ` — "${c.note.slice(0, 100)}"` : "";
-        const tags = c.tags?.length ? ` [${c.tags.join(", ")}]` : "";
-        return `${i + 1}. ${time}: Feeling ${mood}${note}${tags}`;
-    }).join("\n");
+        const note = c.note ? `\nNote: "${c.note.slice(0, 150)}"` : "";
+        const tags = c.tags?.length ? `\nTags: ${c.tags.join(", ")}` : "";
+        return `[${i + 1}] ${timeLabel} (${dayPart})
+Feeling: ${mood}${note}${tags}`;
+    }).join("\n\n");
+
+    // Determine paragraph count based on capture count
+    const captureCount = captures.length;
+    const paragraphRule = captureCount === 1
+        ? "1 capture = 1 strong paragraph (3-4 sentences)"
+        : captureCount <= 3
+            ? "2-3 captures = 2-3 paragraphs (separated by \\n\\n)"
+            : "4+ captures = 3 paragraphs maximum";
+
+    // Build nowLocal context string
+    const nowContext = nowLocal
+        ? `\nCURRENT TIME CONTEXT:
+It is currently ${nowLocal.timeLabel} on ${nowLocal.weekday} (${nowLocal.dayPart}).
+Use dayPart and timeLabel literally. Late night should feel like late night. Do not imply midday if it is late night.`
+        : "";
 
     return `${SYSTEM_PROMPT}
 
@@ -288,9 +430,12 @@ TONE STYLE (Apply as a stylistic filter — never name or acknowledge it)
 
 ${toneStyle}
 
+Follow tone instructions exactly. Dry, lightly playful, never mean. Clever contrasts. No cringe. No loud openers.
+
 ═══════════════════════════════════════════════════════════════════════════════
 TASK: DAILY INSIGHT FOR ${data.dateLabel || "today"}
 ═══════════════════════════════════════════════════════════════════════════════
+${nowContext}
 
 USER'S DAY (chronological order):
 ${captureDescriptions || "No specific moments recorded."}
@@ -301,52 +446,132 @@ STRUCTURE GUIDE:
 3. Resolution: How things settled (later moments)
 4. Reflection: A closing observation (not advice)
 
+LENGTH RULES:
+- ${paragraphRule}
+- Separate paragraphs with double newlines (\\n\\n)
+- Ground the insight in what the notes imply. Avoid generic lines like "a sense of productivity" unless you have concrete detail.
+
 RULES:
-- Write 2-4 FULL sentences even if only 1-2 moments exist
 - Weave moments into a narrative arc, don't list them
-- Reference time naturally ("The morning began...", "By evening...")
+- Reference time naturally using the dayPart labels ("The late night hours...", "By evening...")
 - Be specific to what happened, not generic
 - Never give advice or therapy
 - EMBODY THE TONE — this is the most important rule
 
-Respond with JSON:
+CRITICAL REQUIREMENTS:
+1. The "narrative.text" field is REQUIRED (multi-paragraph narrative)
+2. The "mood_flow" object is REQUIRED with title, subtitle, confidence
+
+Respond with PURE JSON (NO markdown fences, NO \`\`\`json wrapper):
 {
-    "insight": "Your insight text here",
-    "vibe_tags": ["tag1", "tag2"],
-    "mood_colors": ["#hex1", "#hex2"]
-}`;
+    "timeframe": "daily",
+    "narrative": {
+        "text": "Multi-paragraph narrative here.\\n\\nSecond paragraph if needed."
+    },
+    "mood_flow": {
+        "title": "Quiet Anticipation",
+        "subtitle": "Intentional start to the day.",
+        "confidence": 85
+    }
 }
 
-function buildWeeklyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
-    const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
+CRITICAL: Return ONLY the JSON object. Do NOT wrap it in \`\`\`json fences or any markdown.
+
+MOOD_FLOW TASK:
+Goal: Create a named Mood Flow reading for the day.
+
+Inputs provided:
+- Dominant mood: ${dominantMood}
+- Mood sequence: [${moodSequence.join(", ")}]
+- Day parts covered: [${dayPartSpan.join(", ")}]
+
+Requirements:
+- title: 2-4 words, aesthetic, not cheesy. Examples: "Quiet Anticipation", "Steady Focus", "Soft Momentum", "Late-Night Resolve", "Calm Friction"
+- subtitle: 6-12 words, one sentence, no comma spam. Describes the day's emotional arc.
+- confidence: 0-100 based on data richness:
+  - 90-100: 3+ captures with consistent mood
+  - 70-89: 2 captures
+  - 50-69: 1 capture
+
+GROUNDING RULE (CRITICAL):
+- The mood_flow title MUST be grounded in the supplied dominantMood, moodSequence, and dayPartSpan.
+- Do NOT invent or output mood names not supported by those inputs.
+- Avoid whimsical, random, or ungrounded naming. The title should reflect what was actually captured.`;
+}
+
+function buildWeeklyPrompt(
+    data: InsightRequest["data"],
+    tone: string,
+    customTonePrompt?: string,
+    nowLocal?: NowLocalContext
+): string {
+    const toneStyle = customTonePrompt
+        ? wrapCustomTone(customTonePrompt)
+        : (TONE_STYLES[tone] || TONE_STYLES.neutral);
     const captures = data.captures || [];
 
     console.log(`[generate-insight] Building weekly prompt with tone: "${tone}"`);
     console.log(`[generate-insight] Weekly captures count: ${captures.length}`);
 
-    // Group captures by day
+    // Group captures by day (fall back to parsing capturedAt if date is missing)
     const dayGroups: Record<string, typeof captures> = {};
     captures.forEach(c => {
-        const day = c.date || "unknown";
+        let day = c.date;
+        if (!day && c.capturedAt) {
+            // Parse capturedAt to ISO date string (YYYY-MM-DD)
+            const parsed = new Date(c.capturedAt);
+            if (!isNaN(parsed.getTime())) {
+                day = parsed.toISOString().split('T')[0];
+            }
+        }
+        day = day || "unknown";
         if (!dayGroups[day]) dayGroups[day] = [];
         dayGroups[day].push(c);
     });
 
-    // CRITICAL: Use explicit array sorting to guarantee chronological order
+    // CRITICAL: Sort days chronologically (ISO date strings sort correctly with localeCompare)
     // Object.entries() does NOT preserve insertion order for date strings
     const sortedDayEntries = Object.entries(dayGroups)
         .sort(([dateA], [dateB]) => dateA.localeCompare(dateB));
 
     const daysCount = sortedDayEntries.length;
 
-    // Build day summaries in GUARANTEED chronological order
+    // Compute week status
+    const isWeekFinished = sortedDayEntries.length >= 7;
+
+    // Build day summaries with time context in GUARANTEED chronological order
     const daySummaries = sortedDayEntries.map(([day, dayCaptures], index) => {
+        // Get day name from date
+        const dayName = new Date(day).toLocaleDateString('en-US', { weekday: 'long' });
         const moods = dayCaptures.map(c => c.mood || "neutral");
         const primaryMood = moods[0] || "neutral";
+
+        // Include time context from first capture
+        const firstCapture = dayCaptures[0];
+        const timeContext = firstCapture?.dayPart && firstCapture?.localTimeLabel
+            ? ` at ${firstCapture.localTimeLabel} (${firstCapture.dayPart})`
+            : "";
+
         const notes = dayCaptures.filter(c => c.note).map(c => c.note).slice(0, 2);
-        const marker = index === 0 ? " ← START OF WEEK" : "";
-        return `${day}: ${primaryMood}${notes.length ? ` — "${notes[0]?.slice(0, 50)}"` : ""}${marker}`;
+        const marker = index === 0 ? " ← START OF WEEK (Sunday)" : "";
+
+        return `${dayName} (${day}): ${primaryMood}${timeContext}${notes.length ? ` — "${notes[0]?.slice(0, 50)}"` : ""}${marker}`;
     }).join("\n");
+
+    // Build nowLocal context string
+    const nowContext = nowLocal
+        ? `\nCURRENT TIME CONTEXT:
+It is currently ${nowLocal.timeLabel} on ${nowLocal.weekday} (${nowLocal.dayPart}).
+The week started on Sunday. Today is ${nowLocal.weekday}.
+Week status: ${isWeekFinished ? "Complete (7 days)" : `In progress (${sortedDayEntries.length} days so far)`}`
+        : "";
+
+    // Determine length rules based on days count
+    const lengthRule = daysCount === 1
+        ? "1 day: 2 short paragraphs"
+        : daysCount <= 3
+            ? "2-3 days: 2-3 paragraphs"
+            : "4-7 days: 2-3 paragraphs";
 
     return `${SYSTEM_PROMPT}
 
@@ -358,7 +583,9 @@ ${toneStyle}
 
 ═══════════════════════════════════════════════════════════════════════════════
 TASK: WEEKLY REFLECTION FOR ${data.weekLabel || "this week"}
+isWeekFinished: ${isWeekFinished}
 ═══════════════════════════════════════════════════════════════════════════════
+${nowContext}
 
 ↑ THE FIRST LINE BELOW IS THE START OF THE WEEK (Sunday)
 WEEK DATA (${daysCount} day${daysCount === 1 ? "" : "s"} so far, in chronological order):
@@ -366,22 +593,38 @@ ${daySummaries || "No days recorded yet."}
 
 WEEKLY INSIGHT RULES:
 - This insight may be generated after just 1 day — write meaningfully even with limited data
-- Focus on the HIGH and LOW points of the week
+- Week status: ${isWeekFinished ? "Complete week" : `Partial week (${daysCount} days so far)`}
+- If week is not finished, acknowledge it's still in progress. Use "so far" language to tie Sunday → today with a connective thread.
+
+NARRATIVE STRUCTURE (REQUIRED 4-PART ARC):
+1. OPENING CONTEXT: How the week began (e.g., "The week opened with...", "Sunday started with...")
+2. MIDWEEK SHIFTS: Shifts or patterns across days (e.g., "As the days progressed...", "By midweek...")
+3. CURRENT STATE: Anchor to the most recent day (e.g., "By ${nowLocal?.weekday || 'the latest day'}...", "The week currently...")
+4. FORWARD-LOOKING HINT: ${isWeekFinished ? "Reflect on the week's completion" : "Suggest momentum or continuation (reflective, not prescriptive)"}
+
+LENGTH RULES:
+- ${lengthRule}
+- Maximum 120 words total
+- Separate paragraphs with double newlines (\\n\\n)
+
 - Keep chronological order: start with how the week began, end with how it's going
-- You CAN subtly reference specific days ("Sunday started with...", "By midweek...")
-- Write 5-8+ sentences in TWO paragraphs about the week's emotional arc
+- You CAN subtly reference specific days ("Sunday started with...", "By ${nowLocal?.weekday || 'midweek'}...")
 - Weave the days into a narrative, don't list them mechanically
 - Never give advice
 - EMBODY THE TONE
 
-Respond with JSON:
+Respond with PURE JSON (NO markdown fences, NO \`\`\`json wrapper):
 {
     "insight": "Your weekly reflection here"
-}`;
+}
+
+CRITICAL: Return ONLY the JSON object. Do NOT wrap it in \`\`\`json fences or any markdown.`;
 }
 
 function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
-    const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
+    const toneStyle = customTonePrompt
+        ? wrapCustomTone(customTonePrompt)
+        : (TONE_STYLES[tone] || TONE_STYLES.neutral);
     const signals = data.signals;
     const captures = data.captures || [];
 
@@ -400,9 +643,14 @@ function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTo
         activeDays > 10 ? "regularly present" :
         activeDays > 5 ? "occasionally checking in" : "lightly touched";
 
-    // Group captures by week for week-by-week summary
+    // Sort captures chronologically BEFORE grouping by week
+    const sortedCaptures = [...captures].sort((a, b) =>
+        (a.date || "").localeCompare(b.date || "")
+    );
+
+    // Group sorted captures by week for week-by-week summary
     const weekGroups: Record<string, typeof captures> = {};
-    captures.forEach(c => {
+    sortedCaptures.forEach(c => {
         if (c.date) {
             const date = new Date(c.date);
             const weekNum = Math.ceil(date.getDate() / 7);
@@ -412,7 +660,7 @@ function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTo
         }
     });
 
-    // Sort weeks chronologically
+    // Sort weeks chronologically by week number
     const sortedWeekEntries = Object.entries(weekGroups)
         .sort(([weekA], [weekB]) => {
             const numA = parseInt(weekA.replace("Week ", ""));
@@ -485,7 +733,9 @@ Return plain text (no JSON).`;
 }
 
 function buildCapturePrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
-    const toneStyle = customTonePrompt || TONE_STYLES[tone] || TONE_STYLES.neutral;
+    const toneStyle = customTonePrompt
+        ? wrapCustomTone(customTonePrompt)
+        : (TONE_STYLES[tone] || TONE_STYLES.neutral);
     const capture = data.captures?.[0];
 
     return `${SYSTEM_PROMPT}
@@ -544,12 +794,160 @@ Write 1-2 sentences about what this tag represents for the user.`;
 }
 
 // ============================================
+// ERROR RESPONSE HELPER
+// ============================================
+
+function createErrorResponse(
+  stage: 'auth' | 'fetch' | 'model' | 'parse' | 'validate' | 'extract' | 'unknown',
+  message: string,
+  status: number,
+  requestId: string
+): Response {
+  const payload = {
+    ok: false,
+    error: {
+      stage,
+      message,
+      requestId,
+      status
+    }
+  };
+
+  console.error(`[generate-insight] [${requestId}] Error at stage "${stage}":`, message);
+
+  return new Response(
+    JSON.stringify(payload),
+    {
+      status,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+}
+
+// ============================================
+// JSON SANITIZATION & PROCESSING
+// ============================================
+
+function sanitizeJSON(rawText: string): string {
+  let sanitized = rawText.trim();
+
+  // Remove markdown code fences (```json, ```)
+  sanitized = sanitized.replace(/^```json\s*/i, '');
+  sanitized = sanitized.replace(/^```\s*/, '');
+  sanitized = sanitized.replace(/\s*```$/, '');
+
+  // Find first { and last }
+  const firstBrace = sanitized.indexOf('{');
+  const lastBrace = sanitized.lastIndexOf('}');
+
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    sanitized = sanitized.substring(firstBrace, lastBrace + 1);
+  }
+
+  return sanitized.trim();
+}
+
+function processInsightResponse(
+  rawText: string,
+  type: InsightType,
+  requestId: string
+): { success: true; result: string } | { success: false; error: Response } {
+  // Plain text types - return as-is
+  if (type === 'month' || type === 'album' || type === 'tag' || type === 'capture') {
+    return { success: true, result: rawText };
+  }
+
+  // JSON types - sanitize and validate
+  const sanitized = sanitizeJSON(rawText);
+
+  // Log if sanitization was applied
+  if (sanitized !== rawText.trim()) {
+    console.log(`[generate-insight] [${requestId}] JSON sanitization applied for type "${type}"`);
+    console.log(`[generate-insight] [${requestId}] Original length: ${rawText.length}, Sanitized length: ${sanitized.length}`);
+  }
+
+  if (sanitized.includes('```')) {
+    console.warn(`[generate-insight] [${requestId}] Model output still contains code fences after sanitization`);
+  }
+
+  if (rawText.length > 0 && sanitized.length === 0) {
+    console.error(`[generate-insight] [${requestId}] Sanitization resulted in empty string. Original: ${rawText.substring(0, 100)}`);
+  }
+
+  // Attempt to parse JSON
+  let parsed: any;
+  try {
+    parsed = JSON.parse(sanitized);
+  } catch (parseError) {
+    console.error(`[generate-insight] [${requestId}] JSON parse failed after sanitization:`, parseError);
+    console.error(`[generate-insight] [${requestId}] Sanitized text:`, sanitized.substring(0, 200));
+    return {
+      success: false,
+      error: createErrorResponse(
+        'parse',
+        `Model returned invalid JSON format (sanitized length: ${sanitized.length}, preview: ${sanitized.substring(0, 120)})`,
+        502,
+        requestId
+      )
+    };
+  }
+
+  // Type-specific extraction
+  if (type === 'weekly') {
+    const extractedText =
+      parsed?.insight ||
+      parsed?.narrative?.text ||
+      parsed?.text ||
+      parsed?.output?.text;
+
+    if (!extractedText) {
+      console.error(`[generate-insight] [${requestId}] Weekly extraction failed. Available keys:`, Object.keys(parsed));
+      return {
+        success: false,
+        error: createErrorResponse(
+          'extract',
+          `Could not extract text from JSON. Available keys: ${Object.keys(parsed).join(', ')}`,
+          502,
+          requestId
+        )
+      };
+    }
+
+    return { success: true, result: extractedText };
+  }
+
+  if (type === 'daily') {
+    if (!parsed?.narrative?.text) {
+      console.error(`[generate-insight] [${requestId}] Daily JSON missing narrative.text. Available keys:`, Object.keys(parsed));
+      return {
+        success: false,
+        error: createErrorResponse(
+          'validate',
+          'Daily insight missing required narrative.text field',
+          502,
+          requestId
+        )
+      };
+    }
+
+    return { success: true, result: JSON.stringify(parsed) };
+  }
+
+  // Fallback for unknown JSON types
+  return { success: true, result: JSON.stringify(parsed) };
+}
+
+// ============================================
 // MAIN HANDLER
 // ============================================
 
 serve(async (req: Request) => {
-    console.log("[generate-insight] Request received:", req.method);
-    
+    const requestId = crypto.randomUUID();
+    console.log(`[generate-insight] [${requestId}] Request received:`, req.method);
+
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
@@ -558,30 +956,23 @@ serve(async (req: Request) => {
     try {
         // 1. Verify authentication
         const authHeader = req.headers.get("Authorization");
-        console.log("[generate-insight] Auth header present:", !!authHeader);
-        console.log("[generate-insight] Auth header preview:", authHeader?.substring(0, 30) + "...");
-        
+    console.log(`[generate-insight] [${requestId}] Auth header present:`, !!authHeader);
+
         if (!authHeader) {
-            console.log("[generate-insight] ERROR: Missing auth header");
-            return new Response(
-                JSON.stringify({ error: "Missing authorization header" }),
-                { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            console.log(`[generate-insight] [${requestId}] ERROR: Missing auth header`);
+            return createErrorResponse('auth', 'Missing authorization header', 401, requestId);
         }
 
         // Initialize Supabase client with user's token
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
-        const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
-        console.log("[generate-insight] Supabase URL:", supabaseUrl);
-        console.log("[generate-insight] Supabase Anon Key (first 20 chars):", supabaseAnonKey?.substring(0, 20));
+    console.log(`[generate-insight] [${requestId}] Supabase URL present:`, !!supabaseUrl);
+    console.log(`[generate-insight] [${requestId}] Supabase Anon Key present:`, !!supabaseAnonKey);
 
         if (!supabaseUrl || !supabaseAnonKey) {
-            console.log("[generate-insight] ERROR: Missing Supabase env vars");
-            return new Response(
-                JSON.stringify({ error: "Server configuration error" }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            console.log(`[generate-insight] [${requestId}] ERROR: Missing Supabase env vars`);
+            return createErrorResponse('unknown', 'Server configuration error', 500, requestId);
         }
 
         const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -592,28 +983,37 @@ serve(async (req: Request) => {
         const token = authHeader.replace('Bearer ', '');
 
         // Get user from token - pass token directly to getUser()
-        console.log("[generate-insight] Verifying user token...");
+        console.log(`[generate-insight] [${requestId}] Verifying user token...`);
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-        console.log("[generate-insight] Auth result - user:", user?.id);
-        console.log("[generate-insight] Auth error:", authError ? JSON.stringify(authError) : "none");
-        
+        console.log(`[generate-insight] [${requestId}] Auth result - user:`, user?.id);
+        console.log(`[generate-insight] [${requestId}] Auth error:`, authError ? JSON.stringify(authError) : "none");
+
         if (authError || !user) {
-            console.log("[generate-insight] ERROR: Auth failed -", authError?.message || "No user");
-            return new Response(
-                JSON.stringify({ error: "Invalid or expired token", details: authError?.message }),
-                { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            console.log(`[generate-insight] [${requestId}] ERROR: Auth failed -`, authError?.message || "No user");
+            return createErrorResponse('auth', 'Invalid or expired token', 401, requestId);
         }
-        
-        console.log("[generate-insight] User authenticated:", user.id);
+
+        console.log(`[generate-insight] [${requestId}] User authenticated:`, user.id);
 
         // 2. Check rate limits
-        const { data: settings } = await supabase
-            .from("user_settings")
-            .select("subscription_tier, daily_insight_count")
-            .eq("user_id", user.id)
-            .maybeSingle();  // Returns null instead of throwing if no row exists
+        let settings;
+        try {
+            const { data, error: settingsError } = await supabase
+                .from("user_settings")
+                .select("subscription_tier, daily_insight_count")
+                .eq("user_id", user.id)
+                .maybeSingle();  // Returns null instead of throwing if no row exists
+
+            if (settingsError) {
+                console.error(`[generate-insight] [${requestId}] Settings fetch error:`, settingsError);
+                return createErrorResponse('fetch', 'Failed to fetch user settings', 500, requestId);
+            }
+            settings = data;
+        } catch (dbError) {
+            console.error(`[generate-insight] [${requestId}] Database error:`, dbError);
+            return createErrorResponse('fetch', 'Failed to fetch user settings', 500, requestId);
+        }
 
         const tier = settings?.subscription_tier || "free";
         const currentCount = settings?.daily_insight_count || 0;
@@ -621,30 +1021,51 @@ serve(async (req: Request) => {
 
         // Rate limit applies to all tiers (founder/subscriber have high limits of 100/day)
         if (currentCount >= limit) {
-            return new Response(
-                JSON.stringify({
-                    error: "Rate limit exceeded",
-                    limit,
-                    current: currentCount,
-                    tier,
-                }),
-                { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            return createErrorResponse(
+                'validate',
+                `Rate limit exceeded (${currentCount}/${limit} for ${tier} tier)`,
+                429,
+                requestId
             );
         }
 
         // 3. Parse request
-        const body: InsightRequest = await req.json();
+        let body: InsightRequest;
+        try {
+            body = await req.json();
+        } catch (parseError) {
+            console.error(`[generate-insight] [${requestId}] Request parse error:`, parseError);
+            return createErrorResponse('parse', 'Invalid request body', 400, requestId);
+        }
         const { type, data, tone, customTonePrompt } = body;
 
         // 4. Build prompt based on type
         let prompt: string;
         switch (type) {
-            case "daily":
-                prompt = buildDailyPrompt(data, tone, customTonePrompt);
+            case "daily": {
+                // Compute nowLocal context for time-aware prompts
+                const now = new Date();
+                const nowLocal: NowLocalContext = {
+                    iso: now.toISOString(),
+                    timeLabel: formatTimeLabel(now),
+                    dayPart: getDayPartFromHour(now.getHours()),
+                    weekday: now.toLocaleDateString('en-US', { weekday: 'long' })
+                };
+                prompt = buildDailyPrompt(data, tone, customTonePrompt, nowLocal);
                 break;
-            case "weekly":
-                prompt = buildWeeklyPrompt(data, tone, customTonePrompt);
+            }
+            case "weekly": {
+                // Compute nowLocal context for time-aware prompts
+                const now = new Date();
+                const nowLocal: NowLocalContext = {
+                    iso: now.toISOString(),
+                    timeLabel: formatTimeLabel(now),
+                    dayPart: getDayPartFromHour(now.getHours()),
+                    weekday: now.toLocaleDateString('en-US', { weekday: 'long' })
+                };
+                prompt = buildWeeklyPrompt(data, tone, customTonePrompt, nowLocal);
                 break;
+            }
             case "month":
                 prompt = buildMonthlyPrompt(data, tone, customTonePrompt);
                 break;
@@ -658,20 +1079,14 @@ serve(async (req: Request) => {
                 prompt = buildTagPrompt(data, tone);
                 break;
             default:
-                return new Response(
-                    JSON.stringify({ error: `Unknown insight type: ${type}` }),
-                    { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
+                return createErrorResponse('validate', `Unknown insight type: ${type}`, 400, requestId);
         }
 
         // 5. Call Gemini API (server-side key!)
         const geminiKey = Deno.env.get("GEMINI_API_KEY");
         if (!geminiKey) {
-            console.error("GEMINI_API_KEY not configured");
-            return new Response(
-                JSON.stringify({ error: "AI service not configured" }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            console.error(`[generate-insight] [${requestId}] GEMINI_API_KEY not configured`);
+            return createErrorResponse('unknown', 'AI service not configured', 500, requestId);
         }
 
         const geminiResponse = await fetch(
@@ -685,32 +1100,48 @@ serve(async (req: Request) => {
             }
         );
 
-        const geminiData = await geminiResponse.json();
+        let geminiData;
+        try {
+            geminiData = await geminiResponse.json();
+        } catch (jsonError) {
+            console.error(`[generate-insight] [${requestId}] Gemini response parse error:`, jsonError);
+            return createErrorResponse('parse', 'Invalid model response', 502, requestId);
+        }
 
         if (!geminiResponse.ok) {
-            console.error("Gemini API error:", geminiData);
-            return new Response(
-                JSON.stringify({ error: "AI generation failed" }),
-                { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+            console.error(`[generate-insight] [${requestId}] Gemini API error:`, geminiData);
+            return createErrorResponse('model', 'AI generation failed', 502, requestId);
         }
 
         const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-        // 6. Increment usage counter
-        await supabase.rpc("increment_usage", { feature_name: "daily_insight" });
+        // 7. Process and validate response based on insight type
+        const processed = processInsightResponse(generatedText, type, requestId);
 
-        // 7. Return result
+        if (!processed.success) {
+            return processed.error;
+        }
+
+        // 8. Increment usage counter
+        try {
+            await supabase.rpc("increment_usage", { feature_name: "daily_insight" });
+        } catch (usageError) {
+            console.error(`[generate-insight] [${requestId}] Usage increment error:`, usageError);
+            // Don't fail the request for usage tracking errors, just log it
+        }
+
+        // 9. Return result
         return new Response(
-            JSON.stringify({ result: generatedText }),
+            JSON.stringify({
+                ok: true,
+                result: processed.result,
+                requestId
+            }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
 
     } catch (error) {
-        console.error("Edge function error:", error);
-        return new Response(
-            JSON.stringify({ error: "Internal server error" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        console.error(`[generate-insight] [${requestId}] Edge function error:`, error);
+        return createErrorResponse('unknown', 'Internal server error', 500, requestId);
     }
 });

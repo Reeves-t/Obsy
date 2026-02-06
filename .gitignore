@@ -26,6 +26,7 @@ ios/
 .env.development.local
 .env.test.local
 .env.production.local
+supabase/functions/.env
 *.local
 
 # IDE
@@ -50,4 +51,3 @@ coverage/
 .cache/
 tmp/
 temp/
-

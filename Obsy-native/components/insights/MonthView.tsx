@@ -5,10 +5,10 @@ import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
+import { InsightText } from "@/components/insights/InsightText";
 import { MoodFlow } from "@/components/insights/MoodFlow";
 import { MoodRingDial } from "@/components/insights/MoodRingDial";
 import Colors from "@/constants/Colors";
-import { InsightHistory } from "@/services/insightHistory";
 import { Capture } from "@/types/capture";
 import { DailyMoodFlowData, filterCapturesForDate, formatDateKey } from "@/lib/dailyMoodFlows";
 import { getMoodColor } from "@/lib/moodColors";
@@ -23,7 +23,7 @@ import { useObsyTheme } from "@/contexts/ThemeContext";
 interface MonthViewProps {
     currentMonth: Date;
     onMonthChange: (direction: "prev" | "next") => void;
-    monthlyInsight: InsightHistory | null;
+    text: string | null;
     onGenerate: () => void;
     isGenerating: boolean;
     captures: Capture[];
@@ -40,7 +40,7 @@ interface MonthViewProps {
 export function MonthView({
     currentMonth,
     onMonthChange,
-    monthlyInsight,
+    text,
     onGenerate,
     isGenerating,
     captures,
@@ -62,21 +62,21 @@ export function MonthView({
     // Check if insight is already saved when component mounts or dependencies change
     React.useEffect(() => {
         const checkSaved = async () => {
-            if (!user || !monthlyInsight) return;
+            if (!user || !text) return;
             const archives = await fetchArchives(user.id);
             const dateStr = format(currentMonth, "yyyy-MM");
             const saved = archives.some(a => a.type === 'monthly' && a.date_scope === dateStr);
             setIsSaved(saved);
         };
         checkSaved();
-    }, [user?.id, monthlyInsight?.id, currentMonth.getTime()]);
+    }, [user?.id, text, currentMonth.getTime()]);
 
     const handleSave = async () => {
         if (!user) {
             Alert.alert("Sign In Required", "Please sign in to save insights to your archive.");
             return;
         }
-        if (!monthlyInsight || isSaved || saving) return;
+        if (!text || isSaved || saving) return;
 
         if (onArchiveFull) {
             const archives = await fetchArchives(user.id);
@@ -91,8 +91,8 @@ export function MonthView({
             const result = await archiveInsightWithResult({
                 userId: user.id,
                 type: 'monthly',
-                insightText: monthlyInsight.content,
-                relatedCaptureIds: monthlyInsight.capture_ids || [],
+                insightText: text,
+                relatedCaptureIds: [],
                 date: currentMonth,
             });
 
@@ -153,7 +153,7 @@ export function MonthView({
             </View>
 
             <MonthSummaryCard
-                insight={monthlyInsight}
+                text={text}
                 onGenerate={onGenerate}
                 isGenerating={isGenerating}
                 isSaved={isSaved}
@@ -192,7 +192,7 @@ export function MonthView({
 }
 
 function MonthSummaryCard({
-    insight,
+    text,
     onGenerate,
     isGenerating,
     isSaved,
@@ -205,7 +205,7 @@ function MonthSummaryCard({
     isLight,
     colors,
 }: {
-    insight: InsightHistory | null;
+    text: string | null;
     onGenerate: () => void;
     isGenerating: boolean;
     isSaved: boolean;
@@ -218,8 +218,7 @@ function MonthSummaryCard({
     isLight?: boolean;
     colors?: { cardText: string; cardTextSecondary: string; cardBorder: string; };
 }) {
-    const timestamp = insight?.mood_summary?.generated_through_date;
-    const formattedDate = timestamp ? format(new Date(timestamp + 'T12:00:00'), "MMM d") : null;
+    const formattedDate = null;
 
     return (
         <View style={styles.summaryCard}>
@@ -264,10 +263,13 @@ function MonthSummaryCard({
             )}
 
             <View style={styles.summaryBody}>
-                {insight ? (
-                    <ThemedText style={[styles.summaryText, colors && { color: colors.cardText }]}>
-                        {insight.content}
-                    </ThemedText>
+                {text ? (
+                    <InsightText
+                        fallbackText={text}
+                        collapsedSentences={0}
+                        expandable={false}
+                        textStyle={[styles.summaryText, colors && { color: colors.cardText }]}
+                    />
                 ) : (
                     <ThemedText style={[styles.placeholder, colors && { color: colors.cardTextSecondary }]}>
                         {isEligible
@@ -277,7 +279,7 @@ function MonthSummaryCard({
                 )}
             </View>
 
-            {insight && (
+            {text && (
                 <View style={styles.summaryFooter}>
                     <BookmarkButton
                         isSaved={isSaved}

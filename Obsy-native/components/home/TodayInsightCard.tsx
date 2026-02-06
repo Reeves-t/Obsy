@@ -1,33 +1,19 @@
-import React, { useEffect, useCallback } from 'react';
-import { StyleSheet, View, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withRepeat,
-    withTiming,
-    Easing,
-    cancelAnimation
-} from 'react-native-reanimated';
-
 import { ThemedText } from '@/components/ui/ThemedText';
 import { InsightText } from '@/components/insights/InsightText';
-import { PremiumGate } from '@/components/PremiumGate';
-import { useTodayInsight } from '@/lib/todayInsightStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCaptureStore } from '@/lib/captureStore';
-import { getProfile } from '@/services/profile';
-import Colors from '@/constants/Colors';
-import { getLocalDayKey } from '@/lib/utils';
-import { DailyInsight } from '@/services/dailyInsights';
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from '@/services/archive';
 import { BookmarkButton } from '@/components/insights/BookmarkButton';
 import { useObsyTheme } from '@/contexts/ThemeContext';
-import { PendingInsightMessage } from '@/components/insights/PendingInsightMessage';
+import Colors from '@/constants/Colors';
 
 interface TodayInsightCardProps {
+    text: string | null;
+    onRefresh?: () => void;
     onRefreshStart?: () => void;
     onRefreshEnd?: () => void;
     flat?: boolean;
@@ -35,6 +21,8 @@ interface TodayInsightCardProps {
 }
 
 export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
+    text,
+    onRefresh,
     onRefreshStart,
     onRefreshEnd,
     flat = false,
@@ -43,114 +31,32 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
     const { user } = useAuth();
     const { captures } = useCaptureStore();
     const { isLight } = useObsyTheme();
-    const {
-        todayInsight,
-        isRefreshing,
-        refreshTodayInsight,
-        checkMidnightReset,
-        hasGeneratedToday,
-        pendingInsights
-    } = useTodayInsight();
 
     const [isSaved, setIsSaved] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
 
-    // Theme-aware colors for flat mode (on page background)
     const flatTitleColor = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.75)';
     const flatTextColor = isLight ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)';
     const flatTextSecondary = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)';
     const flatDateColor = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)';
 
-    // Check if saved on mount/insight change
     useEffect(() => {
         const checkSaved = async () => {
-            if (!user || !todayInsight) return;
+            if (!user || !text) return;
             const archives = await fetchArchives(user.id);
             const dateStr = format(new Date(), "yyyy-MM-dd");
             const saved = archives.some(a => a.type === 'daily' && a.date_scope === dateStr);
             setIsSaved(saved);
         };
         checkSaved();
-    }, [user?.id, todayInsight?.id]);
-
-    // Animation for refresh icon
-    const rotation = useSharedValue(0);
-
-    useEffect(() => {
-        if (isRefreshing) {
-            rotation.value = withRepeat(
-                withTiming(360, {
-                    duration: 1000,
-                    easing: Easing.linear,
-                }),
-                -1
-            );
-        } else {
-            cancelAnimation(rotation);
-            rotation.value = 0;
-        }
-    }, [isRefreshing]);
-
-    const refreshIconStyle = useAnimatedStyle(() => ({
-        transform: [{ rotateZ: `${rotation.value}deg` }],
-    }));
-
-    // Auto-generate 0 -> 1 behavior
-    useEffect(() => {
-        const checkAutoGenerate = async () => {
-            if (!user || captures.length === 0) return;
-
-            const today = getLocalDayKey(new Date());
-            const todayCaptures = captures.filter(c => getLocalDayKey(new Date(c.created_at)) === today);
-
-            if (todayCaptures.length > 0 && !todayInsight && !hasGeneratedToday && !isRefreshing) {
-                console.log("[TodayInsightCard] Auto-generating first insight of the day");
-                const profile = await getProfile();
-                if (profile) {
-                    await refreshTodayInsight(user.id, {
-                        tone: profile.ai_tone,
-                        autoDailyInsights: profile.ai_auto_daily_insights,
-                        useJournalInInsights: profile.ai_use_journal_in_insights,
-                    }, captures);
-                }
-            }
-        };
-
-        checkAutoGenerate();
-    }, [captures.length, user, todayInsight, hasGeneratedToday, isRefreshing]);
-
-    // Midnight reset check on mount
-    useEffect(() => {
-        checkMidnightReset();
-    }, []);
-
-    const handleRefresh = async () => {
-        if (!user || isRefreshing) return;
-
-        onRefreshStart?.();
-        try {
-            const profile = await getProfile();
-            if (profile) {
-                await refreshTodayInsight(user.id, {
-                    tone: profile.ai_tone,
-                    autoDailyInsights: profile.ai_auto_daily_insights,
-                    useJournalInInsights: profile.ai_use_journal_in_insights,
-                }, captures, true); // Force refresh
-                setIsSaved(false); // Reset saved state on refresh
-            }
-        } catch (error) {
-            console.error("[TodayInsightCard] Manual refresh failed:", error);
-        } finally {
-            onRefreshEnd?.();
-        }
-    };
+    }, [user?.id, text]);
 
     const handleSave = async () => {
         if (!user) {
             Alert.alert("Sign In Required", "Please sign in to save insights to your archive.");
             return;
         }
-        if (!todayInsight || isSaved || saving) return;
+        if (!text || isSaved || saving) return;
 
         if (onArchiveFull) {
             const archives = await fetchArchives(user.id);
@@ -161,13 +67,13 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
         }
 
         setSaving(true);
+        onRefreshStart?.();
         try {
-            const content = (todayInsight as DailyInsight)?.summary_text || todayInsight?.summary_text || "";
             const result = await archiveInsightWithResult({
                 userId: user.id,
                 type: 'daily',
-                insightText: content,
-                relatedCaptureIds: captures.filter(c => getLocalDayKey(new Date(c.created_at)) === getLocalDayKey(new Date())).map(c => c.id),
+                insightText: text,
+                relatedCaptureIds: captures.map(c => c.id),
                 date: new Date(),
             });
 
@@ -175,13 +81,6 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
                 setIsSaved(true);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } else if (result.error) {
-                console.error("[TodayInsightCard] Archive error:", {
-                    date: format(new Date(), 'yyyy-MM-dd'),
-                    captureCount: captures.length,
-                    error: result.error,
-                });
-
-                // Show user-friendly error message
                 const errorMessage = result.error.code === ARCHIVE_ERROR_CODES.RLS_VIOLATION
                     ? "You don't have permission to save this insight. Please try signing in again."
                     : "Failed to save daily insight. Please try again.";
@@ -192,73 +91,38 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
             Alert.alert("Error", "An unexpected error occurred. Please try again.");
         } finally {
             setSaving(false);
+            onRefreshEnd?.();
         }
     };
 
-    const isEmpty = !todayInsight;
+    const isEmpty = !text;
 
     return (
         <View style={[styles.container, flat && styles.flatContainer]}>
-            {/* Header */}
             <View style={[styles.header, flat && styles.flatHeader]}>
                 <ThemedText type="subtitle" style={[styles.title, flat && { color: flatTitleColor }]}>
                     {flat ? "DAILY INSIGHT" : "Today's Insight"}
                 </ThemedText>
-
-                {!isEmpty && (
-                    <PremiumGate
-                        featureName="daily_insight"
-                        guestAction="signup"
-                        onAction={handleRefresh}
-                    >
-                        <Animated.View style={[refreshIconStyle, isRefreshing && styles.disabled]}>
-                            <Ionicons
-                                name="sync-outline"
-                                size={22}
-                                color={Colors.obsy.silver}
-                            />
-                        </Animated.View>
-                    </PremiumGate>
+                {onRefresh && (
+                    <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
+                        <ThemedText style={styles.refreshText}>Refresh</ThemedText>
+                    </TouchableOpacity>
                 )}
             </View>
 
-            {pendingInsights.daily.pendingCount > 0 && (
-                <View style={{ paddingHorizontal: flat ? 0 : 20 }}>
-                    <PendingInsightMessage
-                        pendingCount={pendingInsights.daily.pendingCount}
-                        onRefresh={handleRefresh}
-                        isRefreshing={isRefreshing}
-                    />
-                </View>
-            )}
-
             {!flat && <View style={styles.divider} />}
 
-            {/* Content */}
             <View style={[styles.content, flat && styles.flatContent]}>
                 {isEmpty ? (
                     <View style={styles.emptyContainer}>
                         <ThemedText style={[styles.emptyText, flat && { color: flatTextSecondary }]}>
                             No entries for today yet. Capture a moment to start your day.
                         </ThemedText>
-
-                        <TouchableOpacity
-                            style={[styles.revealButton, isRefreshing && styles.disabled]}
-                            onPress={handleRefresh}
-                            disabled={isRefreshing}
-                        >
-                            {isRefreshing ? (
-                                <ActivityIndicator color="#000" />
-                            ) : (
-                                <ThemedText style={styles.revealButtonText}>Check for Insights</ThemedText>
-                            )}
-                        </TouchableOpacity>
                     </View>
                 ) : (
                     <View>
                         <InsightText
-                            sentences={(todayInsight as DailyInsight)?.sentences}
-                            fallbackText={todayInsight?.summary_text || ""}
+                            fallbackText={text}
                             collapsedSentences={4}
                             expandable={true}
                             textStyle={flat ? { color: flatTextColor } : styles.insightText}
@@ -355,6 +219,15 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
+    refreshButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    refreshText: {
+        color: Colors.obsy.silver,
+        fontSize: 14,
+        fontWeight: '700',
+    },
     revealButton: {
         backgroundColor: Colors.obsy.silver,
         paddingVertical: 12,
@@ -370,5 +243,32 @@ const styles = StyleSheet.create({
     },
     disabled: {
         opacity: 0.5,
+    },
+    errorCard: {
+        width: '100%',
+        borderRadius: 12,
+        paddingVertical: 16,
+        paddingHorizontal: 14,
+        borderWidth: 1,
+        alignItems: 'center',
+        gap: 8,
+    },
+    errorLight: {
+        backgroundColor: '#fef2f2',
+        borderColor: 'rgba(185, 28, 28, 0.25)',
+    },
+    errorDark: {
+        backgroundColor: 'rgba(185, 28, 28, 0.12)',
+        borderColor: 'rgba(248, 113, 113, 0.35)',
+    },
+    errorTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    errorMeta: {
+        fontSize: 12,
+        textAlign: 'center',
+        opacity: 0.8,
     },
 });

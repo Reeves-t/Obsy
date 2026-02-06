@@ -3,6 +3,21 @@ import { CaptureForInsight, DaySummaryForInsight, WeekSummaryForInsight, MonthSu
 import { buildCaptureTimelineBlock, buildWeekTimelineBlock, buildMonthTimelineBlock } from './insightPromptUtils';
 
 /**
+ * ⚠️ LEGACY PROMPT SYSTEM ⚠️
+ *
+ * This file contains the legacy client-side prompt builders.
+ * For regular insights (daily/weekly/monthly), use the secure Edge Function:
+ * - Edge Function: supabase/functions/generate-insight/index.ts
+ * - Client Service: services/secureAI.ts
+ *
+ * This file is ONLY used by:
+ * - lib/journalInsightPrompts.ts (imports LANGUAGE_CONSTRAINTS)
+ *
+ * DO NOT use these prompt builders for new features.
+ * See SECURITY_SETUP.md for migration guide.
+ */
+
+/**
  * Global language constraints for all AI insight generation.
  * Enforces plain-text-only output with explicit symbol bans and mood word suppression.
  */
@@ -22,21 +37,31 @@ LANGUAGE CONSTRAINTS (CRITICAL - NON-NEGOTIABLE):
  * Enforces tone-only adoption while preserving Obsy guardrails.
  */
 export const CUSTOM_TONE_WRAPPER = `
-Custom tone is active. 
+Custom tone is active.
 
-Do NOT roleplay or impersonate a character. 
+Do NOT roleplay or impersonate a character.
 Instead, adopt the *perspective and priorities* implied by this tone:
 
 {CUSTOM_TONE_TEXT}
+
+CRITICAL BANS (even with custom tone active):
+• Interjections: "Ah", "Oh", "Well", "So", "Hmm" — never use these as sentence starters or exclamations
+• Character references: Never name fictional characters, personas, or archetypes by name (e.g., "Goku", "Saiyan", "detective", "warrior", "traveler", "guide")
+• Second-person pronouns: No "you", "your", "you're" — write in third person only
 
 Ask internally:
 - What does this tone pay attention to?
 - What feels important to it?
 - What gets ignored?
 
-Let those priorities subtly guide word choice and emphasis. 
-Do not exaggerate language or use grand metaphors. 
+Let those priorities subtly guide word choice and emphasis.
+Do not exaggerate language or use grand metaphors.
 Stay grounded in ordinary moments.
+
+Perspective vs Voice rule:
+If the tone implies a character or archetype, capture their PERSPECTIVE (what they notice, what matters to them), NOT their VOICE (how they speak, catchphrases, mannerisms).
+
+If the tone references a specific character or style, ask: What would this perspective NOTICE about the day? What would it IGNORE? Use those priorities to guide word choice, not character traits.
 
 Metaphor rule:
 - Use at most ONE metaphor, if any.
@@ -60,13 +85,62 @@ export interface DailyInsightContext {
   aiToneId: AiToneId;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Mood Flow Computation Helpers (mirrors Edge Function implementation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compute the dominant mood from captures by counting occurrences
+ */
+function computeDominantMood(captures: CaptureForInsight[]): string {
+  const moodCounts: Record<string, number> = {};
+  captures.forEach(c => {
+    const mood = c.mood?.toLowerCase() || 'neutral';
+    moodCounts[mood] = (moodCounts[mood] || 0) + 1;
+  });
+  return Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'neutral';
+}
+
+/**
+ * Extract the sequence of moods from captures in order
+ */
+function computeMoodSequence(captures: CaptureForInsight[]): string[] {
+  return captures.map(c => c.mood?.toLowerCase() || 'neutral');
+}
+
+/**
+ * Extract unique day parts covered by captures
+ */
+function computeDayPartSpan(captures: CaptureForInsight[]): string[] {
+  const parts = new Set<string>();
+  captures.forEach(c => {
+    if (c.dayPart) parts.add(c.dayPart);
+  });
+  return Array.from(parts);
+}
+
+/**
+ * @deprecated This function is part of the legacy client-side prompt system.
+ * For regular insights, use the secure Edge Function (supabase/functions/generate-insight).
+ * This is only used by journal insights (journalInsightPrompts.ts).
+ * See SECURITY_SETUP.md for migration details.
+ */
 export function buildDailyInsightPrompt(ctx: DailyInsightContext): string {
   const tone = getToneDefinition(ctx.aiToneId);
   const timelineBlock = buildCaptureTimelineBlock(ctx.captures);
   const entryCount = ctx.captures.length;
 
-  // Determine sentence count based on entry count
-  const sentenceCount = entryCount <= 2 ? 2 : 3;
+  // Compute Mood Flow inputs (same as Edge Function)
+  const dominantMood = computeDominantMood(ctx.captures);
+  const moodSequence = computeMoodSequence(ctx.captures);
+  const dayPartSpan = computeDayPartSpan(ctx.captures);
+
+  // Determine paragraph count based on entry count
+  const paragraphRule = entryCount === 1
+    ? "1 capture = 1 strong paragraph (3-4 sentences)"
+    : entryCount <= 3
+      ? "2-3 captures = 2-3 paragraphs (separated by \\n\\n)"
+      : "4+ captures = 3 paragraphs maximum";
 
   return `
 You are generating a reflective daily insight for this user's day based on their photos, moods, and notes.
@@ -77,10 +151,9 @@ You are generating a reflective daily insight for this user's day based on their
 
 ENTRY COUNT & LENGTH RULES (HARD CONSTRAINTS):
 - Entry Count: ${entryCount}
-- You MUST write exactly ${sentenceCount} sentences total.
-- Your entire response MUST NOT exceed 80 words.
-- If only 1-2 captures exist, be shorter, not longer.
-- Do NOT use paragraph blocks.
+- ${paragraphRule}
+- Use 1-3 paragraphs separated by blank lines (\\n\\n)
+- Ground insights in concrete details from notes. Avoid generic lines unless backed by detail.
 
 CONTENT GUIDELINES:
 - Observations must be grounded in what was captured.
@@ -95,24 +168,33 @@ GENERAL RULES:
 
 REQUIRED OUTPUT FORMAT:
 {
-  "insight": "Exactly ${sentenceCount} sentences painting the day's vibe.",
-  "vibe_tags": ["TAG1", "TAG2", "TAG3"],
-  "mood_colors": ["#hex1", "#hex2", "#hex3"],
-  "mood_flow": [
-    {
-      "mood": "Descriptive feeling phrase",
-      "percentage": 40,
-      "color": "#hex",
-      "context": "Brief context."
-    }
-  ],
-  "meta": {
-    "type": "daily",
-    "entryCount": ${entryCount}
+  "timeframe": "daily",
+  "narrative": {
+    "text": "Multi-paragraph narrative here.\\n\\nSecond paragraph if needed."
+  },
+  "mood_flow": {
+    "title": "Quiet Anticipation",
+    "subtitle": "Intentional start to the day.",
+    "confidence": 85
   }
 }
 
-NOTE: In mood_flow, use descriptive phrases like "quiet contentment" or "restless energy" instead of raw mood labels like "Calm" or "Anxious".
+═══════════════════════════════════════════════════════════════════════════════
+MOOD_FLOW TASK
+═══════════════════════════════════════════════════════════════════════════════
+
+Inputs provided:
+- Dominant mood: ${dominantMood}
+- Mood sequence: [${moodSequence.join(", ")}]
+- Day parts covered: [${dayPartSpan.join(", ")}]
+
+MOOD_FLOW RULES:
+- title: 2-4 words, aesthetic, not cheesy
+- Examples: "Quiet Anticipation", "Steady Focus", "Soft Momentum", "Late-Night Resolve", "Calm Friction"
+- subtitle: 6-12 words, one sentence, no comma spam
+- confidence: 90-100 (3+ captures with consistent mood), 70-89 (2 captures), 50-69 (1 capture or mixed signals)
+
+Use the provided mood sequence and day parts to ground the Mood Flow reading. Do not generate random mood names.
 
 DATE:
 ${ctx.dateLabel}
@@ -133,6 +215,12 @@ export interface ChallengeInsightContext {
   aiToneId: AiToneId;
 }
 
+/**
+ * @deprecated This function is part of the legacy client-side prompt system.
+ * For regular insights, use the secure Edge Function (supabase/functions/generate-insight).
+ * This is only used by journal insights (journalInsightPrompts.ts).
+ * See SECURITY_SETUP.md for migration details.
+ */
 export function buildChallengeInsightPrompt(ctx: ChallengeInsightContext): string {
   const tone = getToneDefinition(ctx.aiToneId);
   const timelineBlock = buildCaptureTimelineBlock(ctx.captures);
@@ -173,6 +261,12 @@ export interface TagGroupInsightContext {
   aiToneId: AiToneId;
 }
 
+/**
+ * @deprecated This function is part of the legacy client-side prompt system.
+ * For regular insights, use the secure Edge Function (supabase/functions/generate-insight).
+ * This is only used by journal insights (journalInsightPrompts.ts).
+ * See SECURITY_SETUP.md for migration details.
+ */
 export function buildTagGroupInsightPrompt(ctx: TagGroupInsightContext): string {
   const tone = getToneDefinition(ctx.aiToneId);
   const timelineBlock = buildCaptureTimelineBlock(ctx.captures);
@@ -211,6 +305,12 @@ export interface WeeklyInsightContext {
   aiToneId: AiToneId;
 }
 
+/**
+ * @deprecated This function is part of the legacy client-side prompt system.
+ * For regular insights, use the secure Edge Function (supabase/functions/generate-insight).
+ * This is only used by journal insights (journalInsightPrompts.ts).
+ * See SECURITY_SETUP.md for migration details.
+ */
 export function buildWeeklyInsightPrompt(ctx: WeeklyInsightContext): string {
   const tone = getToneDefinition(ctx.aiToneId);
   const weekBlock = buildWeekTimelineBlock(ctx.week);
@@ -284,6 +384,12 @@ export interface MonthlyInsightContext {
   aiToneId: AiToneId;
 }
 
+/**
+ * @deprecated This function is part of the legacy client-side prompt system.
+ * For regular insights, use the secure Edge Function (supabase/functions/generate-insight).
+ * This is only used by journal insights (journalInsightPrompts.ts).
+ * See SECURITY_SETUP.md for migration details.
+ */
 export function buildMonthlyInsightPrompt(ctx: MonthlyInsightContext): string {
   const tone = getToneDefinition(ctx.aiToneId);
   const monthBlock = buildMonthTimelineBlock(ctx.month);
