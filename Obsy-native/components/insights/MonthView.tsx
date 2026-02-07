@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
+import { InsightText } from "@/components/insights/InsightText";
 import { MoodFlow } from "@/components/insights/MoodFlow";
 import { MoodRingDial } from "@/components/insights/MoodRingDial";
 import Colors from "@/constants/Colors";
@@ -253,9 +254,11 @@ function MonthSummaryCard({
 
             <View style={styles.summaryBody}>
                 {insight ? (
-                    <ThemedText style={styles.summaryText}>
-                        {insight.content}
-                    </ThemedText>
+                    <InsightText
+                        fallbackText={insight.content}
+                        collapsedSentences={5}
+                        expandable={true}
+                    />
                 ) : (
                     <ThemedText style={styles.placeholder}>
                         {isEligible

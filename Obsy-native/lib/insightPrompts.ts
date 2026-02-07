@@ -112,7 +112,11 @@ REQUIRED OUTPUT FORMAT:
   }
 }
 
-NOTE: In mood_flow, use descriptive phrases like "quiet contentment" or "restless energy" instead of raw mood labels like "Calm" or "Anxious".
+MOOD FLOW NAMING (CRITICAL):
+- In mood_flow, NEVER use raw mood labels like "Calm", "Focused", "Anxious", "Productive", etc.
+- ALWAYS use evocative two-word descriptive phrases that capture the feeling quality.
+- Examples: "quiet contentment", "restless energy", "sharp intent", "soft composure", "bright delight", "taut pressure".
+- Each mood entry should also include a brief "context" sentence grounded in the captures.
 
 DATE:
 ${ctx.dateLabel}

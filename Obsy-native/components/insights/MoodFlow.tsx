@@ -39,6 +39,13 @@ function blendColor(a: string, b: string): string {
         .padStart(2, "0")}`;
 }
 
+function lightenColor(hex: string, amount: number): string {
+    const v = hex.replace("#", "");
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16));
+    const lighten = (c: number) => Math.min(255, Math.round(c + (255 - c) * amount));
+    return `#${lighten(r).toString(16).padStart(2, "0")}${lighten(g).toString(16).padStart(2, "0")}${lighten(b).toString(16).padStart(2, "0")}`;
+}
+
 function buildGradientColors(flow: MoodSegment[]): [string, string, ...string[]] {
     if (!flow.length) return ["#1f2937", "#0f172a"];
     const colors: string[] = [];
@@ -52,7 +59,10 @@ function buildGradientColors(flow: MoodSegment[]): [string, string, ...string[]]
     });
 
     if (colors.length === 1) {
-        return [colors[0], colors[0]];
+        // Create a subtle gradient for single-mood flows instead of flat color
+        const base = colors[0];
+        const lighter = lightenColor(base, 0.15);
+        return [lighter, base];
     }
 
     return colors as [string, string, ...string[]];

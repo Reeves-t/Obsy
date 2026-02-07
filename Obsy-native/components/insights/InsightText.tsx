@@ -26,8 +26,9 @@ interface InsightTextProps {
  * InsightText Component
  *
  * Renders insight text with:
- * - Stacked sentence blocks with 12px spacing
+ * - Stacked paragraph/sentence blocks with generous spacing
  * - lineHeight: 1.6 for readability
+ * - Paragraph-aware splitting (respects \n\n breaks)
  * - Optional expand/collapse functionality
  */
 export function InsightText({
@@ -53,19 +54,30 @@ export function InsightText({
         return sentences.slice(0, collapsedSentences);
     }, [sentences, isExpanded, expandable, collapsedSentences]);
 
-    // Handle plain text split into sentences if structured sentences not available
-    const fallbackSentences = React.useMemo(() => {
+    // Handle plain text: split by paragraphs first, then by sentences within each paragraph
+    const fallbackParagraphs = React.useMemo(() => {
+        if (!fallbackText) return [];
+
+        // Split by double newlines (paragraph breaks) first
+        const paragraphs = fallbackText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+
+        if (paragraphs.length > 1) {
+            // Text has explicit paragraph breaks - preserve them
+            return paragraphs.map(p => p.trim());
+        }
+
+        // No paragraph breaks - split by sentences for spaced display
         return fallbackText
             .split(/(?<=[.!?])\s+/)
             .filter(s => s.trim().length > 0);
     }, [fallbackText]);
 
     const visibleFallback = React.useMemo(() => {
-        if (!expandable || isExpanded || fallbackSentences.length <= collapsedSentences) {
-            return fallbackSentences;
+        if (!expandable || isExpanded || fallbackParagraphs.length <= collapsedSentences) {
+            return fallbackParagraphs;
         }
-        return fallbackSentences.slice(0, collapsedSentences);
-    }, [fallbackSentences, isExpanded, expandable, collapsedSentences]);
+        return fallbackParagraphs.slice(0, collapsedSentences);
+    }, [fallbackParagraphs, isExpanded, expandable, collapsedSentences]);
 
     const handleToggleExpand = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -73,7 +85,7 @@ export function InsightText({
     };
 
     const hasMoreContent = sentences.length > collapsedSentences && !isExpanded;
-    const hasMoreFallback = fallbackSentences.length > collapsedSentences && !isExpanded;
+    const hasMoreFallback = fallbackParagraphs.length > collapsedSentences && !isExpanded;
 
     // If we have structured sentences, render as stacked blocks with spacing
     if (sentences.length > 0) {
@@ -115,7 +127,7 @@ export function InsightText({
         );
     }
 
-    // Fallback: render plain text as stacked sentence blocks
+    // Fallback: render plain text as stacked paragraph/sentence blocks
     return (
         <TouchableOpacity
             activeOpacity={expandable ? 0.8 : 1}
@@ -123,7 +135,7 @@ export function InsightText({
             disabled={!expandable}
         >
             <View style={styles.sentenceContainer}>
-                {visibleFallback.map((sentence, index) => (
+                {visibleFallback.map((paragraph, index) => (
                     <View
                         key={index}
                         style={[
@@ -132,7 +144,7 @@ export function InsightText({
                         ]}
                     >
                         <Text style={[styles.normalText, { color: textColor }, textStyle]}>
-                            {sentence}
+                            {paragraph}
                         </Text>
                     </View>
                 ))}
@@ -162,10 +174,10 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
     },
     sentenceBlock: {
-        // Each sentence is its own block
+        // Each sentence/paragraph is its own block
     },
     sentenceSpacing: {
-        marginBottom: 12, // 12px spacing between sentence blocks
+        marginBottom: 16, // Generous spacing between blocks for paragraph feel
     },
     normalText: {
         fontSize: FONT_SIZE,
@@ -188,4 +200,3 @@ const styles = StyleSheet.create({
 });
 
 export default InsightText;
-

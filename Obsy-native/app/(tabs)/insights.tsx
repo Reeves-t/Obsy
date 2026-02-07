@@ -112,7 +112,8 @@ export default function InsightsScreen() {
         todayInsight: dailyInsight,
         isRefreshing: dailyInsightLoading,
         refreshTodayInsight,
-        pendingInsights
+        pendingInsights,
+        loadSnapshot: loadDailySnapshot,
     } = useTodayInsight();
 
     const {
@@ -234,9 +235,27 @@ export default function InsightsScreen() {
         loadArchiveCount();
     }, [user, capturesCount]);
 
+    // Recompute pending insight counts whenever captures change
+    // This enables the "X new captures not yet included" messages
+    useEffect(() => {
+        if (!user || captures.length === 0) return;
+        const { computePending: computeDailyPending } = useTodayInsight.getState();
+        const { computePending: computeWeeklyPending } = useWeeklyInsight.getState();
+        const { computePending: computeMonthlyPending } = useMonthlyInsight.getState();
+
+        computeDailyPending(captures);
+        computeWeeklyPending(captures);
+        computeMonthlyPending(captures);
+    }, [user, captures.length]);
+
     // Mount-time fast-load for stores
     useEffect(() => {
         if (!user) return;
+
+        // Preload daily insight (shows last insight until new one is generated)
+        if (!dailyInsight) {
+            loadDailySnapshot(user.id);
+        }
 
         if (!weeklyInsight) {
             loadWeeklySnapshot(user.id);

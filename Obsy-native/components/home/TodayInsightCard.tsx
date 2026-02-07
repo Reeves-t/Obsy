@@ -49,7 +49,8 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
         refreshTodayInsight,
         checkMidnightReset,
         hasGeneratedToday,
-        pendingInsights
+        pendingInsights,
+        loadSnapshot,
     } = useTodayInsight();
 
     const [isSaved, setIsSaved] = React.useState(false);
@@ -60,6 +61,13 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
     const flatTextColor = isLight ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)';
     const flatTextSecondary = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)';
     const flatDateColor = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)';
+
+    // Preload last daily insight on mount (fast-load path)
+    useEffect(() => {
+        if (user && !todayInsight) {
+            loadSnapshot(user.id);
+        }
+    }, [user?.id]);
 
     // Check if saved on mount/insight change
     useEffect(() => {
