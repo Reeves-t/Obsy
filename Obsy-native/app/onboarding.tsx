@@ -55,16 +55,16 @@ const ONBOARDING_SCREENS: OnboardingScreen[] = [
         body: "Your content is never used to train AI. Your data stays yours, stored locally, with the option to export to the cloud if space becomes an issue."
     },
     {
-        eyebrow: "Your Voice",
-        headline: "Set the Tone.",
-        body: "Choose how Obsy reflects your day. Create a custom tone for your insights, how moments are viewed, interpreted, and written back to you.\n\nIt can be neutral, gently playful, softly critical, or inspired by any style you enjoy. There are no rules.",
-        isTone: true
-    },
-    {
         eyebrow: "One Last Thing",
         headline: "Your Account.",
         body: "Sign in to sync your captures and insights across devices, or continue as a guest to get started right away.",
         isAuth: true
+    },
+    {
+        eyebrow: "Your Voice",
+        headline: "Set the Tone.",
+        body: "Choose how Obsy reflects your day. Create a custom tone for your insights, how moments are viewed, interpreted, and written back to you.\n\nIt can be neutral, gently playful, softly critical, or inspired by any style you enjoy. There are no rules.",
+        isTone: true
     }
 ];
 
@@ -114,10 +114,14 @@ export default function OnboardingScreen() {
     const handleNext = async () => {
         const screen = ONBOARDING_SCREENS[currentIndex];
 
-        // On tone screen, save the tone before advancing
-        if (screen.isTone && tonePrompt) {
-            const ok = await saveToneIfNeeded();
-            if (!ok) return;
+        // On tone screen (final), save the tone and finish
+        if (screen.isTone) {
+            if (tonePrompt) {
+                const ok = await saveToneIfNeeded();
+                if (!ok) return;
+            }
+            await completeOnboarding();
+            return;
         }
 
         if (currentIndex < ONBOARDING_SCREENS.length - 1) {
@@ -125,8 +129,6 @@ export default function OnboardingScreen() {
             return;
         }
 
-        // Last screen (auth) - shouldn't normally reach here
-        // because auth screen has its own buttons
         await completeOnboarding();
     };
 
@@ -150,8 +152,9 @@ export default function OnboardingScreen() {
         router.replace('/auth/signup');
     };
 
-    const handleContinueAsGuest = async () => {
-        await completeOnboarding();
+    const handleContinueAsGuest = () => {
+        // Advance to tone screen (next screen after auth)
+        setCurrentIndex(currentIndex + 1);
     };
 
     const screen = ONBOARDING_SCREENS[currentIndex];
@@ -277,7 +280,7 @@ export default function OnboardingScreen() {
                                         <ActivityIndicator color="#000" />
                                     ) : (
                                         <ThemedText style={[styles.nextText, { fontFamily: getFont('600') }]}>
-                                            Next
+                                            {currentIndex === ONBOARDING_SCREENS.length - 1 ? "Get Started" : "Next"}
                                         </ThemedText>
                                     )}
                                 </TouchableOpacity>
