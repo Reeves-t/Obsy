@@ -275,12 +275,14 @@ export async function generateCaptureInsightSecure(
  */
 export async function generateAlbumInsightSecure(
     albumContext: AlbumEntry[],
-    tone: string
+    tone: string,
+    customTonePrompt?: string
 ): Promise<string> {
     return invokeGenerateInsight({
         type: 'album',
         data: { albumContext },
         tone,
+        customTonePrompt,
     });
 }
 

@@ -19,6 +19,10 @@ import { supabase } from '@/lib/supabase';
 import { CreateAlbumModal } from './CreateAlbumModal';
 import { Album as AlbumType, AlbumType as AlbumTypeEnum } from '@/types/albums';
 import { useAlbumRename } from '@/lib/useAlbumRename';
+import { AI_TONES, AiToneId } from '@/lib/aiTone';
+import { useAlbumToneStore } from '@/lib/albumToneStore';
+import { getCustomTones } from '@/lib/customTone';
+import type { CustomTone } from '@/lib/customTone';
 
 const { width, height } = Dimensions.get('window');
 const SIDEBAR_WIDTH = 220;
@@ -44,9 +48,11 @@ interface AlbumSidebarProps {
     onSelectAlbum?: (album: Album) => void;
     /** The currently selected album ID. Defaults to 'public' if not provided. */
     selectedAlbumId?: string;
+    /** Callback when album tone changes */
+    onAlbumToneChange?: (toneId: string, customToneId?: string) => void;
 }
 
-export function AlbumSidebar({ onSelectAlbum, selectedAlbumId: selectedAlbumIdProp }: AlbumSidebarProps) {
+export function AlbumSidebar({ onSelectAlbum, selectedAlbumId: selectedAlbumIdProp, onAlbumToneChange }: AlbumSidebarProps) {
     const router = useRouter();
     const isOpen = useSharedValue(0); // 0 = collapsed, 1 = expanded
     const { hasUnseenPhotos, getUnseenPhotoCount } = useMockAlbums();
@@ -56,8 +62,25 @@ export function AlbumSidebar({ onSelectAlbum, selectedAlbumId: selectedAlbumIdPr
     const [albums, setAlbums] = useState<Album[]>([]);
     // Use prop if provided, otherwise default to 'public'
     const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(selectedAlbumIdProp ?? 'public');
+    const [toneExpanded, setToneExpanded] = useState(false);
+    const [customTones, setCustomTones] = useState<CustomTone[]>([]);
 
     const { getDisplayName } = useAlbumRename();
+    const { load: loadAlbumTones, loaded: tonesLoaded, getAlbumTone, setAlbumTone } = useAlbumToneStore();
+
+    // Load album tones and custom tones on mount
+    useEffect(() => {
+        if (!tonesLoaded) loadAlbumTones();
+        getCustomTones().then(setCustomTones).catch(() => {});
+    }, [tonesLoaded]);
+
+    const currentAlbumTone = selectedAlbumId ? getAlbumTone(selectedAlbumId) : { toneId: 'neutral' };
+
+    const handleToneSelect = (toneId: string, customToneId?: string) => {
+        if (!selectedAlbumId) return;
+        setAlbumTone(selectedAlbumId, toneId, customToneId);
+        onAlbumToneChange?.(toneId, customToneId);
+    };
 
     // Sync internal state with prop when it changes
     useEffect(() => {
@@ -256,6 +279,85 @@ export function AlbumSidebar({ onSelectAlbum, selectedAlbumId: selectedAlbumIdPr
                                 </TouchableOpacity>
 
                                 <View style={styles.divider} />
+
+                                {/* ALBUM TONE SECTION */}
+                                {selectedAlbumId && selectedAlbumId !== 'public' && (
+                                    <>
+                                        <TouchableOpacity
+                                            style={styles.sectionHeaderRow}
+                                            onPress={(e) => {
+                                                e.stopPropagation();
+                                                setToneExpanded(!toneExpanded);
+                                            }}
+                                        >
+                                            <ThemedText style={styles.sectionHeader}>ALBUM TONE</ThemedText>
+                                            <Ionicons
+                                                name={toneExpanded ? 'chevron-up' : 'chevron-down'}
+                                                size={12}
+                                                color="rgba(255,255,255,0.35)"
+                                            />
+                                        </TouchableOpacity>
+
+                                        {!toneExpanded && (
+                                            <View style={styles.tonePreview}>
+                                                <View style={styles.toneActiveDot} />
+                                                <ThemedText style={styles.tonePreviewText} numberOfLines={1}>
+                                                    {currentAlbumTone.customToneId
+                                                        ? customTones.find(t => t.id === currentAlbumTone.customToneId)?.name ?? 'Custom'
+                                                        : AI_TONES.find(t => t.id === currentAlbumTone.toneId)?.label ?? 'Neutral'}
+                                                </ThemedText>
+                                            </View>
+                                        )}
+
+                                        {toneExpanded && (
+                                            <View style={styles.toneList}>
+                                                {AI_TONES.map((tone) => {
+                                                    const isActive = currentAlbumTone.toneId === tone.id && !currentAlbumTone.customToneId;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={tone.id}
+                                                            style={[styles.toneItem, isActive && styles.toneItemActive]}
+                                                            onPress={(e) => {
+                                                                e.stopPropagation();
+                                                                handleToneSelect(tone.id);
+                                                            }}
+                                                        >
+                                                            <ThemedText style={[styles.toneName, isActive && styles.toneNameActive]} numberOfLines={1}>
+                                                                {tone.label}
+                                                            </ThemedText>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+
+                                                {customTones.length > 0 && (
+                                                    <>
+                                                        <View style={styles.toneDivider} />
+                                                        <ThemedText style={styles.toneSubHeader}>CUSTOM</ThemedText>
+                                                        {customTones.map((ct) => {
+                                                            const isActive = currentAlbumTone.customToneId === ct.id;
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    key={ct.id}
+                                                                    style={[styles.toneItem, isActive && styles.toneItemActive]}
+                                                                    onPress={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleToneSelect('custom', ct.id);
+                                                                    }}
+                                                                >
+                                                                    <ThemedText style={[styles.toneName, isActive && styles.toneNameActive]} numberOfLines={1}>
+                                                                        {ct.name}
+                                                                    </ThemedText>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })}
+                                                    </>
+                                                )}
+                                            </View>
+                                        )}
+
+                                        <View style={styles.divider} />
+                                    </>
+                                )}
 
                                 {/* FRIENDS SECTION */}
                                 <ThemedText style={styles.sectionHeader}>FRIENDS</ThemedText>
@@ -479,5 +581,56 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: Colors.obsy.silver,
         fontWeight: '600',
+    },
+    tonePreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+    },
+    toneActiveDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#4ade80',
+    },
+    tonePreviewText: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.6)',
+        fontFamily: 'Inter_400Regular',
+    },
+    toneList: {
+        marginBottom: 4,
+    },
+    toneItem: {
+        paddingVertical: 7,
+        paddingHorizontal: 10,
+        borderRadius: 8,
+    },
+    toneItemActive: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    toneName: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.6)',
+        fontFamily: 'Inter_400Regular',
+    },
+    toneNameActive: {
+        color: 'rgba(255,255,255,0.95)',
+        fontFamily: 'Inter_600SemiBold',
+    },
+    toneDivider: {
+        height: 1,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        marginVertical: 6,
+    },
+    toneSubHeader: {
+        fontSize: 9,
+        fontFamily: 'Inter_600SemiBold',
+        color: 'rgba(255,255,255,0.25)',
+        letterSpacing: 1,
+        marginBottom: 4,
+        paddingHorizontal: 10,
     },
 });

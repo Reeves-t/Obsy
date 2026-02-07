@@ -11,9 +11,10 @@ import Colors from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
 import { getAlbumDayContext } from '@/lib/albumEngine';
-import { generateAlbumInsightSecure } from '@/services/secureAI';
+import { generateAlbumInsightSecure, resolveTonePrompt } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
 import { DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
+import { useAlbumToneStore } from '@/lib/albumToneStore';
 import { archiveInsightWithResult } from '@/services/archive';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +54,11 @@ export default function AlbumDetailScreen() {
 
     const { getDisplayName } = useAlbumRename();
     const currentDisplayName = id ? getDisplayName(id, albumName) : albumName;
+    const { getAlbumTone, load: loadAlbumTones, loaded: albumTonesLoaded } = useAlbumToneStore();
+
+    useEffect(() => {
+        if (!albumTonesLoaded) loadAlbumTones();
+    }, [albumTonesLoaded]);
 
     // Hook for posting album insights
     const { postInsight, isPosting } = usePostAlbumInsight();
@@ -181,14 +187,22 @@ export default function AlbumDetailScreen() {
                 return;
             }
 
-            // 4. Get User Tone
-            const profile = await getProfile();
-            const tone = profile?.ai_tone || DEFAULT_AI_TONE_ID;
+            // 4. Get Album Tone (separate from user's personal AI tone)
+            const albumTone = id ? getAlbumTone(id) : { toneId: DEFAULT_AI_TONE_ID };
+            const { resolvedTone, resolvedPrompt } = await resolveTonePrompt(
+                albumTone.toneId,
+                albumTone.customToneId
+            );
 
             // 5. Generate Insight via secure Edge Function
             let text: string;
+            const tone = resolvedTone;
             try {
-                text = await generateAlbumInsightSecure(context, tone);
+                text = await generateAlbumInsightSecure(
+                    context,
+                    resolvedTone,
+                    albumTone.customToneId ? resolvedPrompt : undefined
+                );
             } catch (error: any) {
                 console.error("Error generating insight:", error);
                 if (error.message?.includes("Rate limit")) {
@@ -320,14 +334,22 @@ export default function AlbumDetailScreen() {
                 return;
             }
 
-            // Get User Tone
-            const profile = await getProfile();
-            const tone = profile?.ai_tone || DEFAULT_AI_TONE_ID;
+            // Get Album Tone (separate from user's personal AI tone)
+            const albumTone = id ? getAlbumTone(id) : { toneId: DEFAULT_AI_TONE_ID };
+            const { resolvedTone, resolvedPrompt } = await resolveTonePrompt(
+                albumTone.toneId,
+                albumTone.customToneId
+            );
+            const tone = resolvedTone;
 
             // Generate new insight via secure Edge Function
             let text: string;
             try {
-                text = await generateAlbumInsightSecure(context, tone);
+                text = await generateAlbumInsightSecure(
+                    context,
+                    resolvedTone,
+                    albumTone.customToneId ? resolvedPrompt : undefined
+                );
             } catch (error: any) {
                 console.error("Error generating insight:", error);
                 if (error.message?.includes("Rate limit")) {

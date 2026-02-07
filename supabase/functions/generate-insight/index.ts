@@ -16,12 +16,12 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Rate limits per tier (calls per day)
+// Rate limits per tier (calls per day — applies across ALL insight types)
 const RATE_LIMITS = {
     guest: 1,
     free: 3,
-    founder: 100,
-    subscriber: 100,
+    founder: Infinity,
+    subscriber: Infinity,
 };
 
 // Insight types
@@ -752,30 +752,66 @@ MOMENT:
 Write 1-2 sentences. Be observational, not prescriptive. EMBODY THE TONE.`;
 }
 
-function buildAlbumPrompt(data: InsightRequest["data"], tone: string): string {
-    const toneStyle = TONE_STYLES[tone] || TONE_STYLES.neutral;
+function buildAlbumPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
+    const toneStyle = customTonePrompt
+        ? wrapCustomTone(customTonePrompt)
+        : (TONE_STYLES[tone] || TONE_STYLES.neutral);
     const entries = data.albumContext || [];
 
-    const entriesText = entries.map(e =>
-        `${e.user_name}: ${e.description} (feeling: ${e.mood})`
-    ).join("\n");
+    // Sort entries chronologically by time (HH:MM)
+    const sortedEntries = [...entries].sort((a, b) => a.time.localeCompare(b.time));
 
-    return `You are a novelist capturing a shared album's day.
+    // Collect unique participant names
+    const participants = [...new Set(sortedEntries.map(e => e.user_name))];
 
-TONE: ${toneStyle}
+    // Build chronological entry descriptions
+    const entriesText = sortedEntries.map((e, i) => {
+        return `[${i + 1}] ${e.time} | ${e.user_name} | mood: ${e.mood} | ${e.description}`;
+    }).join("\n");
 
-ENTRIES:
-${entriesText}
+    // Determine length based on entry count
+    const entryCount = sortedEntries.length;
+    const lengthRule = entryCount <= 2
+        ? "2-3 paragraphs (4-6 sentences)"
+        : entryCount <= 5
+            ? "2-3 paragraphs (6-8 sentences)"
+            : "3 paragraphs (8-10 sentences)";
 
-${LANGUAGE_CONSTRAINTS}
+    return `${SYSTEM_PROMPT}
+
+═══════════════════════════════════════════════════════════════════════════════
+TONE STYLE (Apply as a stylistic filter — never name or acknowledge it)
+═══════════════════════════════════════════════════════════════════════════════
+
+${toneStyle}
+
+═══════════════════════════════════════════════════════════════════════════════
+TASK: SHARED ALBUM INSIGHT
+═══════════════════════════════════════════════════════════════════════════════
+
+This is a shared album where friends post captures throughout the day (24hr window).
+Participants: ${participants.join(", ")}
+
+ENTRIES (chronological order):
+${entriesText || "No entries found."}
+
+NARRATIVE STRUCTURE (REQUIRED):
+1. OPENING: Set the scene for the day across the group. Who started, what the opening mood was.
+2. MIDDLE: Weave through the posts chronologically. Note how moods intersected, diverged, or echoed each other between participants.
+3. CLOSING SUMMARY: A brief collective reflection on everyone's day. What the group energy felt like as a whole.
 
 RULES:
-- Mention all participants by name
-- Write a flowing narrative, not a log
-- DO NOT mention specific times
-- 3-6 sentences depending on entry count
+- Process entries in CHRONOLOGICAL ORDER (by time posted)
+- Mention EVERY participant by their first name at least once
+- Weave their moments together into a shared narrative, not separate summaries per person
+- Reference how participants' moods relate to each other (e.g. one person's calm while another's energy was high)
+- The final 1-2 sentences should be a group summary: the collective emotional texture of the day
+- ${lengthRule}
+- Prose only, no markdown, no bullets, no lists
+- Never give advice or therapy
+- EMBODY THE TONE
 
-Return plain text.`;
+Return plain text (no JSON).`;
 }
 
 function buildTagPrompt(data: InsightRequest["data"], tone: string): string {
@@ -1019,7 +1055,7 @@ serve(async (req: Request) => {
         const currentCount = settings?.daily_insight_count || 0;
         const limit = RATE_LIMITS[tier as keyof typeof RATE_LIMITS] || RATE_LIMITS.free;
 
-        // Rate limit applies to all tiers (founder/subscriber have high limits of 100/day)
+        // Rate limit: 3/day free, 1/day guest, unlimited for founder/subscriber
         if (currentCount >= limit) {
             return createErrorResponse(
                 'validate',
@@ -1073,7 +1109,7 @@ serve(async (req: Request) => {
                 prompt = buildCapturePrompt(data, tone, customTonePrompt);
                 break;
             case "album":
-                prompt = buildAlbumPrompt(data, tone);
+                prompt = buildAlbumPrompt(data, tone, customTonePrompt);
                 break;
             case "tag":
                 prompt = buildTagPrompt(data, tone);
@@ -1090,7 +1126,7 @@ serve(async (req: Request) => {
         }
 
         const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

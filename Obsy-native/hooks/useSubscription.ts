@@ -46,7 +46,7 @@ const LIMITS: Record<SubscriptionTier, TierLimits> = {
     free: {
         daily_insight: 3,
         group_insight: 3,
-        weekly_insight: 1,
+        weekly_insight: 3,
         captures_per_day: 10,
         max_local_captures: 200,
         archive_slots: 30,
