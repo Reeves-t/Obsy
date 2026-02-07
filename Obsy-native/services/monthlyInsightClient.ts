@@ -17,6 +17,7 @@ export async function callMonthly(
   signals: MonthSignals,
   tone: string,
   customTonePrompt?: string,
+  monthStart?: string,
 ): Promise<MonthlyInsightResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const session = sessionData.session;
@@ -33,7 +34,7 @@ export async function callMonthly(
 
   try {
     const response = await supabase.functions.invoke('generate-monthly-insight', {
-      body: { monthLabel, signals, tone, customTonePrompt },
+      body: { monthLabel, monthStart, signals, tone, customTonePrompt },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 

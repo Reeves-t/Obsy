@@ -103,7 +103,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
 
             const monthLabel = format(targetMonth, 'MMMM yyyy');
 
-            const response = await callMonthly(monthLabel, signals, tone, customTonePrompt);
+            const response = await callMonthly(monthLabel, signals, tone, customTonePrompt, monthStart.toISOString());
 
             if (response.ok && response.text) {
                 set({

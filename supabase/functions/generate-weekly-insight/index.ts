@@ -1,8 +1,7 @@
 // Supabase Edge Function: generate-weekly-insight
-// Generates weekly insights with isolated routing, strict envelopes, CORS, auth, and rate limiting.
+// Generates weekly insights with isolated routing, strict envelopes, CORS, and auth.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 type TimeBucket = "early" | "midday" | "late" | string;
 type DayPart = "Late night" | "Morning" | "Midday" | "Evening" | "Night" | string;
@@ -48,15 +47,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const RATE_LIMITS: Record<string, number> = {
-  free: 10,
-  premium: 50,
-  vanguard: Number.POSITIVE_INFINITY,
-  guest: 5,
-  founder: 100,
-  subscriber: 100,
-};
-
 const SYSTEM_PROMPT =
   `You are a third-person narrator generating a weekly emotional summary. Never use second-person address, emojis, markdown, or filler. Keep to 120 words maximum, prose only, chronological from earliest day to latest.`;
 
@@ -68,25 +58,17 @@ const TONE_STYLES: Record<string, string> = {
 };
 
 serve(async (req) => {
-  console.log('[WEEKLY_HANDLER_ENTRY] function invoked');
-  const requestId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  console.log('[WEEKLY_REQUESTID_GENERATED] id:', requestId);
-  console.log('[WEEKLY_HEADERS] content-type:', req.headers.get('content-type'), 'content-length:', req.headers.get('content-length'));
+  const requestId = crypto.randomUUID();
 
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  console.log(`[WEEKLY_POST_OPTIONS] requestId: ${requestId} | proceeding to main logic`);
-
   try {
-    console.log(`[WEEKLY_INSIGHT_REQUEST] requestId: ${requestId} | method: ${req.method} | url: ${req.url}`);
+    console.log(`[WEEKLY_INSIGHT_REQUEST] requestId: ${requestId} | method: ${req.method}`);
 
     if (!Deno.env.get("GEMINI_API_KEY")) {
       return errorResponse(500, "config", "Missing GEMINI_API_KEY", requestId);
-    }
-    if (!Deno.env.get("SUPABASE_URL") || !Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
-      return errorResponse(500, "config", "Missing Supabase service env vars", requestId);
     }
 
     const authHeader = req.headers.get("authorization");
@@ -99,48 +81,11 @@ serve(async (req) => {
       return errorResponse(401, "auth", "Invalid bearer token", requestId);
     }
 
-    const supabase = getServiceClient();
-    let verified;
-    try {
-      verified = await verifyUser(supabase, token);
-    } catch (err: any) {
-      console.error(
-        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: auth | message: ${err?.message ?? "Token verification failed"}`
-      );
-      return errorResponse(401, "auth", "Invalid or expired token", requestId);
-    }
-
-    if (!verified?.userId) {
-      return errorResponse(401, "auth", "Invalid or expired token", requestId);
-    }
-
-    const rateStatus = await checkRateLimit(supabase, verified.userId, verified.tier);
-    if (!rateStatus.allowed) {
-      return errorResponse(429, "rate_limit", "Rate limit exceeded", requestId, { remaining: rateStatus.remaining });
-    }
-
-    await incrementUsage(supabase, verified.userId, "weekly_insight");
-
-    const rawBody = await req.text();
-    console.log(
-      `[WEEKLY_RAW_BODY] requestId: ${requestId} | size: ${rawBody.length} | preview: ${rawBody.slice(0, 500)}...`
-    );
-
-    let body: WeeklyInsightRequest;
-    try {
-      body = JSON.parse(rawBody) as WeeklyInsightRequest;
-    } catch (parseErr: any) {
-      console.error(
-        `[WEEKLY_JSON_PARSE_FAIL] requestId: ${requestId} | error: ${parseErr?.message ?? "Unknown parse error"} | raw preview: ${rawBody.slice(0, 200)}`
-      );
-      return errorResponse(400, "parse", "Invalid JSON body", requestId);
-    }
+    // Parse body immediately — avoid reading after async DB calls (Deno stream timeout risk)
+    const body = (await req.json()) as WeeklyInsightRequest;
     console.log(`[WEEKLY_BODY_PARSED] requestId: ${requestId} | captures count: ${body?.captures?.length ?? 0}`);
 
     if (body.captures !== undefined && !Array.isArray(body.captures)) {
-      console.error(
-        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: validation | message: captures must be an array`
-      );
       return errorResponse(400, "validation", "captures must be an array", requestId);
     }
 
@@ -150,9 +95,6 @@ serve(async (req) => {
 
     const captureValidation = validateCaptures(captures);
     if (!captureValidation.valid) {
-      console.error(
-        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: validation | message: ${captureValidation.error}`
-      );
       return errorResponse(400, "validation", captureValidation.error || "Invalid captures", requestId);
     }
 
@@ -174,19 +116,16 @@ serve(async (req) => {
       sanitized = sanitizeText(extracted);
     } catch (error: any) {
       console.error(
-        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"} | stack: ${error?.stack ?? "n/a"}`
+        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"}`
       );
       return errorResponse(502, "gemini_api", error?.message || "Gemini call failed", requestId);
     }
 
     if (!validateGeminiResponse(sanitized)) {
-      console.error(
-        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: response_validation | message: Empty or invalid Gemini response | length: ${sanitized?.length ?? 0}`
-      );
       return errorResponse(500, "response_validation", "AI generated empty or invalid response", requestId);
     }
 
-    console.log(`[WEEKLY_INSIGHT_SUCCESS] requestId: ${requestId} | textLength: ${sanitized?.length ?? 0} | status: success`);
+    console.log(`[WEEKLY_INSIGHT_SUCCESS] requestId: ${requestId} | textLength: ${sanitized.length}`);
     return okResponse(sanitized, requestId);
   } catch (error: any) {
     console.error(
@@ -195,39 +134,6 @@ serve(async (req) => {
     return errorResponse(500, "unknown", error?.message ?? "Internal server error", requestId);
   }
 });
-
-function getServiceClient(): SupabaseClient {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Missing Supabase environment variables");
-  }
-  return createClient(supabaseUrl, supabaseKey);
-}
-
-async function verifyUser(supabase: SupabaseClient, token: string): Promise<{ userId: string; tier: string }> {
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData?.user) {
-    throw new Error("Invalid or expired token");
-  }
-  const userId = userData.user.id;
-
-  // Skip profile lookup; default tier free for schema-compatibility
-  return { userId, tier: "free" };
-}
-
-async function checkRateLimit(
-  supabase: SupabaseClient,
-  userId: string,
-  tier: string,
-): Promise<{ allowed: boolean; remaining: number }> {
-  // Rate limiting disabled for this project
-  return { allowed: true, remaining: Number.POSITIVE_INFINITY };
-}
-
-async function incrementUsage(supabase: SupabaseClient, userId: string, kind: string) {
-  // No-op: rate limiting disabled
-}
 
 function resolveToneStyle(tone: string, customPrompt?: string): string {
   if (customPrompt?.trim()) return customPrompt;
