@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/ui/ThemedText';
 import { DailyChallengeCard } from './DailyChallengeCard';
 import { useDailyChallenges } from '@/lib/challengeStore';
 import { useAuth } from '@/contexts/AuthContext';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface DailyChallengesSectionProps {
     listWrapper?: (children: React.ReactNode) => React.ReactNode;
@@ -12,6 +13,7 @@ interface DailyChallengesSectionProps {
 export function DailyChallengesSection({ listWrapper }: DailyChallengesSectionProps) {
     const { user } = useAuth();
     const { dailyChallenges } = useDailyChallenges(user?.id ?? null);
+    const { colors } = useObsyTheme();
 
     if (!dailyChallenges.length) return null;
 
@@ -32,8 +34,8 @@ export function DailyChallengesSection({ listWrapper }: DailyChallengesSectionPr
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <ThemedText type="defaultSemiBold" style={styles.title}>Daily Challenges</ThemedText>
-                <ThemedText style={styles.subtitle}>Optional captures for today</ThemedText>
+                <ThemedText type="defaultSemiBold" style={[styles.title, { color: colors.text }]}>Daily Challenges</ThemedText>
+                <ThemedText style={[styles.subtitle, { color: colors.textSecondary }]}>Optional captures for today</ThemedText>
             </View>
 
             {listWrapper ? (

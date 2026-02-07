@@ -25,7 +25,15 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 
-const ONBOARDING_SCREENS = [
+interface OnboardingScreen {
+    eyebrow: string;
+    headline: string;
+    body: string;
+    isTone?: boolean;
+    isAuth?: boolean;
+}
+
+const ONBOARDING_SCREENS: OnboardingScreen[] = [
     {
         eyebrow: "Welcome to Obsy",
         headline: "Observe Your Day.",
@@ -37,9 +45,9 @@ const ONBOARDING_SCREENS = [
         body: "Obsy is built around a daily rhythm.\n\nYour captures form a single daily canvas, refreshed each day, shaped by moments as they happen.\nAfter your first capture, your day begins to take shape.\n\nEach day stands on its own.\nPast days are stored safely in your archive, with weekly and monthly summaries available whenever you want to look back.\n\nNo feeds.\nNo endless scrolling.\nJust today, and what mattered."
     },
     {
-        eyebrow: "How It’s Used",
+        eyebrow: "How It's Used",
         headline: "Moments, Not Selfies.",
-        body: "Obsy isn’t about capturing yourself. It’s about capturing objects, scenes, and small details from your day, and how they made you feel."
+        body: "Obsy isn't about capturing yourself. It's about capturing objects, scenes, and small details from your day, and how they made you feel."
     },
     {
         eyebrow: "Your Data",
@@ -50,7 +58,13 @@ const ONBOARDING_SCREENS = [
         eyebrow: "Your Voice",
         headline: "Set the Tone.",
         body: "Choose how Obsy reflects your day. Create a custom tone for your insights, how moments are viewed, interpreted, and written back to you.\n\nIt can be neutral, gently playful, softly critical, or inspired by any style you enjoy. There are no rules.",
-        isFinal: true
+        isTone: true
+    },
+    {
+        eyebrow: "One Last Thing",
+        headline: "Your Account.",
+        body: "Sign in to sync your captures and insights across devices, or continue as a guest to get started right away.",
+        isAuth: true
     }
 ];
 
@@ -71,43 +85,48 @@ export default function OnboardingScreen() {
         }
     }, [currentIndex]);
 
+    const saveToneIfNeeded = async () => {
+        if (tier !== 'guest' && tonePrompt) {
+            const validation = validateCustomTone(toneName || 'My Tone', tonePrompt);
+            if (!validation.valid) {
+                setError(validation.error || 'Invalid input');
+                return false;
+            }
+
+            setIsSaving(true);
+            try {
+                const newTone = await createCustomTone(toneName || 'My Tone', tonePrompt);
+                if (newTone) {
+                    await updateProfile({
+                        ai_tone: 'custom',
+                        selected_custom_tone_id: newTone.id
+                    });
+                }
+            } catch (e: any) {
+                console.error('Failed to save onboarding tone:', e);
+            } finally {
+                setIsSaving(false);
+            }
+        }
+        return true;
+    };
+
     const handleNext = async () => {
+        const screen = ONBOARDING_SCREENS[currentIndex];
+
+        // On tone screen, save the tone before advancing
+        if (screen.isTone && tonePrompt) {
+            const ok = await saveToneIfNeeded();
+            if (!ok) return;
+        }
+
         if (currentIndex < ONBOARDING_SCREENS.length - 1) {
             setCurrentIndex(currentIndex + 1);
             return;
         }
 
-        // Final slide logic
-        if (tier !== 'guest' && (toneName || tonePrompt)) {
-            const validation = validateCustomTone(toneName || 'My Tone', tonePrompt);
-            if (!validation.valid && tonePrompt) {
-                setError(validation.error || 'Invalid input');
-                return;
-            }
-
-            if (tonePrompt) {
-                setIsSaving(true);
-                try {
-                    const newTone = await createCustomTone(toneName || 'My Tone', tonePrompt);
-                    if (newTone) {
-                        await updateProfile({
-                            ai_tone: 'custom',
-                            selected_custom_tone_id: newTone.id
-                        });
-                    }
-                } catch (e: any) {
-                    console.error('Failed to save onboarding tone:', e);
-                } finally {
-                    setIsSaving(false);
-                }
-            }
-        } else if (tier === 'guest' && (toneName || tonePrompt)) {
-            // For guest users, we might want to store it temporarily in AsyncStorage 
-            // or just inform them it won't be saved without an account.
-            // The user requested Screen 4 to be responsive and show sign in/up options.
-            // We'll handle the actual "start" below.
-        }
-
+        // Last screen (auth) - shouldn't normally reach here
+        // because auth screen has its own buttons
         await completeOnboarding();
     };
 
@@ -120,8 +139,22 @@ export default function OnboardingScreen() {
         await completeOnboarding();
     };
 
+    const handleSignIn = () => {
+        // Mark onboarding as complete so they don't loop back
+        AsyncStorage.setItem('has_completed_onboarding', 'true');
+        router.replace('/auth/login');
+    };
+
+    const handleCreateAccount = () => {
+        AsyncStorage.setItem('has_completed_onboarding', 'true');
+        router.replace('/auth/signup');
+    };
+
+    const handleContinueAsGuest = async () => {
+        await completeOnboarding();
+    };
+
     const screen = ONBOARDING_SCREENS[currentIndex];
-    const isInterLoaded = true; // We loaded it in _layout.tsx
 
     const getFont = (weight: '300' | '400' | '600' | '700') => {
         switch (weight) {
@@ -169,7 +202,8 @@ export default function OnboardingScreen() {
                                     {screen.body}
                                 </ThemedText>
 
-                                {screen.isFinal && (
+                                {/* Tone creation inputs */}
+                                {screen.isTone && (
                                     <View style={styles.toneSection}>
                                         <TextInput
                                             style={[styles.input, { fontFamily: getFont('400') }]}
@@ -190,48 +224,65 @@ export default function OnboardingScreen() {
                                             maxLength={250}
                                         />
                                         {error && <ThemedText style={styles.errorText}>{error}</ThemedText>}
+                                    </View>
+                                )}
 
-                                        {tier === 'guest' && (
-                                            <View style={styles.authOptions}>
-                                                <ThemedText style={styles.guestNote}>
-                                                    Sign in to save your custom voice.
-                                                </ThemedText>
-                                                <View style={styles.authButtons}>
-                                                    <TouchableOpacity onPress={() => router.push('/auth/login')}>
-                                                        <ThemedText style={styles.authLink}>Login</ThemedText>
-                                                    </TouchableOpacity>
-                                                    <ThemedText style={styles.authDivider}>•</ThemedText>
-                                                    <TouchableOpacity onPress={() => router.push('/auth/signup')}>
-                                                        <ThemedText style={styles.authLink}>Sign Up</ThemedText>
-                                                    </TouchableOpacity>
-                                                </View>
-                                            </View>
-                                        )}
+                                {/* Auth screen buttons */}
+                                {screen.isAuth && (
+                                    <View style={styles.authSection}>
+                                        <TouchableOpacity
+                                            style={styles.authPrimaryButton}
+                                            onPress={handleCreateAccount}
+                                        >
+                                            <ThemedText style={[styles.authPrimaryText, { fontFamily: getFont('600') }]}>
+                                                Create Account
+                                            </ThemedText>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={styles.authSecondaryButton}
+                                            onPress={handleSignIn}
+                                        >
+                                            <ThemedText style={[styles.authSecondaryText, { fontFamily: getFont('600') }]}>
+                                                Sign In
+                                            </ThemedText>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={styles.guestButton}
+                                            onPress={handleContinueAsGuest}
+                                        >
+                                            <ThemedText style={[styles.guestText, { fontFamily: getFont('400') }]}>
+                                                Continue as Guest
+                                            </ThemedText>
+                                        </TouchableOpacity>
                                     </View>
                                 )}
                             </Animated.View>
                         </ScrollView>
 
-                        {/* Bottom: Navigation */}
-                        <View style={styles.footer}>
-                            <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-                                <ThemedText style={[styles.skipText, { fontFamily: getFont('400') }]}>Skip</ThemedText>
-                            </TouchableOpacity>
+                        {/* Bottom: Navigation (hidden on auth screen) */}
+                        {!screen.isAuth && (
+                            <View style={styles.footer}>
+                                <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+                                    <ThemedText style={[styles.skipText, { fontFamily: getFont('400') }]}>Skip</ThemedText>
+                                </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={styles.nextButton}
-                                onPress={handleNext}
-                                disabled={isSaving}
-                            >
-                                {isSaving ? (
-                                    <ActivityIndicator color="#000" />
-                                ) : (
-                                    <ThemedText style={[styles.nextText, { fontFamily: getFont('600') }]}>
-                                        {currentIndex === ONBOARDING_SCREENS.length - 1 ? "Get Started" : "Next"}
-                                    </ThemedText>
-                                )}
-                            </TouchableOpacity>
-                        </View>
+                                <TouchableOpacity
+                                    style={styles.nextButton}
+                                    onPress={handleNext}
+                                    disabled={isSaving}
+                                >
+                                    {isSaving ? (
+                                        <ActivityIndicator color="#000" />
+                                    ) : (
+                                        <ThemedText style={[styles.nextText, { fontFamily: getFont('600') }]}>
+                                            Next
+                                        </ThemedText>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </TouchableWithoutFeedback>
             </KeyboardAvoidingView>
@@ -255,7 +306,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         justifyContent: 'flex-end',
-        paddingBottom: 140, // Space for footer
+        paddingBottom: 140,
         paddingHorizontal: 24,
     },
     slide: {
@@ -266,11 +317,11 @@ const styles = StyleSheet.create({
         letterSpacing: 1.5,
         textTransform: 'uppercase',
         color: 'rgba(255, 255, 255, 0.5)',
-        marginBottom: 16, // Increased spacing to prevent clipping
+        marginBottom: 16,
     },
     headline: {
         fontSize: 32,
-        lineHeight: 40, // Sufficient lineHeight relative to fontSize
+        lineHeight: 40,
         color: '#FFFFFF',
         marginBottom: 16,
         letterSpacing: -0.5,
@@ -302,6 +353,43 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: -4,
     },
+    // Auth screen
+    authSection: {
+        marginTop: 40,
+        gap: 14,
+    },
+    authPrimaryButton: {
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 16,
+        borderRadius: 14,
+        alignItems: 'center',
+    },
+    authPrimaryText: {
+        color: '#000000',
+        fontSize: 17,
+    },
+    authSecondaryButton: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        paddingVertical: 16,
+        borderRadius: 14,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+    },
+    authSecondaryText: {
+        color: '#FFFFFF',
+        fontSize: 17,
+    },
+    guestButton: {
+        paddingVertical: 14,
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    guestText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 15,
+    },
+    // Footer nav
     footer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -330,26 +418,4 @@ const styles = StyleSheet.create({
         color: '#000000',
         fontSize: 16,
     },
-    authOptions: {
-        marginTop: 16,
-        alignItems: 'center',
-    },
-    guestNote: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.4)',
-        marginBottom: 8,
-    },
-    authButtons: {
-        flexDirection: 'row',
-        gap: 12,
-        alignItems: 'center',
-    },
-    authLink: {
-        fontSize: 14,
-        color: '#FFFFFF',
-        textDecorationLine: 'underline',
-    },
-    authDivider: {
-        color: 'rgba(255,255,255,0.2)',
-    }
 });

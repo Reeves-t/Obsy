@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/ui/ThemedText';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -23,6 +24,7 @@ interface DestinationSelectorProps {
 
 export function DestinationSelector({ albums, selectedIds, onToggle }: DestinationSelectorProps) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const { colors } = useObsyTheme();
 
     const toggleExpand = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -60,8 +62,8 @@ export function DestinationSelector({ albums, selectedIds, onToggle }: Destinati
                         <Ionicons name="share-social" size={18} color={Colors.obsy.silver} />
                     </View>
                     <View style={styles.headerTextContainer}>
-                        <ThemedText style={styles.headerTitle}>{getSummary()}</ThemedText>
-                        <ThemedText style={styles.headerSubtitle}>
+                        <ThemedText style={[styles.headerTitle, { color: colors.text }]}>{getSummary()}</ThemedText>
+                        <ThemedText style={[styles.headerSubtitle, { color: colors.textTertiary }]}>
                             {selectedIds.length === 0 ? "Tap to select" : "Visible to selected groups"}
                         </ThemedText>
                     </View>
@@ -89,8 +91,8 @@ export function DestinationSelector({ albums, selectedIds, onToggle }: Destinati
                                     <Ionicons name="home" size={20} color={isPrivateSelected ? Colors.obsy.silver : "white"} />
                                 </View>
                                 <View style={styles.optionText}>
-                                    <ThemedText style={styles.optionTitle}>Private Journal</ThemedText>
-                                    <ThemedText style={styles.optionSubtitle}>Only visible to you</ThemedText>
+                                    <ThemedText style={[styles.optionTitle, { color: colors.text }]}>Private Journal</ThemedText>
+                                    <ThemedText style={[styles.optionSubtitle, { color: colors.textSecondary }]}>Only visible to you</ThemedText>
                                 </View>
                                 <View style={[styles.checkbox, isPrivateSelected && styles.checkboxSelected]}>
                                     {isPrivateSelected && <Ionicons name="checkmark" size={14} color="black" />}
@@ -115,7 +117,7 @@ export function DestinationSelector({ albums, selectedIds, onToggle }: Destinati
                                 <View style={[styles.optionContainer, isSelected && styles.optionContainerSelected]}>
                                     <View style={styles.optionContent}>
                                         <View style={styles.optionText}>
-                                            <ThemedText style={styles.optionTitle}>{album.name}</ThemedText>
+                                            <ThemedText style={[styles.optionTitle, { color: colors.text }]}>{album.name}</ThemedText>
                                         </View>
                                         <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                                             {isSelected && <Ionicons name="checkmark" size={14} color="black" />}

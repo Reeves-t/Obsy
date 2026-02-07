@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#000',
+    borderColor: 'transparent',
   },
   userInfo: {
     flex: 1,
