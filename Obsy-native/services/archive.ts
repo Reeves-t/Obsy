@@ -318,7 +318,7 @@ export async function fetchArchiveById(id: string): Promise<ArchiveInsight | nul
 export async function countArchivedInsights(userId: string): Promise<number> {
     const { count, error } = await supabase
         .from('insights_archive')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
         .is('deleted_at', null);
 

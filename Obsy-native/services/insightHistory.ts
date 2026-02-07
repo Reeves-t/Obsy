@@ -83,7 +83,7 @@ export async function fetchInsightHistory(
     // Normalize data for backward compatibility
     return {
         ...data,
-        mood_summary: typeof data.mood_summary === 'string' ? JSON.parse(data.mood_summary) : data.mood_summary,
+        mood_summary: safeJsonParse(data.mood_summary),
         capture_ids: data.capture_ids || []
     } as InsightHistory;
 }
