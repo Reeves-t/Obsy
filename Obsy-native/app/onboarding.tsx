@@ -17,7 +17,6 @@ import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { ProgressIndicator } from '@/components/onboarding/ProgressIndicator';
-import { useSubscription } from '@/hooks/useSubscription';
 import { createCustomTone, validateCustomTone } from '@/lib/customTone';
 import { updateProfile } from '@/services/profile';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -75,7 +74,6 @@ export default function OnboardingScreen() {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const { tier } = useSubscription();
     const router = useRouter();
 
     // Trigger haptic on every page change
@@ -86,27 +84,27 @@ export default function OnboardingScreen() {
     }, [currentIndex]);
 
     const saveToneIfNeeded = async () => {
-        if (tier !== 'guest' && tonePrompt) {
-            const validation = validateCustomTone(toneName || 'My Tone', tonePrompt);
-            if (!validation.valid) {
-                setError(validation.error || 'Invalid input');
-                return false;
-            }
+        if (!tonePrompt) return true;
 
-            setIsSaving(true);
-            try {
-                const newTone = await createCustomTone(toneName || 'My Tone', tonePrompt);
-                if (newTone) {
-                    await updateProfile({
-                        ai_tone: 'custom',
-                        selected_custom_tone_id: newTone.id
-                    });
-                }
-            } catch (e: any) {
-                console.error('Failed to save onboarding tone:', e);
-            } finally {
-                setIsSaving(false);
+        const validation = validateCustomTone(toneName || 'My Tone', tonePrompt);
+        if (!validation.valid) {
+            setError(validation.error || 'Invalid input');
+            return false;
+        }
+
+        setIsSaving(true);
+        try {
+            const newTone = await createCustomTone(toneName || 'My Tone', tonePrompt);
+            if (newTone) {
+                await updateProfile({
+                    ai_tone: 'custom',
+                    selected_custom_tone_id: newTone.id
+                });
             }
+        } catch (e: any) {
+            console.error('Failed to save onboarding tone:', e);
+        } finally {
+            setIsSaving(false);
         }
         return true;
     };

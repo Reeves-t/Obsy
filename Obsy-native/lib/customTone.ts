@@ -1,7 +1,10 @@
 import { supabase } from './supabase';
 import { CustomAiToneRow, CustomAiToneInsert, CustomAiToneUpdate } from '@/types/supabase.types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CustomTone extends CustomAiToneRow { }
+
+const GUEST_TONES_KEY = 'obsy_guest_custom_tones';
 
 /**
  * Validation rules for custom tone prompts
@@ -43,11 +46,39 @@ export function validateCustomTone(name: string, prompt: string): { valid: boole
     return { valid: true };
 }
 
-/**
- * CRUD operations for Custom Tones
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Guest tone storage (AsyncStorage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function generateLocalId(): string {
+    // Simple local UUID without crypto dependency
+    return 'local-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+async function getGuestTones(): Promise<CustomTone[]> {
+    try {
+        const raw = await AsyncStorage.getItem(GUEST_TONES_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+}
+
+async function saveGuestTones(tones: CustomTone[]): Promise<void> {
+    await AsyncStorage.setItem(GUEST_TONES_KEY, JSON.stringify(tones));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRUD operations for Custom Tones
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getCustomTones(): Promise<CustomTone[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return getGuestTones();
+    }
+
     const { data, error } = await supabase
         .from('custom_ai_tones')
         .select('*')
@@ -61,26 +92,45 @@ export async function getCustomTones(): Promise<CustomTone[]> {
 }
 
 export async function getCustomToneById(id: string): Promise<CustomTone | null> {
+    // Check Supabase first for authenticated users
     const { data, error } = await supabase
         .from('custom_ai_tones')
         .select('*')
         .eq('id', id)
         .single();
 
-    if (error) {
-        console.error('Error fetching custom tone by ID:', error);
-        return null;
-    }
-    return data;
+    if (!error && data) return data;
+
+    // Fallback: check guest tones in AsyncStorage
+    const guestTones = await getGuestTones();
+    return guestTones.find(t => t.id === id) || null;
 }
 
 export async function createCustomTone(name: string, prompt: string): Promise<CustomTone | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
     const validation = validateCustomTone(name, prompt);
     if (!validation.valid) throw new Error(validation.error);
 
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Guest path: store in AsyncStorage
+    if (!user) {
+        const now = new Date().toISOString();
+        const guestTone: CustomTone = {
+            id: generateLocalId(),
+            user_id: 'guest',
+            name: name.trim(),
+            prompt: prompt.trim(),
+            created_at: now,
+            updated_at: now,
+        } as CustomTone;
+
+        const tones = await getGuestTones();
+        tones.unshift(guestTone);
+        await saveGuestTones(tones);
+        return guestTone;
+    }
+
+    // Authenticated path: store in Supabase
     const { data, error } = await supabase
         .from('custom_ai_tones')
         .insert({

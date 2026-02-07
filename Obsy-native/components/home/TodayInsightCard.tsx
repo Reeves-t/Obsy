@@ -115,8 +115,12 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
                 console.log("[TodayInsightCard] Auto-generating first insight of the day");
                 const profile = await getProfile();
                 if (profile) {
+                    const resolvedTone = profile.ai_tone === 'custom' && profile.selected_custom_tone_id
+                        ? profile.selected_custom_tone_id
+                        : profile.ai_tone;
                     await refreshTodayInsight(user.id, {
-                        tone: profile.ai_tone,
+                        tone: resolvedTone,
+                        selectedCustomToneId: profile.selected_custom_tone_id || undefined,
                         autoDailyInsights: profile.ai_auto_daily_insights,
                         useJournalInInsights: profile.ai_use_journal_in_insights,
                     }, captures);
@@ -139,8 +143,12 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
         try {
             const profile = await getProfile();
             if (profile) {
+                const resolvedTone = profile.ai_tone === 'custom' && profile.selected_custom_tone_id
+                    ? profile.selected_custom_tone_id
+                    : profile.ai_tone;
                 await refreshTodayInsight(user.id, {
-                    tone: profile.ai_tone,
+                    tone: resolvedTone,
+                    selectedCustomToneId: profile.selected_custom_tone_id || undefined,
                     autoDailyInsights: profile.ai_auto_daily_insights,
                     useJournalInInsights: profile.ai_use_journal_in_insights,
                 }, captures, true); // Force refresh
