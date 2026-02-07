@@ -27,6 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTimeFormatStore, TimeFormat } from '@/lib/timeFormatStore';
 import { useFloatingBackgroundStore, FloatingMode } from '@/lib/floatingBackgroundStore';
+import { exportUserData } from '@/services/export';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -383,8 +384,19 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleExportData = () => {
-    Alert.alert('Export Data', 'Your data export will begin shortly.', [{ text: 'OK' }]);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportData = async () => {
+    if (!user || isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportUserData(user.id);
+    } catch (e: any) {
+      console.error('[Profile] Export failed:', e);
+      Alert.alert('Export Failed', 'Could not export your data. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
 
@@ -667,7 +679,7 @@ export default function ProfileScreen() {
             <View style={styles.flatSection}>
               <SettingRow
                 icon="download-outline"
-                title="Export Data"
+                title={isExporting ? "Exporting…" : "Export Data"}
                 onPress={handleExportData}
               />
               <SettingRow
