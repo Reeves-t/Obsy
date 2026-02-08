@@ -241,9 +241,16 @@ function extractText(raw: string, requestId: string): string {
 
     if (partsText) {
       console.log(`[EXTRACT_TEXT_ATTEMPT_JSON] requestId: ${requestId} | attempting to parse partsText as JSON`);
+
+      // Strip markdown code blocks (```json ... ``` or ``` ... ```)
+      const cleaned = partsText
+        .replace(/^```(?:json)?\s*\n?/i, "")  // Remove opening ```json or ```
+        .replace(/\n?```\s*$/i, "")            // Remove closing ```
+        .trim();
+
       try {
-        const insight = JSON.parse(partsText);
-        const narrativeText = insight?.narrative?.text ?? insight?.insight ?? partsText;
+        const insight = JSON.parse(cleaned);
+        const narrativeText = insight?.narrative?.text ?? insight?.insight ?? cleaned;
         if (narrativeText) {
           console.log(
             `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text`
