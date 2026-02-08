@@ -190,7 +190,9 @@ Inputs provided:
 
 MOOD_FLOW RULES:
 - title: 2-4 words, aesthetic, not cheesy
-- Examples: "Quiet Anticipation", "Steady Focus", "Soft Momentum", "Late-Night Resolve", "Calm Friction"
+- CRITICAL: NEVER use raw mood labels like "Calm", "Focused", "Anxious", "Productive"
+- ALWAYS use evocative descriptive phrases that capture the feeling quality
+- Examples: "Quiet Anticipation", "Steady Focus", "Soft Momentum", "Late-Night Resolve", "Calm Friction", "Restless Energy", "Sharp Intent", "Bright Delight"
 - subtitle: 6-12 words, one sentence, no comma spam
 - confidence: 90-100 (3+ captures with consistent mood), 70-89 (2 captures), 50-69 (1 capture or mixed signals)
 

@@ -87,7 +87,7 @@ export async function fetchInsightHistory(
     // Normalize data for backward compatibility
     return {
         ...data,
-        mood_summary: typeof data.mood_summary === 'string' ? JSON.parse(data.mood_summary) : data.mood_summary,
+        mood_summary: safeJsonParse(data.mood_summary),
         capture_ids: data.capture_ids || []
     } as InsightHistory;
 }
@@ -100,6 +100,34 @@ function safeJsonParse(value: any) {
         console.warn("Failed to parse JSON:", value);
         return null;
     }
+}
+
+/**
+ * Fetches the most recent daily insight for a user.
+ * Used to preload the last insight in the daily insight slot for faster UX.
+ */
+export async function fetchMostRecentDailyInsight(userId: string): Promise<InsightHistory | null> {
+    const { data, error } = await (supabase as any)
+        .from("insight_history")
+        .select("id, user_id, type, start_date, end_date, content, mood_summary, capture_ids, created_at, updated_at")
+        .eq("user_id", userId)
+        .eq("type", "daily")
+        .order("start_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error("Error fetching most recent daily insight:", error);
+        return null;
+    }
+
+    if (!data) return null;
+
+    return {
+        ...data,
+        mood_summary: safeJsonParse(data.mood_summary),
+        capture_ids: data.capture_ids || []
+    } as InsightHistory;
 }
 
 export async function fetchDailyArchives(userId: string): Promise<InsightHistory[]> {
