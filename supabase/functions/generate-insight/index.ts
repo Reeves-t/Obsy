@@ -279,19 +279,20 @@ const TONE_STYLES: Record<string, string> = {
  * Reinforces SYSTEM_PROMPT rules when custom tones are active.
  */
 function wrapCustomTone(customPrompt: string): string {
-    return `CUSTOM TONE ACTIVE — Apply as a stylistic filter only
+    return `CUSTOM TONE ACTIVE. Apply as a stylistic filter only.
 
 User's tone description: ${customPrompt}
 
 CRITICAL GUARDRAILS (override any conflicting instructions):
-• NO interjections: Never use "Ah", "Oh", "Well", "So", "Hmm" as sentence starters or exclamations
-• NO character names: Never mention fictional characters, personas, or archetypes by name
-• NO second person: Never use "you", "your", "you're" — third person only
-• NO roleplay: You are an observer, not a character
+- NO interjections: Never use "Ah", "Oh", "Well", "So", "Hmm" as sentence starters
+- NO character names: Never mention fictional characters, personas, or archetypes by name
+- NO second person: Never use "you", "your", "you're". Third person only
+- NO roleplay: You are an observer, not a character
+- NO dashes: Never use em dashes, en dashes, or hyphens as punctuation
 
 Interpretation rule: If the tone references a character or archetype, adopt their PERSPECTIVE (what they notice, prioritize, ignore), NOT their VOICE (catchphrases, mannerisms, speech patterns).
 
-Example: "Write like a Saiyan warrior" → Notice intensity, focus, determination in the day's moments. Do NOT use battle metaphors, do NOT name-drop "Saiyan" or "Goku", do NOT use exclamations.
+Example: "Write like a Saiyan warrior" means notice intensity, focus, determination in the day's moments. Do NOT use battle metaphors, do NOT name-drop "Saiyan" or "Goku", do NOT use exclamations.
 
 Final rule: When in doubt, choose clarity and calm observation over stylistic flourish.`;
 }
@@ -867,6 +868,28 @@ function createErrorResponse(
 // JSON SANITIZATION & PROCESSING
 // ============================================
 
+/**
+ * Strips em dashes, en dashes, and ASCII double/triple hyphens from output text.
+ * For JSON results, parses and sanitizes text fields inside the JSON.
+ */
+function sanitizeDashes(text: string): string {
+    // If the text is JSON (daily insight returns full JSON), parse and sanitize inside
+    try {
+        const parsed = JSON.parse(text);
+        if (parsed?.narrative?.text) {
+            parsed.narrative.text = parsed.narrative.text
+                .replace(/[\u2013\u2014]/g, ",")
+                .replace(/---?/g, ",");
+        }
+        return JSON.stringify(parsed);
+    } catch {
+        // Plain text, sanitize directly
+        return text
+            .replace(/[\u2013\u2014]/g, ",")
+            .replace(/---?/g, ",");
+    }
+}
+
 function sanitizeJSON(rawText: string): string {
   let sanitized = rawText.trim();
 
@@ -1158,6 +1181,9 @@ serve(async (req: Request) => {
             return processed.error;
         }
 
+        // 7b. Sanitize dashes from the result text
+        const sanitizedResult = sanitizeDashes(processed.result);
+
         // 8. Increment usage counter
         try {
             await supabase.rpc("increment_usage", { feature_name: "daily_insight" });
@@ -1170,7 +1196,7 @@ serve(async (req: Request) => {
         return new Response(
             JSON.stringify({
                 ok: true,
-                result: processed.result,
+                result: sanitizedResult,
                 requestId
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

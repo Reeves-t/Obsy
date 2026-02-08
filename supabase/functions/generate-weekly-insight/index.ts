@@ -48,14 +48,58 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT =
-  `You are a third-person narrator generating a weekly emotional summary. Never use second-person address, emojis, markdown, or filler. Keep to 120 words maximum, prose only, chronological from earliest day to latest.`;
+  `You are a third-person narrator generating a weekly emotional summary.
+
+ABSOLUTE RULES:
+- Third person ONLY. Never use "you", "your", "you're", "we", "I".
+- Never use emojis, markdown, or bullets.
+- BANNED starters: "Ah", "Oh", "Well", "So", "Hmm". Never use these.
+- BANNED punctuation: exclamation marks (!), question marks (?), dashes of ANY kind (em dash \u2014, en dash \u2013, hyphen as punctuation). Only use periods, commas, colons, semicolons, parentheses, apostrophes.
+- No character names, roleplay, or therapy language.
+- First word must be "The", "A", or a time reference ("The week opened...").
+- Keep to 120 words maximum, prose only, chronological from earliest day to latest.
+- EMBODY THE TONE. The tone style is the most important stylistic rule.`;
 
 const TONE_STYLES: Record<string, string> = {
-  neutral: "Calm, observant, descriptive without judgment.",
+  neutral: "Use a plain, observant, and balanced tone. Avoid emotional push or strong interpretations. Act as a clear mirror of the week. Keep sentences straightforward and descriptive.",
+  stoic_calm: "Use a restrained, grounded, and steady tone. Use short sentences and avoid unnecessary commentary. Focus on acceptance and calm observation.",
+  dry_humor: "Use a dry, understated, and subtly witty tone. Avoid sarcasm or meanness. Humor should be quiet and clever, not loud.",
+  mystery_noir: "Use a moody, atmospheric, and metaphor-heavy tone. Channel a 1940s detective narrator. Describe the week like scenes from a noir film.",
+  cinematic: "Describe the week like scenes or sequences in a film. Focus on a sense of motion or stillness. Use visual framing and narrative flow.",
+  dreamlike: "Use a soft, abstract, and fluid tone. Focus on gentle imagery and atmosphere over logic. No sharp conclusions or clinical observations.",
+  romantic: "Use a warm, intimate, and emotionally close tone. You may romanticize heavy moods without trying to fix them. Avoid being cheesy or overly dramatic; keep it tasteful.",
+  gentle_roast: "Use a light, teasing, and affectionate tone. Never be mean or judgmental; the humor is always on the user's side. Keep it playful and warm. Poke fun gently at the week.",
+  inspiring: "Use an uplifting but grounded tone. Avoid cliches, slogans, or toxic positivity. Focus on quiet forward motion and steady resolve.",
+  // Legacy fallbacks
   reflective: "Gentle, introspective pacing with quiet observations.",
   analytical: "Clear, pattern-focused, minimal flourish.",
   warm: "Soft warmth, subtle encouragement without hype.",
+  gentle: "Be warm, supportive, and encouraging. Validate feelings without toxic positivity.",
+  snarky: "Be witty and a bit sardonic. Poke fun gently but never be mean.",
+  cosmic: "Speak as if viewing life from a vast cosmic perspective. Make the mundane feel epic.",
+  film_noir: "Channel a 1940s detective narrator. Moody, atmospheric, metaphor-heavy.",
+  nature: "Draw parallels to natural phenomena. Seasons, weather, ecosystems.",
 };
+
+/**
+ * Wraps a custom tone prompt with guardrails to prevent roleplay and character impersonation.
+ */
+function wrapCustomTone(customPrompt: string): string {
+  return `CUSTOM TONE ACTIVE. Apply as a stylistic filter only.
+
+User's tone description: ${customPrompt}
+
+CRITICAL GUARDRAILS (override any conflicting instructions):
+- NO interjections: Never use "Ah", "Oh", "Well", "So", "Hmm" as sentence starters
+- NO character names: Never mention fictional characters, personas, or archetypes by name
+- NO second person: Never use "you", "your", "you're". Third person only
+- NO roleplay: You are an observer, not a character
+- NO dashes: Never use em dashes, en dashes, or hyphens as punctuation
+
+Interpretation rule: If the tone references a character or archetype, adopt their PERSPECTIVE (what they notice, prioritize, ignore), NOT their VOICE (catchphrases, mannerisms, speech patterns).
+
+Final rule: When in doubt, choose clarity and calm observation over stylistic flourish.`;
+}
 
 serve(async (req) => {
   const requestId = crypto.randomUUID();
@@ -136,7 +180,7 @@ serve(async (req) => {
 });
 
 function resolveToneStyle(tone: string, customPrompt?: string): string {
-  if (customPrompt?.trim()) return customPrompt;
+  if (customPrompt?.trim()) return wrapCustomTone(customPrompt);
   return TONE_STYLES[tone] ?? TONE_STYLES.neutral;
 }
 
@@ -277,7 +321,11 @@ function extractText(raw: string, requestId: string): string {
 
 function sanitizeText(text: string): string {
   if (!text) return "";
-  return text.replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  return text
+    .replace(/[\u0000-\u001F\u007F]/g, "")  // Control characters
+    .replace(/[\u2013\u2014]/g, ",")          // En dash / em dash → comma
+    .replace(/---?/g, ",")                    // ASCII double/triple hyphens used as dashes → comma
+    .trim();
 }
 
 function okResponse(text: string, requestId: string): Response {

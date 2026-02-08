@@ -27,6 +27,7 @@ import { getWeekRangeForUser } from '@/lib/dateUtils';
 import { useWeeklyInsight } from '@/lib/weeklyInsightStore';
 import { useMonthlyInsight } from '@/lib/monthlyInsightStore';
 import { AiToneId, AI_TONES, DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
+import { resolveTonePrompt } from '@/services/secureAI';
 import { fetchDailyArchives, InsightHistory } from '@/services/insightHistory';
 import { getProfile, updateProfile } from '@/services/profile';
 import { archiveInsight } from '@/services/archive';
@@ -273,11 +274,17 @@ export default function InsightsScreen() {
             : profile.ai_tone;
         setCurrentTone(resolvedToneId);
 
+        // Resolve the actual tone prompt text (fetches custom tone from DB if needed)
+        const { resolvedTone, resolvedPrompt } = await resolveTonePrompt(
+            resolvedToneId,
+            profile.selected_custom_tone_id || undefined
+        );
+
         return {
             profile,
             settings: {
-                tone: resolvedToneId,
-                selectedCustomToneId: profile.selected_custom_tone_id || undefined,
+                tone: resolvedTone,
+                customTonePrompt: profile.selected_custom_tone_id ? resolvedPrompt : undefined,
                 autoDailyInsights: profile.ai_auto_daily_insights,
                 useJournalInInsights: profile.ai_use_journal_in_insights,
             }
@@ -294,7 +301,7 @@ export default function InsightsScreen() {
             await refreshTodayInsight(
                 config.profile.id,
                 config.settings.tone,
-                config.settings.selectedCustomToneId,
+                config.settings.customTonePrompt,
                 captures
             );
         } catch (error) {
@@ -310,7 +317,7 @@ export default function InsightsScreen() {
             await refreshWeeklyInsight(
                 config.profile.id,
                 config.settings.tone,
-                config.settings.selectedCustomToneId,
+                config.settings.customTonePrompt,
                 captures,
                 undefined
             );
@@ -327,7 +334,7 @@ export default function InsightsScreen() {
             await refreshMonthlyInsight(
                 config.profile.id,
                 config.settings.tone,
-                config.settings.selectedCustomToneId,
+                config.settings.customTonePrompt,
                 captures,
                 currentMonth,
                 force
