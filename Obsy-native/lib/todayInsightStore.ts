@@ -5,6 +5,7 @@ import { callDaily } from '@/services/dailyInsightClient';
 import { getCapturesForDaily, CaptureData } from '@/lib/captureData';
 import { getMoodLabel } from '@/lib/moodUtils';
 import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
+import { fetchMostRecentDailyInsight, fetchInsightHistory } from '@/services/insightHistory';
 
 /**
  * Validates and sanitizes a mood string.
@@ -60,9 +61,11 @@ interface TodayInsightState {
     requestId: string | null;
     dateKey: string | null; // YYYY-MM-DD
     hasGeneratedToday: boolean;
+    hasLoadedSnapshot: boolean; // Tracks if initial snapshot load has been attempted
 
     // Actions
     setTodayInsight: (text: string | null) => void;
+    loadSnapshot: (userId: string) => Promise<void>;
     refreshTodayInsight: (
         userId: string,
         tone: string,
@@ -82,6 +85,7 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
     requestId: null,
     dateKey: getLocalDayKey(new Date()),
     hasGeneratedToday: false,
+    hasLoadedSnapshot: false,
 
     setTodayInsight: (text) => {
         set({
@@ -91,6 +95,49 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
             lastUpdated: new Date(),
             dateKey: getLocalDayKey(new Date()),
         });
+    },
+
+    loadSnapshot: async (userId: string) => {
+        // Skip if already loaded or currently has text
+        if (get().hasLoadedSnapshot || get().text) return;
+
+        try {
+            const today = getLocalDayKey(new Date());
+
+            // First try to load today's insight
+            const todaySnapshot = await fetchInsightHistory(userId, 'daily', new Date(), new Date());
+
+            if (todaySnapshot) {
+                set({
+                    text: todaySnapshot.content,
+                    status: 'success',
+                    dateKey: today,
+                    hasLoadedSnapshot: true,
+                    hasGeneratedToday: true,
+                    lastUpdated: new Date(todaySnapshot.updated_at),
+                });
+                return;
+            }
+
+            // If no today insight, load the most recent one as a preload
+            const recentSnapshot = await fetchMostRecentDailyInsight(userId);
+
+            if (recentSnapshot) {
+                set({
+                    text: recentSnapshot.content,
+                    status: 'success',
+                    dateKey: recentSnapshot.start_date,
+                    hasLoadedSnapshot: true,
+                    hasGeneratedToday: false, // Not today's insight, so auto-gen can still trigger
+                    lastUpdated: new Date(recentSnapshot.updated_at),
+                });
+            } else {
+                set({ hasLoadedSnapshot: true });
+            }
+        } catch (error) {
+            console.error("[useTodayInsight] loadSnapshot failed:", error);
+            set({ hasLoadedSnapshot: true });
+        }
     },
 
     refreshTodayInsight: async (_userId, tone, customTonePrompt, allCaptures) => {
@@ -205,6 +252,7 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
                 text: null,
                 error: null,
                 hasGeneratedToday: false,
+                hasLoadedSnapshot: false, // Allow re-loading snapshot for new day
                 dateKey: today,
                 requestId: null,
             });
