@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     },
     pendingMessage: {
         fontSize: 13,
-        color: '#5EEAD4', // Teal color
+        color: '#38BDF8', // Dark sky blue
         fontWeight: '500',
     },
     content: {
