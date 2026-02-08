@@ -11,6 +11,7 @@ import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from '@/
 import { BookmarkButton } from '@/components/insights/BookmarkButton';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import Colors from '@/constants/Colors';
+import { countPendingDailyCaptures } from '@/lib/pendingCaptureUtils';
 
 interface TodayInsightCardProps {
     text: string | null;
@@ -32,7 +33,7 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
     const { user } = useAuth();
     const { captures } = useCaptureStore();
     const { isLight } = useObsyTheme();
-    const { loadSnapshot } = useTodayInsight();
+    const { loadSnapshot, lastUpdated } = useTodayInsight();
 
     const [isSaved, setIsSaved] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
@@ -41,6 +42,9 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
     const flatTextColor = isLight ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)';
     const flatTextSecondary = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)';
     const flatDateColor = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)';
+
+    // Count pending captures
+    const pendingCount = countPendingDailyCaptures(lastUpdated, captures);
 
     // Preload last daily insight on mount (fast-load path)
     useEffect(() => {
@@ -121,6 +125,15 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
 
             {!flat && <View style={styles.divider} />}
 
+            {/* Pending captures message */}
+            {!isEmpty && pendingCount > 0 && (
+                <View style={styles.pendingMessageContainer}>
+                    <ThemedText style={styles.pendingMessage}>
+                        {pendingCount} new capture{pendingCount > 1 ? 's' : ''} not yet included. Refresh to update
+                    </ThemedText>
+                </View>
+            )}
+
             <View style={[styles.content, flat && styles.flatContent]}>
                 {isEmpty ? (
                     <View style={styles.emptyContainer}>
@@ -191,6 +204,16 @@ const styles = StyleSheet.create({
         height: 0.5,
         backgroundColor: 'rgba(255,255,255,0.06)',
         marginHorizontal: 16,
+    },
+    pendingMessageContainer: {
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 4,
+    },
+    pendingMessage: {
+        fontSize: 13,
+        color: '#5EEAD4', // Teal color
+        fontWeight: '500',
     },
     content: {
         padding: 20,
