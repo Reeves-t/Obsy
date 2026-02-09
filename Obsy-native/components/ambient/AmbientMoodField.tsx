@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import { MoodOrb } from './MoodOrb';
 import { MoodWeight } from '@/hooks/useWeeklyMoodAggregation';
@@ -89,18 +89,33 @@ interface AmbientMoodFieldProps {
  */
 export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProps) {
     const weekSeed = useMemo(() => getWeekSeed(), []);
+    const [positionCycle, setPositionCycle] = useState(0);
 
-    // Generate positions for orbs (stable per week)
+    // Cycle through new positions every 6 seconds (one full animation cycle)
+    useEffect(() => {
+        if (isPaused) return;
+
+        const CYCLE_DURATION = 6000; // Match total animation time (2.5s + 0.6s + 2s + 0.8s = 5.9s)
+        const interval = setInterval(() => {
+            setPositionCycle((prev) => prev + 1);
+        }, CYCLE_DURATION);
+
+        return () => clearInterval(interval);
+    }, [isPaused]);
+
+    // Generate positions for orbs (changes each cycle for randomness)
     const orbPositions = useMemo(() => {
         return moodWeights.map((mood, index) => {
-            const orbSize = 60 * mood.size; // Base size * multiplier
+            const orbSize = 24 * mood.size; // Tiny base size * multiplier
+            // Use positionCycle to get different positions each cycle
+            const seed = weekSeed + index + (positionCycle * 1000);
             return {
                 ...mood,
-                position: generateSafeZonePosition(weekSeed, index, orbSize),
-                delay: index * 2000, // Stagger animations by 2 seconds
+                position: generateSafeZonePosition(seed, index, orbSize),
+                delay: index * 1500, // Stagger animations by 1.5 seconds
             };
         });
-    }, [moodWeights, weekSeed]);
+    }, [moodWeights, weekSeed, positionCycle]);
 
     // No moods = no orbs
     if (orbPositions.length === 0) {
@@ -111,7 +126,7 @@ export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProp
         <View style={styles.container} pointerEvents="none">
             {orbPositions.map((orb, index) => (
                 <MoodOrb
-                    key={`${orb.moodId}-${weekSeed}`} // Stable key per week
+                    key={`${orb.moodId}-${positionCycle}-${index}`} // New key each cycle for repositioning
                     color={orb.color}
                     size={orb.size}
                     x={orb.position.x}
