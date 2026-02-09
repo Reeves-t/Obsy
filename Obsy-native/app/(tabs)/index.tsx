@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, ScrollView, Dimensions, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, Dimensions, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, AppState } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -34,6 +34,10 @@ import { useRouter } from 'expo-router';
 import { DailyInsight } from '@/services/dailyInsights';
 import { useMockAlbums } from '@/contexts/MockAlbumContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AmbientMoodField } from '@/components/ambient/AmbientMoodField';
+import { useWeeklyMoodAggregation } from '@/hooks/useWeeklyMoodAggregation';
+import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { height } = Dimensions.get('window');
 
@@ -64,6 +68,37 @@ export default function HomeScreen() {
   const onBgText = colors.text;
   const onBgTextSecondary = colors.textSecondary;
   const onBgTextTertiary = colors.textTertiary;
+
+  // Ambient Mood Field
+  const { enabled: ambientEnabled, loadSavedState } = useAmbientMoodFieldStore();
+  const weeklyMoodWeights = useWeeklyMoodAggregation(captures);
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
+  const [isAppActive, setIsAppActive] = useState(true);
+
+  // Load ambient mood field settings on mount
+  useEffect(() => {
+    loadSavedState();
+  }, []);
+
+  // Track screen focus (pause when navigating to other tabs)
+  useFocusEffect(
+    useCallback(() => {
+      setIsScreenFocused(true);
+      return () => setIsScreenFocused(false);
+    }, [])
+  );
+
+  // Track app state (pause when app goes to background)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      setIsAppActive(nextAppState === 'active');
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  // Determine if ambient field should be paused
+  const isAmbientPaused = !ambientEnabled || !isScreenFocused || !isAppActive;
 
   // Handle scroll (placeholder for potential future needs, currently simplified)
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -118,6 +153,12 @@ export default function HomeScreen() {
       screenName="home"
       hideFloatingBackground={false}
     >
+      {/* Ambient Mood Field - Behind all content */}
+      <AmbientMoodField
+        moodWeights={weeklyMoodWeights}
+        isPaused={isAmbientPaused}
+      />
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         snapToInterval={pageHeight} // Full screen snap

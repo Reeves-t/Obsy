@@ -27,6 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTimeFormatStore, TimeFormat } from '@/lib/timeFormatStore';
 import { useFloatingBackgroundStore, FloatingMode } from '@/lib/floatingBackgroundStore';
+import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -202,6 +203,36 @@ const FloatingBackgroundsInline: React.FC = () => {
           );
         })}
       </View>
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ambient Mood Field Inline Component
+// ─────────────────────────────────────────────────────────────────────────────
+const AmbientMoodFieldInline: React.FC = () => {
+  const { colors, isLight } = useObsyTheme();
+  const { enabled, toggleEnabled } = useAmbientMoodFieldStore();
+
+  const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+
+  return (
+    <View style={styles.floatingInlineContainer}>
+      <SettingRow
+        icon="planet-outline"
+        title="Ambient Mood Field"
+        subtitle="Subtle week-level mood visualization"
+        showChevron={false}
+        isLast
+        rightElement={
+          <Switch
+            value={enabled}
+            onValueChange={toggleEnabled}
+            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
+            thumbColor="#fff"
+          />
+        }
+      />
     </View>
   );
 };
@@ -634,6 +665,7 @@ export default function ProfileScreen() {
         <SectionHeader title="VISUAL ATMOSPHERE" flat />
         <View style={styles.flatSection}>
           <FloatingBackgroundsInline />
+          <AmbientMoodFieldInline />
         </View>
 
         {/* FEATURES */}
