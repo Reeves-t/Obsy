@@ -103,15 +103,15 @@ export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProp
         return () => clearInterval(interval);
     }, [isPaused]);
 
-    // Generate positions for orbs (changes each cycle for randomness)
+    // Generate positions for sparkles (changes each cycle for randomness)
     const orbPositions = useMemo(() => {
         return moodWeights.map((mood, index) => {
-            const orbSize = 24 * mood.size; // Tiny base size * multiplier
+            const sparkleSize = 12 * mood.size; // Subtle base size * multiplier
             // Use positionCycle to get different positions each cycle
             const seed = weekSeed + index + (positionCycle * 1000);
             return {
                 ...mood,
-                position: generateSafeZonePosition(seed, index, orbSize),
+                position: generateSafeZonePosition(seed, index, sparkleSize),
                 delay: index * 1500, // Stagger animations by 1.5 seconds
             };
         });
