@@ -275,26 +275,17 @@ const TONE_STYLES: Record<string, string> = {
 };
 
 /**
- * Wraps a custom tone prompt with guardrails to prevent roleplay and character impersonation.
- * Reinforces SYSTEM_PROMPT rules when custom tones are active.
+ * Wraps a custom tone prompt with minimal guardrails to preserve creative freedom.
  */
 function wrapCustomTone(customPrompt: string): string {
-    return `CUSTOM TONE ACTIVE. Apply as a stylistic filter only.
+    return `CUSTOM TONE: ${customPrompt}
 
-User's tone description: ${customPrompt}
+Core requirements (maintain these while being creative):
+- Write in third person (avoid "you", "your")
+- No markdown formatting or emojis
+- Return the requested format (JSON or plain text as specified)
 
-CRITICAL GUARDRAILS (override any conflicting instructions):
-- NO interjections: Never use "Ah", "Oh", "Well", "So", "Hmm" as sentence starters
-- NO character names: Never mention fictional characters, personas, or archetypes by name
-- NO second person: Never use "you", "your", "you're". Third person only
-- NO roleplay: You are an observer, not a character
-- NO dashes: Never use em dashes, en dashes, or hyphens as punctuation
-
-Interpretation rule: If the tone references a character or archetype, adopt their PERSPECTIVE (what they notice, prioritize, ignore), NOT their VOICE (catchphrases, mannerisms, speech patterns).
-
-Example: "Write like a Saiyan warrior" means notice intensity, focus, determination in the day's moments. Do NOT use battle metaphors, do NOT name-drop "Saiyan" or "Goku", do NOT use exclamations.
-
-Final rule: When in doubt, choose clarity and calm observation over stylistic flourish.`;
+Be creative and embody the tone fully. Use distinctive voice, varied punctuation, stylistic choices, and even character-inspired perspectives that match the tone. Express the tone authentically.`;
 }
 
 // Time bucket order for chronological sorting (legacy)

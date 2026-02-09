@@ -92,23 +92,17 @@ const TONE_STYLES: Record<string, string> = {
 };
 
 /**
- * Wraps a custom tone prompt with guardrails to prevent roleplay and character impersonation.
+ * Wraps a custom tone prompt with minimal guardrails to preserve creative freedom.
  */
 function wrapCustomTone(customPrompt: string): string {
-  return `CUSTOM TONE ACTIVE. Apply as a stylistic filter only.
+  return `CUSTOM TONE: ${customPrompt}
 
-User's tone description: ${customPrompt}
+Core requirements (maintain these while being creative):
+- Write in third person (avoid "you", "your")
+- No markdown formatting or emojis
+- Return the requested JSON structure
 
-CRITICAL GUARDRAILS (override any conflicting instructions):
-- NO interjections: Never use "Ah", "Oh", "Well", "So", "Hmm" as sentence starters
-- NO character names: Never mention fictional characters, personas, or archetypes by name
-- NO second person: Never use "you", "your", "you're". Third person only
-- NO roleplay: You are an observer, not a character
-- NO dashes: Never use em dashes, en dashes, or hyphens as punctuation
-
-Interpretation rule: If the tone references a character or archetype, adopt their PERSPECTIVE (what they notice, prioritize, ignore), NOT their VOICE (catchphrases, mannerisms, speech patterns).
-
-Final rule: When in doubt, choose clarity and calm observation over stylistic flourish.`;
+Be creative and embody the tone fully. Use distinctive voice, varied punctuation, and stylistic choices that match the tone.`;
 }
 
 serve(async (req) => {
@@ -259,8 +253,13 @@ function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; t
     lines.join("\n"),
     "",
     "Write a concise, chronological narrative in 1-3 paragraphs based on capture count.",
-    "Return JSON: {\"narrative\":{\"text\":\"...\"},\"mood_flow\":{\"title\":\"...\",\"subtitle\":\"...\",\"confidence\":0.0}}",
-    "Do not include markdown, bullets, or line breaks inside narrative text.",
+    "",
+    "CRITICAL OUTPUT FORMAT:",
+    "Return ONLY this JSON structure (NO markdown fences, NO extra text):",
+    "{\"narrative\":{\"text\":\"Your narrative text here\"},\"mood_flow\":{\"title\":\"Short title\",\"subtitle\":\"Brief subtitle\",\"confidence\":85}}",
+    "",
+    "IMPORTANT: The narrative.text field must contain PLAIN TEXT ONLY (no JSON, no markdown, no formatting).",
+    "The text should be a flowing narrative, not JSON data.",
   ].join("\n");
 }
 
@@ -313,25 +312,36 @@ function extractText(raw: string, requestId: string): string {
       try {
         const insight = JSON.parse(cleaned);
         const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
-        if (narrativeText) {
+        if (narrativeText && typeof narrativeText === 'string') {
           console.log(
             `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text`
           );
           return narrativeText;
+        } else {
+          console.warn(
+            `[EXTRACT_TEXT_WARNING] requestId: ${requestId} | JSON parsed but narrative.text not found or invalid. Keys: ${Object.keys(insight).join(', ')}`
+          );
         }
-      } catch {
+      } catch (parseError) {
         console.log(
-          `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not JSON, will try other fallbacks`
+          `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not valid JSON, treating as plain text`
         );
+        // If it's not JSON, it's probably plain text - return it
+        if (cleaned && !cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+          return cleaned;
+        }
       }
-      parsedFromParts = partsText;
+      parsedFromParts = cleaned; // Use cleaned version, not raw
     }
 
     if (candidate?.output_text) return candidate.output_text;
     if (parsed?.narrative?.text) return parsed.narrative.text;
     if (parsed?.text) return parsed.text;
     if (parsed?.insight) return parsed.insight;
-    if (parsedFromParts) return parsedFromParts;
+    // Only return parsedFromParts if it doesn't look like JSON
+    if (parsedFromParts && !parsedFromParts.trim().startsWith('{') && !parsedFromParts.trim().startsWith('[')) {
+      return parsedFromParts;
+    }
   } catch {
     // raw might already be plain text
   }

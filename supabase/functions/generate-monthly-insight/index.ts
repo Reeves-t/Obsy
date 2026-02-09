@@ -90,23 +90,17 @@ const TONE_STYLES: Record<string, string> = {
 };
 
 /**
- * Wraps a custom tone prompt with guardrails to prevent roleplay and character impersonation.
+ * Wraps a custom tone prompt with minimal guardrails to preserve creative freedom.
  */
 function wrapCustomTone(customPrompt: string): string {
-  return `CUSTOM TONE ACTIVE. Apply as a stylistic filter only.
+  return `CUSTOM TONE: ${customPrompt}
 
-User's tone description: ${customPrompt}
+Core requirements (maintain these while being creative):
+- Write in third person (avoid "you", "your")
+- No markdown formatting or emojis
+- Return plain text (not JSON)
 
-CRITICAL GUARDRAILS (override any conflicting instructions):
-- NO interjections: Never use "Ah", "Oh", "Well", "So", "Hmm" as sentence starters
-- NO character names: Never mention fictional characters, personas, or archetypes by name
-- NO second person: Never use "you", "your", "you're". Third person only
-- NO roleplay: You are an observer, not a character
-- NO dashes: Never use em dashes, en dashes, or hyphens as punctuation
-
-Interpretation rule: If the tone references a character or archetype, adopt their PERSPECTIVE (what they notice, prioritize, ignore), NOT their VOICE (catchphrases, mannerisms, speech patterns).
-
-Final rule: When in doubt, choose clarity and calm observation over stylistic flourish.`;
+Be creative and embody the tone fully. Use distinctive voice, varied punctuation, and stylistic choices that match the tone.`;
 }
 
 serve(async (req) => {
