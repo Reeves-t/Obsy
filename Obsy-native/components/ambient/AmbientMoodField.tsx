@@ -91,11 +91,11 @@ export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProp
     const weekSeed = useMemo(() => getWeekSeed(), []);
     const [positionCycle, setPositionCycle] = useState(0);
 
-    // Cycle through new positions every 6 seconds (one full animation cycle)
+    // Cycle through new positions every 10 seconds (allows full sparkle starburst to play out)
     useEffect(() => {
         if (isPaused) return;
 
-        const CYCLE_DURATION = 6000; // Match total animation time (2.5s + 0.6s + 2s + 0.8s = 5.9s)
+        const CYCLE_DURATION = 10000;
         const interval = setInterval(() => {
             setPositionCycle((prev) => prev + 1);
         }, CYCLE_DURATION);
@@ -106,7 +106,7 @@ export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProp
     // Generate positions for sparkles (changes each cycle for randomness)
     const orbPositions = useMemo(() => {
         return moodWeights.map((mood, index) => {
-            const sparkleSize = 12 * mood.size; // Subtle base size * multiplier
+            const sparkleSize = 56 * mood.size; // Cluster size (accounts for multi-sparkle layout)
             // Use positionCycle to get different positions each cycle
             const seed = weekSeed + index + (positionCycle * 1000);
             return {
