@@ -14,6 +14,7 @@ export interface PixelData {
     color: string | null;   // Primary color (for grid view)
     strokes: StrokeData[];  // Detailed drawing data
     photoUri?: string;      // Optional linked photo (user selected)
+    gridCells?: Record<string, string>;  // Daily pixel grid cells, keyed by "row,col" -> color hex
 }
 
 export interface LegendItem {
@@ -42,6 +43,10 @@ interface YearInPixelsState {
     setStrokes: (date: string, strokes: StrokeData[]) => void;
     setPixelPhoto: (date: string, photoUri: string | undefined) => void;
     clearPixel: (date: string) => void;
+
+    // Daily pixel grid actions
+    setGridCell: (date: string, cellKey: string, color: string | null) => void;
+    clearGrid: (date: string) => void;
 
     // Legend actions
     addLegendItem: (item: Omit<LegendItem, 'id'>) => void;
@@ -109,6 +114,42 @@ export const useYearInPixelsStore = create<YearInPixelsState>()(
                 const newPixels = { ...state.pixels };
                 delete newPixels[date];
                 return { pixels: newPixels };
+            }),
+
+            setGridCell: (date, cellKey, color) => set((state) => {
+                const existing = state.pixels[date] || { date, color: null, strokes: [] };
+                const gridCells = { ...(existing.gridCells || {}) };
+
+                if (color) {
+                    gridCells[cellKey] = color;
+                } else {
+                    delete gridCells[cellKey];
+                }
+
+                return {
+                    pixels: {
+                        ...state.pixels,
+                        [date]: {
+                            ...existing,
+                            gridCells,
+                            color: color || existing.color,
+                        },
+                    }
+                };
+            }),
+
+            clearGrid: (date) => set((state) => {
+                const existing = state.pixels[date];
+                if (!existing) return state;
+                return {
+                    pixels: {
+                        ...state.pixels,
+                        [date]: {
+                            ...existing,
+                            gridCells: {},
+                        },
+                    }
+                };
             }),
 
             addLegendItem: (item) => set((state) => {

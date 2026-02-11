@@ -14,9 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { GlassCard } from '@/components/ui/GlassCard';
-import { InsightText } from '@/components/insights/InsightText';
+// InsightText removed — replaced by pixel grid
 import { TodayCollectionStack } from '@/components/home/TodayCollectionStack';
-import { TodayInsightCard } from '@/components/home/TodayInsightCard';
+import { DailyMonthlyPixelsSection } from '@/components/home/DailyMonthlyPixelsSection';
 import { YearInPixelsSection } from '@/components/home/YearInPixelsSection';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { useCaptureStore } from '@/lib/captureStore';
@@ -24,14 +24,14 @@ import { useTimeFormatStore, getFormattedTime } from '@/lib/timeFormatStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useTodayInsight } from '@/lib/todayInsightStore';
+// TodayInsight removed — replaced by DailyMonthlyPixelsSection
 import Colors from '@/constants/Colors';
 import { format, isSameDay } from 'date-fns';
 import { getProfile } from '@/services/profile';
 import { PremiumGate } from '@/components/PremiumGate';
 import { NotificationBadge } from '@/components/ui/NotificationBadge';
 import { useRouter } from 'expo-router';
-import { DailyInsight } from '@/services/dailyInsights';
+// DailyInsight removed — replaced by pixel grid
 import { useMockAlbums } from '@/contexts/MockAlbumContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AmbientMoodField } from '@/components/ambient/AmbientMoodField';
@@ -56,7 +56,7 @@ export default function HomeScreen() {
   const pageHeight = Math.max(height - insets.top - insets.bottom, 1);
   const headerTop = Math.max(insets.top, 32) + 80; // ensure clock clears status bar/notch
 
-  const { isRefreshing } = useTodayInsight();
+  // isRefreshing removed — TodayInsight replaced by pixel grid
 
   // Get unseen photo count for badge - uses actual count from context
   const unseenCount = getUnseenPhotoCount();
@@ -219,9 +219,9 @@ export default function HomeScreen() {
         </View>
 
 
-        {/* SECTION 3: INSIGHT - Full Screen Snap Pane */}
+        {/* SECTION 3: DAILY / MONTHLY PIXELS */}
         <View style={[styles.section, { height: pageHeight }]}>
-          <TodayInsightCard />
+          <DailyMonthlyPixelsSection />
         </View>
 
         {/* SECTION 4: COLLECTION */}
