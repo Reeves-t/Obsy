@@ -55,7 +55,7 @@ import { TodayInsightCard } from '@/components/home/TodayInsightCard';
 import { useTodayInsight } from '@/lib/todayInsightStore';
 import { DailyMoodFlowData, formatMonthKey, filterCapturesForDate, getUniqueDateKeys, formatDateKey, MoodFlowData } from '@/lib/dailyMoodFlows';
 import { fetchDailyMoodFlows, backfillDailyMoodFlows, getMonthDateRange } from '@/services/dailyMoodFlows';
-import { fetchMonthlySummary, computeMonthMoodTotals, generateMonthPhraseReasoning, upsertMonthlySummary, isMonthlySummaryStale, getMonthSignals } from '@/services/monthlySummaries';
+import { fetchMonthlySummary, computeMonthMoodTotals, generateMonthPhraseReasoning, upsertMonthlySummary, getMonthSignals } from '@/services/monthlySummaries';
 import { getBannedMoodWords } from '@/lib/moodColors';
 import { generateMonthPhrase } from '@/lib/monthPhraseGenerator';
 
@@ -420,9 +420,12 @@ export default function InsightsScreen() {
                     const moodTotals = computeMonthMoodTotals(monthCaptures);
                     const bannedWords = getBannedMoodWords();
 
-                    // Month phrase logic
+                    // Month phrase logic - regenerate weekly or when missing
                     let phrase = cached?.monthPhrase;
-                    if (!phrase) {
+                    const phraseAgeDays = cached?.generatedThroughDate
+                        ? (Date.now() - new Date(cached.generatedThroughDate).getTime()) / (1000 * 60 * 60 * 24)
+                        : Infinity;
+                    if (!phrase || phraseAgeDays >= 7) {
                         phrase = await generateMonthPhrase(moodTotals, bannedWords);
                     }
                     setMonthPhrase(phrase);

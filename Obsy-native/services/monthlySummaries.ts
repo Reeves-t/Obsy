@@ -1,7 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { Capture } from "@/types/capture";
 import { formatMonthKey } from "@/lib/dailyMoodFlows";
-import { getBannedMoodWords } from "@/lib/moodColors";
 import { getMoodLabel } from "@/lib/moodUtils";
 
 export interface MonthSignals {
@@ -111,24 +110,6 @@ export function getMonthSignals(captures: Capture[], monthKey: string, throughDa
 }
 
 /**
- * Generate lightweight Month-to-Date summary
- * NOTE: Temporarily using deterministic fallback until secure edge function is available
- */
-export async function generateMonthToDateSummary(signals: MonthSignals): Promise<string> {
-    if (signals.totalCaptures === 0) return "Not enough data to summarize this month yet.";
-
-    // Temporary fallback while migrating to secure edge function
-    const dominantMood = signals.dominantMood;
-    const volatility = Math.round(signals.volatilityScore * 100);
-
-    return `This month has been characterized by ${dominantMood} energy. ${
-        volatility > 50
-            ? "The rhythm has varied with noticeable shifts."
-            : "The overall pattern has remained fairly consistent."
-    }`;
-}
-
-/**
  * Compute mood totals from captures using labels/snapshots for categorization
  */
 export function computeMonthMoodTotals(captures: Capture[]): Record<string, number> {
@@ -176,57 +157,87 @@ function categorizeMoodEnergy(moodTotals: Record<string, number>): {
 }
 
 /**
- * Generate monthly summary using Gemini AI (Legacy/Lightweight)
- * NOTE: Temporarily using deterministic fallback until secure edge function is available
+ * Describe volatility score in human terms
  */
-export async function generateMonthlySummaryFromMoodTotals(
-    moodTotals: Record<string, number>,
-    bannedWords: string[]
-): Promise<string> {
-    const { highEnergy, mediumEnergy, lowEnergy, total } = categorizeMoodEnergy(moodTotals);
+function describeVolatility(score: number): string {
+    if (score >= 0.75) return "High variability, moods shifted frequently between days";
+    if (score >= 0.5) return "Moderate variability, noticeable shifts across the month";
+    if (score >= 0.25) return "Mild variability, some shifts but mostly steady";
+    return "Low variability, moods stayed fairly consistent";
+}
 
-    if (total === 0) {
-        return "No captures recorded this month yet.";
+/**
+ * Describe the last 7 days shift
+ */
+function describeLast7DaysShift(shift: string): string {
+    switch (shift) {
+        case "intense": return "Recent days have been more intense and high-energy";
+        case "focused": return "Recent days have narrowed around one dominant mood";
+        case "lower": return "Recent days have been calmer and lower-energy";
+        default: return "Recent days have been consistent with the overall pattern";
     }
-
-    const highPct = Math.round((highEnergy / total) * 100);
-    const lowPct = Math.round((lowEnergy / total) * 100);
-
-    // Deterministic fallback (temporary until secure edge function is available)
-    return `This month showed ${highPct}% high-energy patterns and ${lowPct}% contemplative moments. The rhythm varied between active engagement and quiet reflection.`;
 }
 
 /**
  * Generate reasoning that explains WHY the monthPhrase title was chosen.
  * This is shown when the user taps the dial to expand it.
- * NOTE: Temporarily using deterministic fallback until secure edge function is available
+ * Provides detailed data points: top moods, energy breakdown, volatility, trends.
  */
 export async function generateMonthPhraseReasoning(
     monthPhrase: string,
     signals: MonthSignals,
     bannedWords: string[]
 ): Promise<string> {
-    const moodTotals = signals.moodCounts;
+    const moodCounts = signals.moodCounts;
     const activeDays = signals.activeDays;
     const total = signals.totalCaptures;
-    const { highEnergy, mediumEnergy, lowEnergy } = categorizeMoodEnergy(moodTotals);
+    const { highEnergy, mediumEnergy, lowEnergy } = categorizeMoodEnergy(moodCounts);
 
     if (total === 0 || !monthPhrase) {
-        return "- Not enough data to explain the title yet.";
+        return "Not enough data to explain the title yet.";
     }
 
+    const lines: string[] = [];
+
+    // 1. Overview line
+    lines.push(`${total} captures across ${activeDays} active days.`);
+
+    // 2. Top moods breakdown (top 4)
+    const sortedMoods = Object.entries(moodCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4);
+
+    if (sortedMoods.length > 0) {
+        const moodLines = sortedMoods.map(([id, count]) => {
+            const label = getMoodLabel(id);
+            const pct = Math.round((count / total) * 100);
+            return `${label} (${pct}%, ${count} captures)`;
+        });
+        lines.push(`- Top moods: ${moodLines.join(", ")}`);
+    }
+
+    // 3. Energy distribution
     const highPct = Math.round((highEnergy / total) * 100);
     const medPct = Math.round((mediumEnergy / total) * 100);
     const lowPct = Math.round((lowEnergy / total) * 100);
+    lines.push(`- Energy: ${highPct}% high, ${medPct}% neutral, ${lowPct}% low`);
 
-    // Deterministic fallback
+    // 4. Volatility
+    const volPct = Math.round(signals.volatilityScore * 100);
+    lines.push(`- Stability: ${volPct}% volatility. ${describeVolatility(signals.volatilityScore)}`);
+
+    // 5. Recent trend
+    lines.push(`- Trend: ${describeLast7DaysShift(signals.last7DaysShift)}`);
+
+    // 6. Phrase explanation
     const dominantEnergy = highPct >= medPct && highPct >= lowPct
         ? "high-energy"
         : lowPct >= medPct
             ? "contemplative"
             : "balanced";
+    lines.push(`- "${monthPhrase}" reflects a ${dominantEnergy} month shaped by ${signals.dominantMood}${signals.runnerUpMood ? ` and ${signals.runnerUpMood}` : ""}`);
 
-    return `This month saw ${total} moments captured across ${activeDays} active days.\n- ${dominantEnergy.charAt(0).toUpperCase() + dominantEnergy.slice(1)} states accounted for ${Math.max(highPct, medPct, lowPct)}% of the month.\n- The title "${monthPhrase}" reflects this dominant pattern.`;
+    return lines.join("\n");
 }
 
 /**
@@ -306,10 +317,4 @@ export async function fetchMonthlySummary(
     }
 }
 
-/**
- * Check if monthly summary is stale
- */
-export function isMonthlySummaryStale(updatedAt: string, latestCaptureDate: string): boolean {
-    return new Date(latestCaptureDate) > new Date(updatedAt);
-}
 
