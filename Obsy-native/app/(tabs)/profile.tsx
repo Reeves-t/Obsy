@@ -23,6 +23,7 @@ import { getProfile, updateProfile, Profile } from '@/services/profile';
 import { AI_TONES, getToneDefinition } from '@/lib/aiTone';
 import { supabase } from '@/lib/supabase';
 import Colors from '@/constants/Colors';
+import { ThemeDefinition, getDarkThemes, getLightThemes } from '@/constants/themes';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTimeFormatStore, TimeFormat } from '@/lib/timeFormatStore';
@@ -233,6 +234,100 @@ const AmbientMoodFieldInline: React.FC = () => {
           />
         }
       />
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Profile Screen
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Theme Swatch Component
+// ─────────────────────────────────────────────────────────────────────────────
+const ThemeSwatch: React.FC<{
+  theme: ThemeDefinition;
+  isActive: boolean;
+  onPress: () => void;
+}> = ({ theme, isActive, onPress }) => {
+  const { colors: currentColors, isLight: currentIsLight } = useObsyTheme();
+  const labelColor = currentIsLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
+  const activeLabelColor = currentIsLight ? '#1A1A1A' : '#FFFFFF';
+  const borderColor = isActive
+    ? (currentIsLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)')
+    : (currentIsLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)');
+
+  return (
+    <TouchableOpacity
+      style={[styles.themeSwatch, { borderColor }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {/* Mini preview of the theme */}
+      <View style={[styles.themePreview, { backgroundColor: theme.background }]}>
+        {/* Corner color dots */}
+        <View style={[styles.cornerDot, styles.cornerDotTL, { backgroundColor: theme.cornerColors.topLeft }]} />
+        <View style={[styles.cornerDot, styles.cornerDotTR, { backgroundColor: theme.cornerColors.topRight }]} />
+        <View style={[styles.cornerDot, styles.cornerDotBL, { backgroundColor: theme.cornerColors.bottomLeft }]} />
+        <View style={[styles.cornerDot, styles.cornerDotBR, { backgroundColor: theme.cornerColors.bottomRight }]} />
+        {/* Contrast indicator — shows text color treatment */}
+        <View style={[
+          styles.contrastIndicator,
+          { backgroundColor: theme.contrast === 'dark' ? '#FFFFFF' : '#1A1A1A' }
+        ]} />
+        {isActive && (
+          <View style={styles.activeCheck}>
+            <Ionicons name="checkmark-circle" size={18} color={theme.contrast === 'dark' ? '#FFFFFF' : '#1A1A1A'} />
+          </View>
+        )}
+      </View>
+      <ThemedText style={[
+        styles.themeSwatchLabel,
+        { color: isActive ? activeLabelColor : labelColor },
+        isActive && { fontWeight: '600' },
+      ]}>
+        {theme.name}
+      </ThemedText>
+    </TouchableOpacity>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Theme Picker Component
+// ─────────────────────────────────────────────────────────────────────────────
+const ThemePicker: React.FC = () => {
+  const { themeId, setThemeById, isLight } = useObsyTheme();
+  const darkThemes = getDarkThemes();
+  const lightThemes = getLightThemes();
+
+  const groupLabelColor = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.35)';
+
+  return (
+    <View style={styles.themePickerContainer}>
+      {/* Dark themes */}
+      <ThemedText style={[styles.themeGroupLabel, { color: groupLabelColor }]}>DARK</ThemedText>
+      <View style={styles.themeGrid}>
+        {darkThemes.map((t) => (
+          <ThemeSwatch
+            key={t.id}
+            theme={t}
+            isActive={themeId === t.id}
+            onPress={() => setThemeById(t.id)}
+          />
+        ))}
+      </View>
+
+      {/* Light themes */}
+      <ThemedText style={[styles.themeGroupLabel, { color: groupLabelColor, marginTop: 16 }]}>LIGHT</ThemedText>
+      <View style={styles.themeGrid}>
+        {lightThemes.map((t) => (
+          <ThemeSwatch
+            key={t.id}
+            theme={t}
+            isActive={themeId === t.id}
+            onPress={() => setThemeById(t.id)}
+          />
+        ))}
+      </View>
     </View>
   );
 };
@@ -596,20 +691,7 @@ export default function ProfileScreen() {
         {/* APPEARANCE */}
         <SectionHeader title="APPEARANCE" flat />
         <View style={styles.flatSection}>
-          <SettingRow
-            icon="sunny-outline"
-            title="Light Mode"
-            subtitle="Cream journal-style theme"
-            showChevron={false}
-            rightElement={
-              <Switch
-                value={isLight}
-                onValueChange={toggleTheme}
-                trackColor={{ false: colors.glass, true: Colors.obsy.silver }}
-                thumbColor="#fff"
-              />
-            }
-          />
+          <ThemePicker />
           <SettingRow
             icon="time-outline"
             title="Time Format"
@@ -1141,40 +1223,81 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
 
-  // Theme Section
-  themeSection: {
-    padding: 16,
+  // Theme Picker
+  themePickerContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  themeLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+  themeGroupLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 8,
   },
-  themeButtons: {
+  themeGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
-  themeButton: {
-    flex: 1,
+  themeSwatch: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     gap: 6,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: 6,
+    paddingBottom: 8,
+    width: 74,
   },
-  themeButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderColor: 'rgba(255,255,255,0.3)',
+  themePreview: {
+    width: 60,
+    height: 44,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  themeButtonText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
+  cornerDot: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    opacity: 0.85,
   },
-  themeButtonTextActive: {
-    color: '#fff',
+  cornerDotTL: {
+    top: 4,
+    left: 4,
+  },
+  cornerDotTR: {
+    top: 4,
+    right: 4,
+  },
+  cornerDotBL: {
+    bottom: 4,
+    left: 4,
+  },
+  cornerDotBR: {
+    bottom: 4,
+    right: 4,
+  },
+  contrastIndicator: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: 12,
+    height: 3,
+    borderRadius: 1.5,
+    marginTop: -1.5,
+    marginLeft: -6,
+    opacity: 0.5,
+  },
+  activeCheck: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginTop: -9,
+    marginLeft: -9,
+  },
+  themeSwatchLabel: {
+    fontSize: 10,
     fontWeight: '500',
   },
 

@@ -1,88 +1,83 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    ThemeDefinition,
+    ThemeColors,
+    ThemeCornerColors,
+    ContrastMode,
+    THEMES,
+    DEFAULT_THEME,
+    DEFAULT_DARK_THEME,
+    DEFAULT_LIGHT_THEME,
+    getThemeById,
+    resolveThemeColors,
+    migrateThemeValue,
+} from '@/constants/themes';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Kept for backward compatibility — derived from the active theme's contrast */
 export type ThemeMode = 'dark' | 'light';
 
 interface ThemeContextType {
+    /** Active theme ID (e.g. 'midnight', 'kraft', 'aurora') */
+    themeId: string;
+    /** Contrast mode of the active theme — backward-compatible with old ThemeMode */
     theme: ThemeMode;
+    /** Switch to a specific theme by ID */
+    setThemeById: (id: string) => void;
+    /** Toggle between the default dark/light themes (backward compat) */
     toggleTheme: () => void;
+    /** Legacy: set theme by contrast mode — maps to default dark/light theme */
     setTheme: (theme: ThemeMode) => void;
     isDark: boolean;
     isLight: boolean;
-    // Colors for easy access
-    colors: {
-        background: string;
-        text: string;
-        textSecondary: string;
-        textTertiary: string;
-        // Card colors (for GlassCard and similar)
-        cardBackground: string;
-        cardText: string;
-        cardTextSecondary: string;
-        cardBorder: string;
-        // Legacy glass (for compatibility)
-        glass: string;
-        glassBorder: string;
-    };
+    /** Resolved color palette for the active theme */
+    colors: ThemeColors;
+    /** Corner wash colors for AmbientBackground */
+    cornerColors: ThemeCornerColors;
+    /** Corner wash opacity for AmbientBackground */
+    cornerOpacity: number;
+    /** The full active theme definition */
+    activeTheme: ThemeDefinition;
+    /** All available themes */
+    availableThemes: ThemeDefinition[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Theme Colors
+// Legacy exports — kept so existing imports don't break
 // ─────────────────────────────────────────────────────────────────────────────
-const DARK_COLORS = {
-    background: '#000000',
-    text: '#FFFFFF',
-    textSecondary: 'rgba(255,255,255,0.6)',
-    textTertiary: 'rgba(255,255,255,0.4)',
-    // Dark theme: cards are semi-transparent white overlay
-    cardBackground: 'rgba(255, 255, 255, 0.08)',
-    cardText: '#FFFFFF',
-    cardTextSecondary: 'rgba(255,255,255,0.6)',
-    cardBorder: 'rgba(255, 255, 255, 0.1)',
-    // Legacy
-    glass: 'rgba(255, 255, 255, 0.08)',
-    glassBorder: 'rgba(255, 255, 255, 0.1)',
-};
-
-const LIGHT_COLORS = {
-    background: '#E8E4D9', // Rich cream - "Kraft Paper" vibe
-    text: '#1A1A1A', // Dark grey for text ON cream background (not pure black)
-    textSecondary: 'rgba(26,26,26,0.7)',
-    textTertiary: 'rgba(26,26,26,0.5)',
-    // Light theme: cards are NEAR-BLACK with WHITE text inside
-    cardBackground: 'rgba(20, 20, 22, 0.92)', // Near-black, slightly transparent
-    cardText: '#FFFFFF', // White text inside cards
-    cardTextSecondary: 'rgba(255,255,255,0.65)',
-    cardBorder: 'rgba(255, 255, 255, 0.08)', // Subtle light border on dark cards
-    // Legacy (now points to card colors for GlassCard)
-    glass: 'rgba(20, 20, 22, 0.92)',
-    glassBorder: 'rgba(255, 255, 255, 0.08)',
-};
+export const DARK_COLORS = resolveThemeColors(getThemeById(DEFAULT_DARK_THEME));
+export const LIGHT_COLORS = resolveThemeColors(getThemeById(DEFAULT_LIGHT_THEME));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context
 // ─────────────────────────────────────────────────────────────────────────────
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'obsy-theme-mode';
+const STORAGE_KEY = 'obsy-theme-mode'; // Same key — migration handles old values
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Provider
 // ─────────────────────────────────────────────────────────────────────────────
 export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setThemeState] = useState<ThemeMode>('dark');
+    const [themeId, setThemeIdState] = useState<string>(DEFAULT_THEME);
     const [isLoaded, setIsLoaded] = useState(false);
 
-    // Load theme from storage on mount
+    // Load theme from storage on mount (migrates old 'dark'/'light' values)
     useEffect(() => {
         const loadTheme = async () => {
             try {
                 const stored = await AsyncStorage.getItem(STORAGE_KEY);
-                if (stored === 'light' || stored === 'dark') {
-                    setThemeState(stored);
+                if (stored) {
+                    const migrated = migrateThemeValue(stored);
+                    setThemeIdState(migrated);
+                    // Persist migrated value if it changed
+                    if (migrated !== stored) {
+                        await AsyncStorage.setItem(STORAGE_KEY, migrated);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading theme:', error);
@@ -94,31 +89,45 @@ export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     // Persist theme when it changes
-    const setTheme = useCallback(async (newTheme: ThemeMode) => {
-        setThemeState(newTheme);
+    const setThemeById = useCallback(async (newId: string) => {
+        const validated = migrateThemeValue(newId);
+        setThemeIdState(validated);
         try {
-            await AsyncStorage.setItem(STORAGE_KEY, newTheme);
+            await AsyncStorage.setItem(STORAGE_KEY, validated);
         } catch (error) {
             console.error('Error saving theme:', error);
         }
     }, []);
 
-    const toggleTheme = useCallback(() => {
-        setTheme(theme === 'dark' ? 'light' : 'dark');
-    }, [theme, setTheme]);
+    // Legacy: set by contrast mode → maps to default dark/light theme
+    const setTheme = useCallback((mode: ThemeMode) => {
+        setThemeById(mode === 'dark' ? DEFAULT_DARK_THEME : DEFAULT_LIGHT_THEME);
+    }, [setThemeById]);
 
-    const isDark = theme === 'dark';
-    const isLight = theme === 'light';
-    const colors = isDark ? DARK_COLORS : LIGHT_COLORS;
+    // Toggle between default dark ↔ light
+    const activeTheme = getThemeById(themeId);
+    const toggleTheme = useCallback(() => {
+        setThemeById(activeTheme.contrast === 'dark' ? DEFAULT_LIGHT_THEME : DEFAULT_DARK_THEME);
+    }, [activeTheme.contrast, setThemeById]);
+
+    const isDark = activeTheme.contrast === 'dark';
+    const isLight = activeTheme.contrast === 'light';
+    const colors = useMemo(() => resolveThemeColors(activeTheme), [activeTheme]);
 
     const value = useMemo(() => ({
-        theme,
+        themeId,
+        theme: activeTheme.contrast as ThemeMode,
+        setThemeById,
         toggleTheme,
         setTheme,
         isDark,
         isLight,
         colors,
-    }), [theme, toggleTheme, setTheme, isDark, isLight, colors]);
+        cornerColors: activeTheme.cornerColors,
+        cornerOpacity: activeTheme.cornerOpacity,
+        activeTheme,
+        availableThemes: THEMES,
+    }), [themeId, activeTheme, setThemeById, toggleTheme, setTheme, isDark, isLight, colors]);
 
     // Don't render until theme is loaded to prevent flash
     if (!isLoaded) {
@@ -142,7 +151,3 @@ export function useObsyTheme(): ThemeContextType {
     }
     return context;
 }
-
-// Export colors for use outside of React components if needed
-export { DARK_COLORS, LIGHT_COLORS };
-
