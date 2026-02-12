@@ -94,7 +94,7 @@ export function MoodOrb({ color, size, x, y, delay, isPaused }: MoodOrbProps) {
             ]}
         >
             <Ionicons
-                name="sparkles"
+                name="ellipse"
                 size={iconSize}
                 color={color}
                 style={styles.icon}

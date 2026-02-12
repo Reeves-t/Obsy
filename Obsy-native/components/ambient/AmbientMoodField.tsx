@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
-import { MoodOrb } from './MoodOrb';
+import { SparkleCluster } from './SparkleCluster';
 import { MoodWeight } from '@/hooks/useWeeklyMoodAggregation';
 import { getWeekRangeForUser } from '@/lib/dateUtils';
 import { getISOWeek, getYear } from 'date-fns';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -88,14 +89,15 @@ interface AmbientMoodFieldProps {
  * positioning throughout the week.
  */
 export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProps) {
+    const { isLight } = useObsyTheme();
     const weekSeed = useMemo(() => getWeekSeed(), []);
     const [positionCycle, setPositionCycle] = useState(0);
 
-    // Cycle through new positions every 6 seconds (one full animation cycle)
+    // Cycle through new positions every 10 seconds (allows full sparkle starburst to play out)
     useEffect(() => {
         if (isPaused) return;
 
-        const CYCLE_DURATION = 6000; // Match total animation time (2.5s + 0.6s + 2s + 0.8s = 5.9s)
+        const CYCLE_DURATION = 4000;
         const interval = setInterval(() => {
             setPositionCycle((prev) => prev + 1);
         }, CYCLE_DURATION);
@@ -106,13 +108,13 @@ export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProp
     // Generate positions for sparkles (changes each cycle for randomness)
     const orbPositions = useMemo(() => {
         return moodWeights.map((mood, index) => {
-            const sparkleSize = 12 * mood.size; // Subtle base size * multiplier
+            const sparkleSize = 32 * mood.size; // Cluster size
             // Use positionCycle to get different positions each cycle
             const seed = weekSeed + index + (positionCycle * 1000);
             return {
                 ...mood,
                 position: generateSafeZonePosition(seed, index, sparkleSize),
-                delay: index * 1500, // Stagger animations by 1.5 seconds
+                delay: index * 600, // Stagger between clusters
             };
         });
     }, [moodWeights, weekSeed, positionCycle]);
@@ -125,14 +127,15 @@ export function AmbientMoodField({ moodWeights, isPaused }: AmbientMoodFieldProp
     return (
         <View style={styles.container} pointerEvents="none">
             {orbPositions.map((orb, index) => (
-                <MoodOrb
-                    key={`${orb.moodId}-${positionCycle}-${index}`} // New key each cycle for repositioning
+                <SparkleCluster
+                    key={`${orb.moodId}-${positionCycle}-${index}`}
                     color={orb.color}
-                    size={orb.size}
+                    sizeFactor={orb.size}
                     x={orb.position.x}
                     y={orb.position.y}
                     delay={orb.delay}
                     isPaused={isPaused}
+                    isLight={isLight}
                 />
             ))}
         </View>

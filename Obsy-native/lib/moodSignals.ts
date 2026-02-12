@@ -214,33 +214,43 @@ function getTinyInsight(pattern: PatternType, captures: Capture[]): string {
     });
 
     const sortedMoods = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]);
-    const topMoodId = sortedMoods[0]?.[0] || 'neutral';
-    const topMood = moodSnapshots[topMoodId] || getMoodLabel(topMoodId);
+
+    // Get top 2-3 moods for richer insights
+    const topMoods = sortedMoods.slice(0, Math.min(3, sortedMoods.length)).map(([moodId]) =>
+        moodSnapshots[moodId] || getMoodLabel(moodId)
+    );
+
+    // Build mood phrase: "calm and anxious", "calm, anxious and productive"
+    const moodPhrase = topMoods.length === 1
+        ? topMoods[0]
+        : topMoods.length === 2
+            ? `${topMoods[0]} and ${topMoods[1]}`
+            : `${topMoods[0]}, ${topMoods[1]} and ${topMoods[2]}`;
 
     const insights: Record<PatternType, string[]> = {
         'time-linked': [
-            `Rhythmic ${topMood} states appeared at similar times this week.`,
-            `A consistent timing of ${topMood} captures is emerging in your routine.`,
-            `Daily ${topMood} patterns showed a distinct temporal rhythm.`,
-            `Emotional capture timing centered around ${topMood} states.`
+            `Rhythmic ${moodPhrase} states appeared at similar times this week.`,
+            `A consistent timing of ${moodPhrase} captures is emerging in your routine.`,
+            `Daily ${moodPhrase} patterns showed a distinct temporal rhythm.`,
+            `Emotional capture timing centered around ${moodPhrase} states.`
         ],
         'day-clustering': [
-            `Certain days showed repeated ${topMood} behavior and frequency.`,
-            `Emotional activity clustered around ${topMood} notes on active days.`,
-            `Frequency of captures peaked with ${topMood} signals on specific days.`,
-            `${topMood} moments appeared concentrated within specific windows.`
+            `Certain days showed repeated ${moodPhrase} behavior and frequency.`,
+            `Emotional activity clustered around ${moodPhrase} notes on active days.`,
+            `Frequency of captures peaked with ${moodPhrase} signals on specific days.`,
+            `${moodPhrase} moments appeared concentrated within specific windows.`
         ],
         'mood-drift': [
-            `Signals showed a gradual drift toward ${topMood} states this week.`,
-            `The weekly slope moved gently through deeper ${topMood} patterns.`,
-            `Inner signals transitioned toward ${topMood} across the week.`,
-            `A soft progression in emotional states favored ${topMood} vibes.`
+            `Signals showed a gradual drift through ${moodPhrase} states this week.`,
+            `The weekly slope moved gently through ${moodPhrase} patterns.`,
+            `Inner signals transitioned across ${moodPhrase} landscapes this week.`,
+            `A soft progression through ${moodPhrase} emotional territories.`
         ],
         'none': [
-            `Signals remained ambient with ${topMood} as a recurring note.`,
-            `Weekly distribution was balanced, with ${topMood} appearing clearly.`,
-            `Mood variations were broad, often returning to ${topMood} states.`,
-            `No dominant time pattern, though ${topMood} remained present.`
+            `Signals remained ambient across ${moodPhrase} territories.`,
+            `Weekly distribution balanced between ${moodPhrase} states.`,
+            `Mood variations broad, flowing through ${moodPhrase} notes.`,
+            `No dominant time pattern, with ${moodPhrase} appearing throughout.`
         ]
     };
 

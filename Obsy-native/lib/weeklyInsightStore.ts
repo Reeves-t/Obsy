@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { Capture } from '@/types/capture';
-import { startOfWeek, format } from 'date-fns';
+import { startOfWeek, endOfWeek, format } from 'date-fns';
 import { callWeekly } from '@/services/weeklyInsightClient';
 import { getCapturesForWeek, CaptureData } from '@/lib/captureData';
 import { getMoodLabel } from '@/lib/moodUtils';
 import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
+import { fetchInsightHistory, fetchMostRecentWeeklyInsight, upsertInsightHistory } from '@/services/insightHistory';
 
 /**
  * Validates and sanitizes a mood string.
@@ -59,9 +60,11 @@ interface WeeklyInsightState {
     lastUpdated: Date | null;
     requestId: string | null;
     weekStart: Date | null;
+    hasLoadedSnapshot: boolean;
 
     // Actions
     setWeeklyInsight: (text: string | null, weekStart: Date) => void;
+    loadSnapshot: (userId: string) => Promise<void>;
     refreshWeeklyInsight: (
         userId: string,
         tone: string,
@@ -80,6 +83,7 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
     lastUpdated: null,
     requestId: null,
     weekStart: null,
+    hasLoadedSnapshot: false,
 
     setWeeklyInsight: (text, weekStart) => {
         set({
@@ -91,7 +95,47 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
         });
     },
 
-    refreshWeeklyInsight: async (_userId, tone, customTonePrompt, allCaptures, targetDate) => {
+    loadSnapshot: async (userId: string) => {
+        if (get().hasLoadedSnapshot || get().text) return;
+
+        try {
+            const now = new Date();
+            const ws = startOfWeek(now, { weekStartsOn: 0 });
+            const we = endOfWeek(now, { weekStartsOn: 0 });
+
+            // Try this week's insight first
+            const thisWeek = await fetchInsightHistory(userId, 'weekly', ws, we);
+            if (thisWeek) {
+                set({
+                    text: thisWeek.content,
+                    status: 'success',
+                    weekStart: ws,
+                    hasLoadedSnapshot: true,
+                    lastUpdated: new Date(thisWeek.updated_at),
+                });
+                return;
+            }
+
+            // Fall back to most recent weekly insight
+            const recent = await fetchMostRecentWeeklyInsight(userId);
+            if (recent) {
+                set({
+                    text: recent.content,
+                    status: 'success',
+                    weekStart: new Date(recent.start_date),
+                    hasLoadedSnapshot: true,
+                    lastUpdated: new Date(recent.updated_at),
+                });
+            } else {
+                set({ hasLoadedSnapshot: true });
+            }
+        } catch (error) {
+            console.error("[useWeeklyInsight] loadSnapshot failed:", error);
+            set({ hasLoadedSnapshot: true });
+        }
+    },
+
+    refreshWeeklyInsight: async (userId, tone, customTonePrompt, allCaptures, targetDate) => {
         if (get().status === 'loading') return;
 
         set({ status: 'loading', error: null });
@@ -184,6 +228,19 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
                     weekStart,
                     error: null,
                 });
+
+                // Persist to insight_history for fast-load on next app start
+                const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
+                try {
+                    await upsertInsightHistory(
+                        userId, 'weekly', weekStart, weekEnd,
+                        response.text, undefined,
+                        captures.map(c => c.id)
+                    );
+                } catch (e) {
+                    console.warn('[WeeklyInsight] Failed to persist to insight_history:', e);
+                }
+
                 return;
             }
 

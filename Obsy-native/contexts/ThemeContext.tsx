@@ -48,7 +48,7 @@ const DARK_COLORS = {
 };
 
 const LIGHT_COLORS = {
-    background: '#E8E4D9', // Rich cream - "Kraft Paper" vibe
+    background: '#D2C2A6', // Warm tan - approaching capture ring tone
     text: '#1A1A1A', // Dark grey for text ON cream background (not pure black)
     textSecondary: 'rgba(26,26,26,0.7)',
     textTertiary: 'rgba(26,26,26,0.5)',

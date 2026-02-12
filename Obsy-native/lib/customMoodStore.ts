@@ -87,35 +87,56 @@ export const useCustomMoodStore = create<CustomMoodState>()((set, get) => ({
             created_at: new Date().toISOString(),
         };
 
-        const { data, error } = await supabase
-            .from('moods')
-            .insert(newMood)
-            .select()
-            .single();
+        console.log('[MoodStore] Creating custom mood:', trimmedName, 'for user:', userId);
 
-        if (error) {
-            console.error('[MoodStore] Error creating custom mood:', error);
+        try {
+            // Add timeout to prevent hanging
+            const insertPromise = supabase
+                .from('moods')
+                .insert(newMood)
+                .select()
+                .single();
 
-            // Handle unique constraint violation (duplicate name)
-            if (error.code === '23505') {
-                throw new Error(`You already have a mood named "${trimmedName}"`);
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timed out. Please check your connection.')), 10000)
+            );
+
+            const { data, error } = await Promise.race([insertPromise, timeoutPromise]) as any;
+
+            if (error) {
+                console.error('[MoodStore] Error creating custom mood:', error);
+
+                // Handle unique constraint violation (duplicate name)
+                if (error.code === '23505') {
+                    throw new Error(`You already have a mood named "${trimmedName}"`);
+                }
+
+                // Handle RLS policy errors
+                if (error.code === '42501') {
+                    throw new Error('Please sign in to create custom moods');
+                }
+
+                throw new Error('Failed to create mood. Please try again.');
             }
 
-            // Handle RLS policy errors
-            if (error.code === '42501') {
-                throw new Error('Please sign in to create custom moods');
+            if (!data) {
+                console.error('[MoodStore] No data returned from insert');
+                throw new Error('Failed to create mood. Please try again.');
             }
 
-            throw new Error('Failed to create mood. Please try again.');
+            console.log('[MoodStore] Custom mood created successfully:', data.id);
+
+            // Add to local state
+            set(state => ({ customMoods: [...state.customMoods, data] }));
+
+            // Invalidate mood cache so it picks up the new mood
+            moodCache.invalidateCache();
+
+            return data;
+        } catch (err) {
+            console.error('[MoodStore] Exception in addCustomMood:', err);
+            throw err;
         }
-
-        // Add to local state
-        set(state => ({ customMoods: [...state.customMoods, data] }));
-
-        // Invalidate mood cache so it picks up the new mood
-        moodCache.invalidateCache();
-
-        return data;
     },
 
     deleteCustomMood: async (id: string) => {

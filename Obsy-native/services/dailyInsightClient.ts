@@ -4,6 +4,7 @@ import { CaptureData } from '@/lib/captureData';
 export interface DailyInsightResponse {
   ok: boolean;
   text?: string;
+  mood_flow?: any; // Mood flow data from AI
   requestId?: string;
   error?: {
     stage: string;

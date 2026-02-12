@@ -103,7 +103,7 @@ const THEME_SETTINGS = {
         cornerOpacity: 0.5,
     },
     light: {
-        baseColor: '#E8E4D9', // Rich cream - "Kraft Paper" vibe
+        baseColor: '#D2C2A6', // Warm tan - approaching capture ring tone
         // Light theme: visible corner presence but still contained
         cornerOpacity: 0.65,
     },

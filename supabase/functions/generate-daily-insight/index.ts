@@ -27,6 +27,7 @@ interface DailyInsightRequest {
 interface SuccessResponse {
   ok: true;
   text: string;
+  mood_flow?: any; // Mood flow data from AI
   requestId: string;
 }
 
@@ -168,10 +169,12 @@ serve(async (req) => {
     });
 
     let sanitized = "";
+    let moodFlow: any = null;
     try {
       const rawText = await callGemini(prompt, requestId);
-      const extracted = extractText(rawText, requestId);
-      sanitized = sanitizeText(extracted);
+      const extractResult = extractTextAndMoodFlow(rawText, requestId);
+      sanitized = sanitizeText(extractResult.text);
+      moodFlow = extractResult.moodFlow;
     } catch (error: any) {
       console.error(
         `[DAILY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"} | stack: ${error?.stack ?? "n/a"}`
@@ -186,8 +189,8 @@ serve(async (req) => {
       return errorResponse(500, "response_validation", "AI generated empty or invalid response", requestId);
     }
 
-    console.log(`[DAILY_INSIGHT_SUCCESS] requestId: ${requestId} | textLength: ${sanitized?.length ?? 0} | status: success`);
-    return okResponse(sanitized, requestId);
+    console.log(`[DAILY_INSIGHT_SUCCESS] requestId: ${requestId} | textLength: ${sanitized?.length ?? 0} | hasMoodFlow: ${!!moodFlow} | status: success`);
+    return okResponse(sanitized, moodFlow, requestId);
   } catch (error: any) {
     console.error(
       `[DAILY_INSIGHT_ERROR] requestId: ${requestId} | message: ${error?.message ?? "Unknown error"} | stack: ${error?.stack ?? "n/a"}`
@@ -256,7 +259,25 @@ function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; t
     "",
     "CRITICAL OUTPUT FORMAT:",
     "Return ONLY this JSON structure (NO markdown fences, NO extra text):",
-    "{\"narrative\":{\"text\":\"Your narrative text here\"},\"mood_flow\":{\"title\":\"Short title\",\"subtitle\":\"Brief subtitle\",\"confidence\":85}}",
+    "{",
+    "  \"narrative\":{\"text\":\"Your narrative text here\"},",
+    "  \"mood_flow\":{",
+    "    \"title\":\"Short evocative title (2-4 words)\",",
+    "    \"subtitle\":\"Original descriptive sentence about the day's emotional arc (NOT the journal quote)\",",
+    "    \"confidence\":85,",
+    "    \"segments\":[",
+    "      {\"mood\":\"calm\",\"percentage\":60,\"color\":\"#6BA5D4\"},",
+    "      {\"mood\":\"anxious\",\"percentage\":40,\"color\":\"#D946A6\"}",
+    "    ]",
+    "  }",
+    "}",
+    "",
+    "MOOD FLOW REQUIREMENTS:",
+    "- title: Short, poetic phrase capturing the day (e.g., \"quiet unraveling\", \"steady momentum\")",
+    "- subtitle: YOUR OWN UNIQUE SENTENCE about the emotional pattern. NEVER copy journal text. Be creative and descriptive.",
+    "- segments: List moods from captures with their percentages (must sum to 100) and hex colors",
+    "- For CUSTOM moods (not standard moods), generate an appropriate hex color based on the mood's emotional tone",
+    "- confidence: 0-100 score of how well you understand the day",
     "",
     "IMPORTANT: The narrative.text field must contain PLAIN TEXT ONLY (no JSON, no markdown, no formatting).",
     "The text should be a flowing narrative, not JSON data.",
@@ -294,6 +315,11 @@ async function callGemini(prompt: string, requestId: string): Promise<string> {
 }
 
 function extractText(raw: string, requestId: string): string {
+  const result = extractTextAndMoodFlow(raw, requestId);
+  return result.text;
+}
+
+function extractTextAndMoodFlow(raw: string, requestId: string): { text: string; moodFlow: any | null } {
   try {
     const parsed = JSON.parse(raw);
     const candidate = parsed?.candidates?.[0];
@@ -312,11 +338,13 @@ function extractText(raw: string, requestId: string): string {
       try {
         const insight = JSON.parse(cleaned);
         const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
+        const moodFlow = insight?.mood_flow ?? null;
+
         if (narrativeText && typeof narrativeText === 'string') {
           console.log(
-            `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text`
+            `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text | hasMoodFlow: ${!!moodFlow}`
           );
-          return narrativeText;
+          return { text: narrativeText, moodFlow };
         } else {
           console.warn(
             `[EXTRACT_TEXT_WARNING] requestId: ${requestId} | JSON parsed but narrative.text not found or invalid. Keys: ${Object.keys(insight).join(', ')}`
@@ -328,24 +356,24 @@ function extractText(raw: string, requestId: string): string {
         );
         // If it's not JSON, it's probably plain text - return it
         if (cleaned && !cleaned.startsWith('{') && !cleaned.startsWith('[')) {
-          return cleaned;
+          return { text: cleaned, moodFlow: null };
         }
       }
       parsedFromParts = cleaned; // Use cleaned version, not raw
     }
 
-    if (candidate?.output_text) return candidate.output_text;
-    if (parsed?.narrative?.text) return parsed.narrative.text;
-    if (parsed?.text) return parsed.text;
-    if (parsed?.insight) return parsed.insight;
+    if (candidate?.output_text) return { text: candidate.output_text, moodFlow: null };
+    if (parsed?.narrative?.text) return { text: parsed.narrative.text, moodFlow: parsed?.mood_flow ?? null };
+    if (parsed?.text) return { text: parsed.text, moodFlow: null };
+    if (parsed?.insight) return { text: parsed.insight, moodFlow: null };
     // Only return parsedFromParts if it doesn't look like JSON
     if (parsedFromParts && !parsedFromParts.trim().startsWith('{') && !parsedFromParts.trim().startsWith('[')) {
-      return parsedFromParts;
+      return { text: parsedFromParts, moodFlow: null };
     }
   } catch {
     // raw might already be plain text
   }
-  return raw;
+  return { text: raw, moodFlow: null };
 }
 
 function sanitizeText(text: string): string {
@@ -383,8 +411,11 @@ function validateGeminiResponse(text: string): boolean {
   return true;
 }
 
-function okResponse(text: string, requestId: string): Response {
+function okResponse(text: string, moodFlow: any | null, requestId: string): Response {
   const body: SuccessResponse = { ok: true, text, requestId };
+  if (moodFlow) {
+    body.mood_flow = moodFlow;
+  }
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },

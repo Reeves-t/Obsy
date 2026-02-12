@@ -23,6 +23,9 @@ export async function upsertDailyMoodFlow(
                 segments: flowData.segments,
                 dominant: flowData.dominant,
                 total_captures: flowData.totalCaptures,
+                title: flowData.title,
+                subtitle: flowData.subtitle,
+                confidence: flowData.confidence,
                 updated_at: new Date().toISOString(),
             },
             { onConflict: "user_id,date_key" }
@@ -67,6 +70,9 @@ export async function fetchDailyMoodFlows(
                 segments: row.segments as DailyMoodFlowData["segments"],
                 dominant: row.dominant,
                 totalCaptures: row.total_captures,
+                title: row.title,
+                subtitle: row.subtitle,
+                confidence: row.confidence,
             };
         }
 

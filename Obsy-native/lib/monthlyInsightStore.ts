@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { Capture } from '@/types/capture';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { callMonthly } from '@/services/monthlyInsightClient';
 import { getCapturesForMonth, MonthSignals } from '@/lib/captureData';
 import { getMonthSignals } from '@/services/monthlySummaries';
 import { formatMonthKey } from '@/lib/dailyMoodFlows';
+import { fetchInsightHistory, fetchMostRecentMonthlyInsight, upsertInsightHistory } from '@/services/insightHistory';
 
 interface MonthlyInsightState {
     status: 'idle' | 'loading' | 'success' | 'error';
@@ -17,10 +18,12 @@ interface MonthlyInsightState {
     lastUpdated: Date | null;
     requestId: string | null;
     currentMonth: Date;
+    hasLoadedSnapshot: boolean;
 
     // Actions
     setMonthlyInsight: (text: string | null, month: Date) => void;
     setCurrentMonth: (month: Date) => void;
+    loadSnapshot: (userId: string) => Promise<void>;
     refreshMonthlyInsight: (
         userId: string,
         tone: string,
@@ -40,6 +43,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
     lastUpdated: null,
     requestId: null,
     currentMonth: new Date(),
+    hasLoadedSnapshot: false,
 
     setMonthlyInsight: (text, month) => {
         set({
@@ -55,7 +59,47 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
         set({ currentMonth: month });
     },
 
-    refreshMonthlyInsight: async (_userId, tone, customTonePrompt, allCaptures, targetMonth, force = false) => {
+    loadSnapshot: async (userId: string) => {
+        if (get().hasLoadedSnapshot || get().text) return;
+
+        try {
+            const now = new Date();
+            const ms = startOfMonth(now);
+            const me = endOfMonth(now);
+
+            // Try this month's insight first
+            const thisMonth = await fetchInsightHistory(userId, 'monthly', ms, me);
+            if (thisMonth) {
+                set({
+                    text: thisMonth.content,
+                    status: 'success',
+                    currentMonth: ms,
+                    hasLoadedSnapshot: true,
+                    lastUpdated: new Date(thisMonth.updated_at),
+                });
+                return;
+            }
+
+            // Fall back to most recent monthly insight
+            const recent = await fetchMostRecentMonthlyInsight(userId);
+            if (recent) {
+                set({
+                    text: recent.content,
+                    status: 'success',
+                    currentMonth: new Date(recent.start_date),
+                    hasLoadedSnapshot: true,
+                    lastUpdated: new Date(recent.updated_at),
+                });
+            } else {
+                set({ hasLoadedSnapshot: true });
+            }
+        } catch (error) {
+            console.error("[useMonthlyInsight] loadSnapshot failed:", error);
+            set({ hasLoadedSnapshot: true });
+        }
+    },
+
+    refreshMonthlyInsight: async (userId, tone, customTonePrompt, allCaptures, targetMonth, force = false) => {
         if (get().status === 'loading') return;
 
         set({ status: 'loading', error: null });
@@ -114,6 +158,19 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
                     currentMonth: targetMonth,
                     error: null,
                 });
+
+                // Persist to insight_history for fast-load on next app start
+                const monthEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
+                try {
+                    await upsertInsightHistory(
+                        userId, 'monthly', monthStart, monthEnd,
+                        response.text, undefined,
+                        monthCaptures.map(c => c.id)
+                    );
+                } catch (e) {
+                    console.warn('[MonthlyInsight] Failed to persist to insight_history:', e);
+                }
+
                 return;
             }
 

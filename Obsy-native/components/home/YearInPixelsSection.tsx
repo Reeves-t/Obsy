@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { PixelGrid } from '@/components/yearInPixels/PixelGrid';
 import { LegendPanel } from '@/components/yearInPixels/LegendPanel';
-import { ExpandedDayCanvas } from '@/components/yearInPixels/ExpandedDayCanvas';
 import { YearInPixelsInfoModal } from '@/components/yearInPixels/YearInPixelsInfoModal';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 
@@ -20,14 +19,7 @@ export const YearInPixelsSection: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { isLight } = useObsyTheme();
 
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
-    const [modalVisible, setModalVisible] = useState(false);
     const [infoVisible, setInfoVisible] = useState(false);
-
-    const handleDayPress = (date: string) => {
-        setSelectedDate(date);
-        setModalVisible(true);
-    };
 
     // Calculate available height:
     // - Start with window height
@@ -60,7 +52,7 @@ export const YearInPixelsSection: React.FC = () => {
                     </View>
 
                     <View style={[styles.gridContainer, { width: gridWidth }]}>
-                        <PixelGrid onDayPress={handleDayPress} availableHeight={availableHeight} />
+                        <PixelGrid availableHeight={availableHeight} />
                     </View>
                     <View style={[styles.legendContainer, { width: LEGEND_WIDTH }]}>
                         <View style={styles.legendHeader}>
@@ -72,14 +64,6 @@ export const YearInPixelsSection: React.FC = () => {
                     </View>
                 </View>
             </View>
-
-            {selectedDate && (
-                <ExpandedDayCanvas
-                    visible={modalVisible}
-                    date={selectedDate}
-                    onClose={() => setModalVisible(false)}
-                />
-            )}
 
             <YearInPixelsInfoModal
                 visible={infoVisible}

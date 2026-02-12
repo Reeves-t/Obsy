@@ -1,0 +1,71 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background -->
+    <linearGradient id="bgGrad" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#000000"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+    <!-- Outer metallic ring -->
+    <linearGradient id="ringGrad" x1="511.5" y1="213" x2="511.5" y2="810" gradientUnits="userSpaceOnUse">
+      <stop offset="0.038" stop-color="#868080"/>
+      <stop offset="0.221" stop-color="#434040"/>
+      <stop offset="0.346" stop-color="#2E2C2C"/>
+      <stop offset="0.538" stop-color="#121111"/>
+      <stop offset="0.889" stop-color="#A9A2A2"/>
+    </linearGradient>
+    <!-- Inner dark fill -->
+    <linearGradient id="fillGrad" x1="511.5" y1="241" x2="511.5" y2="782" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#000000"/>
+      <stop offset="0.538" stop-color="#222121"/>
+      <stop offset="1" stop-color="#060606"/>
+    </linearGradient>
+    <!-- Large orb gradient (purple → dark red) -->
+    <linearGradient id="orbGrad0" x1="506" y1="470" x2="622" y2="584" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5A0C8A"/>
+      <stop offset="1" stop-color="#871E13"/>
+    </linearGradient>
+    <linearGradient id="orbStroke0" x1="506" y1="527" x2="622" y2="527" gradientUnits="userSpaceOnUse">
+      <stop offset="0.038" stop-color="#868080"/>
+      <stop offset="0.35" stop-color="#2E2C2C"/>
+      <stop offset="0.889" stop-color="#A9A2A2"/>
+    </linearGradient>
+    <!-- Medium orb gradient (purple → dark green) -->
+    <linearGradient id="orbGrad1" x1="461" y1="605" x2="525" y2="658" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5A0C8A"/>
+      <stop offset="1" stop-color="#076403"/>
+    </linearGradient>
+    <linearGradient id="orbStroke1" x1="461" y1="631" x2="525" y2="631" gradientUnits="userSpaceOnUse">
+      <stop offset="0.038" stop-color="#868080"/>
+      <stop offset="0.35" stop-color="#2E2C2C"/>
+      <stop offset="0.889" stop-color="#A9A2A2"/>
+    </linearGradient>
+    <!-- Small orb gradient (purple → dark red) -->
+    <linearGradient id="orbGrad2" x1="413" y1="460" x2="459" y2="506" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5A0C8A"/>
+      <stop offset="1" stop-color="#871E13"/>
+    </linearGradient>
+    <linearGradient id="orbStroke2" x1="413" y1="483" x2="459" y2="483" gradientUnits="userSpaceOnUse">
+      <stop offset="0.038" stop-color="#868080"/>
+      <stop offset="0.35" stop-color="#2E2C2C"/>
+      <stop offset="0.889" stop-color="#A9A2A2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Black background -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+
+  <!-- Outer metallic ring -->
+  <ellipse cx="511.5" cy="511.5" rx="308.5" ry="298.5" fill="url(#ringGrad)"/>
+
+  <!-- Inner dark fill -->
+  <ellipse cx="511.5" cy="511.5" rx="279.578" ry="270.071" fill="url(#fillGrad)"/>
+
+  <!-- Large orb — right of center -->
+  <ellipse cx="564" cy="527" rx="58" ry="57" fill="url(#orbGrad0)" stroke="url(#orbStroke0)" stroke-width="1"/>
+
+  <!-- Medium orb — lower center -->
+  <ellipse cx="493" cy="631" rx="32" ry="26" fill="url(#orbGrad1)" stroke="url(#orbStroke1)" stroke-width="1"/>
+
+  <!-- Small orb — left of center -->
+  <ellipse cx="436" cy="483" rx="23" ry="23" fill="url(#orbGrad2)" stroke="url(#orbStroke2)" stroke-width="1"/>
+</svg>

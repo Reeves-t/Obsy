@@ -5,7 +5,7 @@ const obsyDarkBg = '#050608';
 const obsyBgOuter = '#0B0C10';
 
 // Light theme (Cream/Journal) colors
-const creamBg = '#E8E4D9'; // Rich cream - "Kraft Paper" vibe
+const creamBg = '#D2C2A6'; // Warm tan - approaching capture ring tone
 const creamText = '#1A1A1A'; // Dark grey (not pure black - too harsh on cream)
 const creamTextSecondary = '#2D2D2D'; // Slightly lighter dark grey
 

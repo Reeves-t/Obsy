@@ -5,7 +5,9 @@ import { callDaily } from '@/services/dailyInsightClient';
 import { getCapturesForDaily, CaptureData } from '@/lib/captureData';
 import { getMoodLabel } from '@/lib/moodUtils';
 import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
-import { fetchMostRecentDailyInsight, fetchInsightHistory } from '@/services/insightHistory';
+import { fetchMostRecentDailyInsight, fetchInsightHistory, upsertInsightHistory } from '@/services/insightHistory';
+import { upsertDailyMoodFlow, fetchDailyMoodFlows } from '@/services/dailyMoodFlows';
+import { formatDateKey, isMoodFlowReading } from '@/lib/dailyMoodFlows';
 
 /**
  * Validates and sanitizes a mood string.
@@ -140,7 +142,7 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
         }
     },
 
-    refreshTodayInsight: async (_userId, tone, customTonePrompt, allCaptures) => {
+    refreshTodayInsight: async (userId, tone, customTonePrompt, allCaptures) => {
         if (get().status === 'loading') return;
 
         set({ status: 'loading', error: null });
@@ -197,6 +199,59 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
             const response = await callDaily(dateLabel, captureData, tone, customTonePrompt);
 
             if (response.ok && response.text) {
+                // Save mood_flow data to database if present
+                if (userId && response.mood_flow) {
+                    const dateKey = formatDateKey(new Date());
+
+                    // Incremental update: Check for existing mood flow to preserve title/subtitle
+                    const existingFlows = await fetchDailyMoodFlows(userId, dateKey, dateKey);
+                    const existingFlow = existingFlows[dateKey];
+
+                    // Check if it's Reading format with segments
+                    if (isMoodFlowReading(response.mood_flow) && response.mood_flow.segments) {
+                        // Save full Reading format with title, subtitle, confidence
+                        const segments = response.mood_flow.segments;
+
+                        // Incremental update logic: Reuse existing title/subtitle if they exist
+                        const title = existingFlow?.title || response.mood_flow.title;
+                        const subtitle = existingFlow?.subtitle || response.mood_flow.subtitle;
+                        const confidence = existingFlow?.confidence || response.mood_flow.confidence;
+
+                        console.log('[TodayInsight] Saving mood flow (Reading format):', {
+                            title,
+                            subtitle,
+                            confidence,
+                            segments,
+                            isIncremental: !!(existingFlow?.title)
+                        });
+
+                        const dominant = segments[0]?.mood || 'neutral';
+                        await upsertDailyMoodFlow(userId, dateKey, {
+                            segments,
+                            dominant,
+                            totalCaptures: todayCaptures.length,
+                            title,
+                            subtitle,
+                            confidence,
+                        });
+                    } else if (Array.isArray(response.mood_flow)) {
+                        // Old segments format (no title/subtitle)
+                        console.log('[TodayInsight] Saving mood flow (old format):', response.mood_flow);
+                        const dominant = response.mood_flow[0]?.mood || 'neutral';
+                        await upsertDailyMoodFlow(userId, dateKey, {
+                            segments: response.mood_flow,
+                            dominant,
+                            totalCaptures: todayCaptures.length,
+                            // Preserve existing title/subtitle if available
+                            title: existingFlow?.title,
+                            subtitle: existingFlow?.subtitle,
+                            confidence: existingFlow?.confidence,
+                        });
+                    } else {
+                        console.warn('[TodayInsight] Unrecognized mood_flow format:', response.mood_flow);
+                    }
+                }
+
                 set({
                     status: 'success',
                     text: response.text,
@@ -206,6 +261,19 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
                     hasGeneratedToday: true,
                     dateKey: getLocalDayKey(new Date()),
                 });
+
+                // Persist to insight_history for fast-load on next app start
+                const today = new Date();
+                try {
+                    await upsertInsightHistory(
+                        userId, 'daily', today, today,
+                        response.text, undefined,
+                        todayCaptures.map(c => c.id)
+                    );
+                } catch (e) {
+                    console.warn('[TodayInsight] Failed to persist to insight_history:', e);
+                }
+
                 return;
             }
 

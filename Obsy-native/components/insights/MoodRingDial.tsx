@@ -3,7 +3,8 @@ import { StyleSheet, View, TouchableOpacity, Dimensions } from "react-native";
 import Svg, { Path, G, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from "react-native-reanimated";
 import { ThemedText } from "@/components/ui/ThemedText";
-import { getMoodColor, MOOD_COLOR_MAP } from "@/lib/moodColors";
+import { getMoodColor as getSystemMoodColor, MOOD_COLOR_MAP } from "@/lib/moodColors";
+import { getMoodColor as getHashMoodColor } from "@/lib/moodColorUtils";
 import { DailyMoodFlowData } from "@/lib/dailyMoodFlows";
 import { useObsyTheme } from "@/contexts/ThemeContext";
 
@@ -84,9 +85,8 @@ function computeMoodDistribution(
                 // Each segment has a mood and percentage - use percentage as weight
                 const weight = segment.percentage * flowData.totalCaptures / 100;
                 moodTotals[segment.mood] = (moodTotals[segment.mood] || 0) + weight;
-                // Preserve the segment's pre-computed color (derived from mood ID)
-                // since segment.mood is a descriptive name, not a mood ID
-                if (!moodColors[segment.mood] && segment.color) {
+                // Preserve the segment's pre-computed color only if it's valid hex
+                if (!moodColors[segment.mood] && segment.color && HEX_COLOR_RE.test(segment.color)) {
                     moodColors[segment.mood] = segment.color;
                 }
                 totalWeight += weight;
@@ -99,14 +99,29 @@ function computeMoodDistribution(
     }
 
     const distribution = Object.entries(moodTotals)
-        .map(([mood, weight]) => ({
-            mood,
-            percentage: (weight / totalWeight) * 100,
-            color: moodColors[mood] || getMoodColor(mood),
-        }))
+        .map(([mood, weight]) => {
+            // 1. Pre-computed valid hex from segment data
+            if (moodColors[mood]) return { mood, percentage: (weight / totalWeight) * 100, color: moodColors[mood] };
+            // 2. System mood map (only if it's an actual system mood ID)
+            const systemColor = MOOD_COLOR_MAP[mood as keyof typeof MOOD_COLOR_MAP];
+            if (systemColor) return { mood, percentage: (weight / totalWeight) * 100, color: systemColor };
+            // 3. Hash-based deterministic color for custom/descriptive names
+            return { mood, percentage: (weight / totalWeight) * 100, color: getHashMoodColor(mood) };
+        })
         .sort((a, b) => b.percentage - a.percentage);
 
     return distribution;
+}
+
+const HEX_COLOR_RE = /^#?[0-9A-Fa-f]{6}$/;
+
+/**
+ * Ensure a color string is a valid 6-digit hex.
+ * Returns the color if valid, otherwise a fallback.
+ */
+function safeHex(color: string | undefined, fallback = "#9CA3AF"): string {
+    if (color && HEX_COLOR_RE.test(color)) return color.startsWith("#") ? color : `#${color}`;
+    return fallback;
 }
 
 /**
@@ -116,8 +131,10 @@ function computeMoodDistribution(
  * @param t - Interpolation factor (0-1)
  */
 function interpolateColor(color1: string, color2: string, t: number): string {
-    const hex1 = color1.replace("#", "");
-    const hex2 = color2.replace("#", "");
+    const c1 = safeHex(color1);
+    const c2 = safeHex(color2);
+    const hex1 = c1.replace("#", "");
+    const hex2 = c2.replace("#", "");
 
     const r1 = parseInt(hex1.substring(0, 2), 16);
     const g1 = parseInt(hex1.substring(2, 4), 16);

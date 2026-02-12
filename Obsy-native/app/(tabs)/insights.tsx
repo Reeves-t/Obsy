@@ -501,9 +501,31 @@ export default function InsightsScreen() {
         if (!user) return;
         try {
             const todayKey = formatDateKey(new Date());
+            console.log('[Insights] Loading mood flow for date:', todayKey);
             const flows = await fetchDailyMoodFlows(user.id, todayKey, todayKey);
-            const flow = flows[todayKey]?.segments ?? null;
-            setTodayMoodFlow(flow);
+            console.log('[Insights] Fetched flows from database:', JSON.stringify(flows, null, 2));
+
+            const flowData = flows[todayKey];
+            if (!flowData) {
+                setTodayMoodFlow(null);
+                return;
+            }
+
+            // If title and subtitle exist, construct Reading format; otherwise use segments only
+            if (flowData.title && flowData.subtitle) {
+                const readingFlow = {
+                    title: flowData.title,
+                    subtitle: flowData.subtitle,
+                    confidence: flowData.confidence || 0,
+                    segments: flowData.segments,
+                };
+                console.log('[Insights] Loaded mood flow (Reading format):', JSON.stringify(readingFlow, null, 2));
+                setTodayMoodFlow(readingFlow);
+            } else {
+                // Legacy format: just segments
+                console.log('[Insights] Loaded mood flow (segments only):', JSON.stringify(flowData.segments, null, 2));
+                setTodayMoodFlow(flowData.segments);
+            }
         } catch (error) {
             console.error("Error loading today mood flow:", error);
             setTodayMoodFlow(null);

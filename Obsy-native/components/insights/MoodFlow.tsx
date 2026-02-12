@@ -68,6 +68,8 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
     const [expanded, setExpanded] = useState(false);
     const { isLoading: isMoodCacheLoading } = useMoodResolver();
 
+    console.log('[MoodFlow] Received moodFlow prop:', JSON.stringify(moodFlow, null, 2));
+
     // Detect format: Reading (new) vs Segments (old)
     const isReadingFormat = useMemo(() => {
         return moodFlow && isMoodFlowReading(moodFlow);
@@ -88,14 +90,30 @@ export const MoodFlow = memo(function MoodFlow({ moodFlow, loading, flat = false
     // Combine loading states to prevent flash of raw mood IDs
     const isLoadingMoods = loading || isMoodCacheLoading;
 
-    // For Reading format, use a neutral gradient; for Segments, use computed gradient
+    // For Reading format, check if it has segments; otherwise use neutral gradient
     const gradientColors = useMemo(() => {
+        console.log('[MoodFlow] Computing gradient colors...');
+        console.log('[MoodFlow] isReadingFormat:', isReadingFormat);
+        console.log('[MoodFlow] segments:', JSON.stringify(segments, null, 2));
+
         if (isReadingFormat) {
-            // Use a subtle neutral gradient for reading format
+            // Check if reading format has segments embedded
+            const reading = moodFlow as MoodFlowReading;
+            console.log('[MoodFlow] Reading format detected, segments:', JSON.stringify(reading.segments, null, 2));
+            if (reading.segments && Array.isArray(reading.segments) && reading.segments.length > 0) {
+                // Use segments from reading format for colors
+                const colors = buildGradientColors(reading.segments);
+                console.log('[MoodFlow] Built gradient colors from reading segments:', colors);
+                return colors;
+            }
+            // Fallback to neutral gradient if no segments
+            console.log('[MoodFlow] No segments in reading format, using neutral gradient');
             return ["#4B5563", "#374151"] as [string, string];
         }
-        return buildGradientColors(segments);
-    }, [segments, isReadingFormat]);
+        const colors = buildGradientColors(segments);
+        console.log('[MoodFlow] Built gradient colors from segments:', colors);
+        return colors;
+    }, [segments, isReadingFormat, moodFlow]);
 
     const toggle = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);

@@ -19,6 +19,7 @@ export interface MoodFlowReading {
     subtitle: string;
     confidence: number;
     tags?: string[];
+    segments?: MoodSegment[]; // Optional segments for color visualization
 }
 
 /**
@@ -49,6 +50,9 @@ export interface DailyMoodFlowData {
     segments: MoodSegment[];
     dominant: string;
     totalCaptures: number;
+    title?: string;       // AI-generated evocative title
+    subtitle?: string;    // AI-generated descriptive sentence
+    confidence?: number;  // AI confidence in the flow reading (0-100)
 }
 
 /**

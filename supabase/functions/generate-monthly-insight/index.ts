@@ -375,12 +375,31 @@ async function callGemini(prompt: string, requestId: string): Promise<string> {
   return JSON.stringify(data);
 }
 
+/**
+ * Recursively search a parsed JSON object for the first long string value
+ * that looks like narrative prose (not a key name or short metadata).
+ */
+function findDeepestString(obj: unknown, minLength = 40): string | null {
+  if (typeof obj === "string" && obj.length >= minLength) return obj;
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const found = findDeepestString(item, minLength);
+      if (found) return found;
+    }
+  } else if (obj && typeof obj === "object") {
+    for (const val of Object.values(obj)) {
+      const found = findDeepestString(val, minLength);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function extractText(raw: string, requestId: string): string {
   try {
     const parsed = JSON.parse(raw);
     const candidate = parsed?.candidates?.[0];
     const partsText = candidate?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join(" ");
-    let parsedFromParts: string | null = null;
 
     if (partsText) {
       console.log(`[EXTRACT_TEXT_ATTEMPT_JSON] requestId: ${requestId} | attempting to parse partsText as JSON`);
@@ -391,43 +410,63 @@ function extractText(raw: string, requestId: string): string {
         .replace(/\n?```\s*$/i, "")
         .trim();
 
+      // Try parsing as structured JSON first
       try {
         const insight = JSON.parse(cleaned);
-        const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
+        // Check known fields
+        const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight ?? insight?.narrative?.text_content;
         if (narrativeText && typeof narrativeText === 'string') {
           console.log(
             `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text`
           );
           return narrativeText;
-        } else {
-          console.warn(
-            `[EXTRACT_TEXT_WARNING] requestId: ${requestId} | JSON parsed but narrative.text not found or invalid. Keys: ${Object.keys(insight).join(', ')}`
-          );
         }
-      } catch (parseError) {
+        // Unknown JSON shape — recursively search for any long prose string
+        const deepString = findDeepestString(insight);
+        if (deepString) {
+          console.log(
+            `[EXTRACT_TEXT_DEEP_SEARCH] requestId: ${requestId} | found prose string via deep search`
+          );
+          return deepString;
+        }
+        console.warn(
+          `[EXTRACT_TEXT_WARNING] requestId: ${requestId} | JSON parsed but no narrative text found. Keys: ${Object.keys(insight).join(', ')}`
+        );
+      } catch {
+        // Not valid JSON — treat as plain text
         console.log(
           `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not valid JSON, treating as plain text`
         );
-        // If it's not JSON, it's probably plain text - return it
-        if (cleaned && !cleaned.startsWith('{') && !cleaned.startsWith('[')) {
-          return cleaned;
-        }
       }
-      parsedFromParts = cleaned; // Use cleaned version, not raw
+
+      // cleaned is either plain text or unparseable JSON — use it if it looks like prose
+      if (cleaned && !cleaned.includes('"candidates"') && !cleaned.includes('"usageMetadata"')) {
+        // Strip any residual JSON wrapping if it's just a string inside braces
+        const unwrapped = cleaned.replace(/^\{?\s*"(?:text|narrative|insight)"\s*:\s*"(.+)"\s*\}?$/s, "$1");
+        if (unwrapped !== cleaned) {
+          return unwrapped.replace(/\\n/g, "\n").replace(/\\"/g, '"');
+        }
+        return cleaned;
+      }
     }
 
+    // Fallback: try direct fields on the parsed object
     if (candidate?.output_text) return candidate.output_text;
     if (parsed?.narrative?.text) return parsed.narrative.text;
     if (parsed?.text) return parsed.text;
     if (parsed?.insight) return parsed.insight;
-    // Only return parsedFromParts if it doesn't look like JSON
-    if (parsedFromParts && !parsedFromParts.trim().startsWith('{') && !parsedFromParts.trim().startsWith('[')) {
-      return parsedFromParts;
-    }
   } catch {
-    // raw might already be plain text
+    // raw might already be plain text — return it if it doesn't look like API JSON
+    if (!raw.includes('"candidates"') && !raw.includes('"usageMetadata"')) {
+      return raw;
+    }
   }
-  return raw;
+
+  // NEVER return the raw Gemini API response — it contains model metadata/tokens
+  console.error(
+    `[EXTRACT_TEXT_FAILED] requestId: ${requestId} | all extraction attempts failed, returning empty string`
+  );
+  return "";
 }
 
 function sanitizeText(text: string): string {

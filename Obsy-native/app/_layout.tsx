@@ -3,17 +3,19 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
-import Animated, { FadeOut } from 'react-native-reanimated';
-import { View, StyleSheet } from 'react-native';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { View } from 'react-native';
 import { ObsyAnimatedSplash } from '@/components/splash/ObsyAnimatedSplash';
 
-import { useColorScheme } from '@/components/useColorScheme';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ObsyThemeProvider, useObsyTheme } from '@/contexts/ThemeContext';
 import { MockAlbumProvider } from '@/contexts/MockAlbumContext';
 import { moodCache } from '@/lib/moodCache';
+import { useCaptureStore } from '@/lib/captureStore';
+import { useTodayInsight } from '@/lib/todayInsightStore';
+import { useWeeklyInsight } from '@/lib/weeklyInsightStore';
+import { useMonthlyInsight } from '@/lib/monthlyInsightStore';
 
 const queryClient = new QueryClient();
 
@@ -47,9 +49,10 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [animationDone, setAnimationDone] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
+  const isSplashVisible = !animationDone || !dataReady;
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -57,22 +60,33 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
-      // Animation handling is now done inside ObsyAnimatedSplash
-      // We just need to wait for it to signal completion
     }
   }, [loaded]);
 
-  const handleAnimationComplete = () => {
-    setIsSplashVisible(false);
-  };
+  // Safety timeout: never leave splash stuck for more than 8 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAnimationDone(true);
+      setDataReady(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleAnimationComplete = useCallback(() => {
+    setAnimationDone(true);
+  }, []);
+
+  const handleDataReady = useCallback(() => {
+    setDataReady(true);
+  }, []);
 
   if (!loaded) {
-    return null; // Native splash handles this
+    return null;
   }
 
   return (
     <View style={{ flex: 1 }}>
-      <RootLayoutNav />
+      <RootLayoutNav onDataReady={handleDataReady} />
       {isSplashVisible && (
         <ObsyAnimatedSplash onAnimationComplete={handleAnimationComplete} />
       )}
@@ -80,13 +94,14 @@ export default function RootLayout() {
   );
 }
 
-function RootLayoutNav() {
+function RootLayoutNav({ onDataReady }: { onDataReady: () => void }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ObsyThemeProvider>
           <MockAlbumProvider>
             <MoodCacheInitializer />
+            <SnapshotLoader onDataReady={onDataReady} />
             <ThemedNavigator />
           </MockAlbumProvider>
         </ObsyThemeProvider>
@@ -105,6 +120,41 @@ function MoodCacheInitializer() {
       });
     }
   }, [user]);
+
+  return null;
+}
+
+function SnapshotLoader({ onDataReady }: { onDataReady: () => void }) {
+  const { user, loading: authLoading } = useAuth();
+  const hasFired = useRef(false);
+
+  useEffect(() => {
+    if (authLoading || hasFired.current) return;
+    hasFired.current = true;
+
+    if (!user) {
+      onDataReady();
+      return;
+    }
+
+    const load = async () => {
+      try {
+        await useCaptureStore.getState().fetchCaptures(user);
+
+        await Promise.all([
+          useTodayInsight.getState().loadSnapshot(user.id),
+          useWeeklyInsight.getState().loadSnapshot(user.id),
+          useMonthlyInsight.getState().loadSnapshot(user.id),
+        ]);
+      } catch (err) {
+        console.error('[SnapshotLoader] Error during startup load:', err);
+      } finally {
+        onDataReady();
+      }
+    };
+
+    load();
+  }, [authLoading, user, onDataReady]);
 
   return null;
 }

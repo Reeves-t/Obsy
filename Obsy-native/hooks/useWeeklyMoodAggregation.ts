@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Capture } from '@/types/capture';
 import { getWeekRangeForUser } from '@/lib/dateUtils';
-import { getMoodColor } from '@/lib/moodColors';
+import { resolveMoodColorById } from '@/lib/moodUtils';
 
 export interface MoodWeight {
     moodId: string;
@@ -64,7 +64,7 @@ export function useWeeklyMoodAggregation(captures: Capture[]): MoodWeight[] {
             return {
                 moodId,
                 moodLabel: data.label,
-                color: getMoodColor(moodId),
+                color: resolveMoodColorById(moodId, data.label),
                 captureCount,
                 percentage,
                 size,

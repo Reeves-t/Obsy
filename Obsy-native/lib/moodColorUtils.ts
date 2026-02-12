@@ -23,14 +23,29 @@ export function getMoodHue(name: string): number {
 }
 
 /**
- * Generate full HSL color for a mood
+ * Convert HSL to hex string
+ */
+function hslToHex(h: number, s: number, l: number): string {
+    s /= 100;
+    l /= 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/**
+ * Generate deterministic hex color for a mood
  * Clamped to Obsy palette range for consistency
  */
 export function getMoodColor(name: string): string {
     const hue = getMoodHue(name);
     const saturation = 65; // Fixed saturation for consistency
     const lightness = 55;  // Fixed lightness for readability
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    return hslToHex(hue, saturation, lightness);
 }
 
 /**
