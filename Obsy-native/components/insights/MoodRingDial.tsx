@@ -72,6 +72,7 @@ function computeMoodDistribution(
     monthYear: { year: number; month: number }
 ): Array<{ mood: string; percentage: number; color: string }> {
     const moodTotals: Record<string, number> = {};
+    const moodColors: Record<string, string> = {};
     let totalWeight = 0;
 
     // Sum all daily flow segment totals per mood (not just dominant)
@@ -83,6 +84,11 @@ function computeMoodDistribution(
                 // Each segment has a mood and percentage - use percentage as weight
                 const weight = segment.percentage * flowData.totalCaptures / 100;
                 moodTotals[segment.mood] = (moodTotals[segment.mood] || 0) + weight;
+                // Preserve the segment's pre-computed color (derived from mood ID)
+                // since segment.mood is a descriptive name, not a mood ID
+                if (!moodColors[segment.mood] && segment.color) {
+                    moodColors[segment.mood] = segment.color;
+                }
                 totalWeight += weight;
             }
         }
@@ -96,7 +102,7 @@ function computeMoodDistribution(
         .map(([mood, weight]) => ({
             mood,
             percentage: (weight / totalWeight) * 100,
-            color: getMoodColor(mood),
+            color: moodColors[mood] || getMoodColor(mood),
         }))
         .sort((a, b) => b.percentage - a.percentage);
 

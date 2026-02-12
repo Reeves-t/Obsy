@@ -420,9 +420,12 @@ export default function InsightsScreen() {
                     const moodTotals = computeMonthMoodTotals(monthCaptures);
                     const bannedWords = getBannedMoodWords();
 
-                    // Month phrase logic
+                    // Month phrase logic - regenerate weekly or when missing
                     let phrase = cached?.monthPhrase;
-                    if (!phrase) {
+                    const phraseAgeDays = cached?.generatedThroughDate
+                        ? (Date.now() - new Date(cached.generatedThroughDate).getTime()) / (1000 * 60 * 60 * 24)
+                        : Infinity;
+                    if (!phrase || phraseAgeDays >= 7) {
                         phrase = await generateMonthPhrase(moodTotals, bannedWords);
                     }
                     setMonthPhrase(phrase);
