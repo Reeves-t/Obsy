@@ -201,14 +201,17 @@ serve(async (req) => {
     let sanitized = "";
     try {
       const rawText = await callGemini(prompt, requestId);
-      const extracted = extractText(rawText);
+      const extracted = extractText(rawText, requestId);
       sanitized = sanitizeText(extracted);
     } catch (error: any) {
       console.error(`[MONTHLY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"}`);
       return errorResponse(502, "gemini_api", error?.message || "Gemini call failed", requestId);
     }
 
-    if (!sanitized?.trim()) {
+    if (!validateGeminiResponse(sanitized)) {
+      console.error(
+        `[MONTHLY_INSIGHT_ERROR] requestId: ${requestId} | stage: response_validation | message: Empty or invalid Gemini response | length: ${sanitized?.length ?? 0}`
+      );
       return errorResponse(500, "response_validation", "AI generated empty or invalid response", requestId);
     }
 
@@ -334,7 +337,13 @@ function buildMonthlyPrompt(input: {
     "- Reference specific days or clusters when they reveal patterns (e.g. a mid-month shift, a weekend rhythm).",
     "- 2-3 short paragraphs, max 180 words. Prose only, no markdown or bullets.",
     "- Do NOT list raw numbers or data points. Paint a picture of how the month felt and evolved.",
-    "Return plain text or JSON: {\"insight\":\"...\"}. No markdown.",
+    "",
+    "CRITICAL OUTPUT FORMAT:",
+    "Return ONLY this JSON structure (NO markdown fences, NO extra text):",
+    "{\"narrative\":{\"text\":\"Your narrative text here\"}}",
+    "",
+    "IMPORTANT: The narrative.text field must contain PLAIN TEXT ONLY (no JSON, no markdown, no formatting).",
+    "The text should be a flowing narrative, not JSON data.",
   ].join("\n");
 }
 
@@ -366,13 +375,16 @@ async function callGemini(prompt: string, requestId: string): Promise<string> {
   return JSON.stringify(data);
 }
 
-function extractText(raw: string): string {
+function extractText(raw: string, requestId: string): string {
   try {
     const parsed = JSON.parse(raw);
     const candidate = parsed?.candidates?.[0];
     const partsText = candidate?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join(" ");
+    let parsedFromParts: string | null = null;
 
     if (partsText) {
+      console.log(`[EXTRACT_TEXT_ATTEMPT_JSON] requestId: ${requestId} | attempting to parse partsText as JSON`);
+
       // Strip markdown code blocks (```json ... ``` or ``` ... ```)
       const cleaned = partsText
         .replace(/^```(?:json)?\s*\n?/i, "")
@@ -381,16 +393,37 @@ function extractText(raw: string): string {
 
       try {
         const insight = JSON.parse(cleaned);
-        if (insight?.insight) return insight.insight;
-        if (insight?.narrative?.text) return insight.narrative.text;
-      } catch {
-        // partsText is plain text, use as-is
+        const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
+        if (narrativeText && typeof narrativeText === 'string') {
+          console.log(
+            `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text`
+          );
+          return narrativeText;
+        } else {
+          console.warn(
+            `[EXTRACT_TEXT_WARNING] requestId: ${requestId} | JSON parsed but narrative.text not found or invalid. Keys: ${Object.keys(insight).join(', ')}`
+          );
+        }
+      } catch (parseError) {
+        console.log(
+          `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not valid JSON, treating as plain text`
+        );
+        // If it's not JSON, it's probably plain text - return it
+        if (cleaned && !cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+          return cleaned;
+        }
       }
-      return cleaned;
+      parsedFromParts = cleaned; // Use cleaned version, not raw
     }
+
     if (candidate?.output_text) return candidate.output_text;
-    if (parsed?.insight) return parsed.insight;
+    if (parsed?.narrative?.text) return parsed.narrative.text;
     if (parsed?.text) return parsed.text;
+    if (parsed?.insight) return parsed.insight;
+    // Only return parsedFromParts if it doesn't look like JSON
+    if (parsedFromParts && !parsedFromParts.trim().startsWith('{') && !parsedFromParts.trim().startsWith('[')) {
+      return parsedFromParts;
+    }
   } catch {
     // raw might already be plain text
   }
@@ -404,6 +437,13 @@ function sanitizeText(text: string): string {
     .replace(/[\u2013\u2014]/g, ",")          // En dash / em dash → comma
     .replace(/---?/g, ",")                    // ASCII double/triple hyphens used as dashes → comma
     .trim();
+}
+
+function validateGeminiResponse(text: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return true;
 }
 
 function okResponse(text: string, requestId: string): Response {

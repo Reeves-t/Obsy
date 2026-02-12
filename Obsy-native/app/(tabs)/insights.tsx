@@ -55,7 +55,7 @@ import { TodayInsightCard } from '@/components/home/TodayInsightCard';
 import { useTodayInsight } from '@/lib/todayInsightStore';
 import { DailyMoodFlowData, formatMonthKey, filterCapturesForDate, getUniqueDateKeys, formatDateKey, MoodFlowData } from '@/lib/dailyMoodFlows';
 import { fetchDailyMoodFlows, backfillDailyMoodFlows, getMonthDateRange } from '@/services/dailyMoodFlows';
-import { fetchMonthlySummary, computeMonthMoodTotals, generateMonthPhraseReasoning, upsertMonthlySummary, isMonthlySummaryStale, getMonthSignals } from '@/services/monthlySummaries';
+import { fetchMonthlySummary, computeMonthMoodTotals, generateMonthPhraseReasoning, upsertMonthlySummary, getMonthSignals } from '@/services/monthlySummaries';
 import { getBannedMoodWords } from '@/lib/moodColors';
 import { generateMonthPhrase } from '@/lib/monthPhraseGenerator';
 

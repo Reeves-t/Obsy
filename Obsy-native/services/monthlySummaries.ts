@@ -1,7 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { Capture } from "@/types/capture";
 import { formatMonthKey } from "@/lib/dailyMoodFlows";
-import { getBannedMoodWords } from "@/lib/moodColors";
 import { getMoodLabel } from "@/lib/moodUtils";
 
 export interface MonthSignals {
@@ -111,24 +110,6 @@ export function getMonthSignals(captures: Capture[], monthKey: string, throughDa
 }
 
 /**
- * Generate lightweight Month-to-Date summary
- * NOTE: Temporarily using deterministic fallback until secure edge function is available
- */
-export async function generateMonthToDateSummary(signals: MonthSignals): Promise<string> {
-    if (signals.totalCaptures === 0) return "Not enough data to summarize this month yet.";
-
-    // Temporary fallback while migrating to secure edge function
-    const dominantMood = signals.dominantMood;
-    const volatility = Math.round(signals.volatilityScore * 100);
-
-    return `This month has been characterized by ${dominantMood} energy. ${
-        volatility > 50
-            ? "The rhythm has varied with noticeable shifts."
-            : "The overall pattern has remained fairly consistent."
-    }`;
-}
-
-/**
  * Compute mood totals from captures using labels/snapshots for categorization
  */
 export function computeMonthMoodTotals(captures: Capture[]): Record<string, number> {
@@ -173,27 +154,6 @@ function categorizeMoodEnergy(moodTotals: Record<string, number>): {
     }
 
     return { highEnergy, mediumEnergy, lowEnergy, total };
-}
-
-/**
- * Generate monthly summary using Gemini AI (Legacy/Lightweight)
- * NOTE: Temporarily using deterministic fallback until secure edge function is available
- */
-export async function generateMonthlySummaryFromMoodTotals(
-    moodTotals: Record<string, number>,
-    bannedWords: string[]
-): Promise<string> {
-    const { highEnergy, mediumEnergy, lowEnergy, total } = categorizeMoodEnergy(moodTotals);
-
-    if (total === 0) {
-        return "No captures recorded this month yet.";
-    }
-
-    const highPct = Math.round((highEnergy / total) * 100);
-    const lowPct = Math.round((lowEnergy / total) * 100);
-
-    // Deterministic fallback (temporary until secure edge function is available)
-    return `This month showed ${highPct}% high-energy patterns and ${lowPct}% contemplative moments. The rhythm varied between active engagement and quiet reflection.`;
 }
 
 /**
@@ -306,10 +266,4 @@ export async function fetchMonthlySummary(
     }
 }
 
-/**
- * Check if monthly summary is stale
- */
-export function isMonthlySummaryStale(updatedAt: string, latestCaptureDate: string): boolean {
-    return new Date(latestCaptureDate) > new Date(updatedAt);
-}
 
