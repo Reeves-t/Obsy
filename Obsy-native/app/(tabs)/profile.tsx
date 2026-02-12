@@ -9,6 +9,7 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,6 +29,14 @@ import { BlurView } from 'expo-blur';
 import { useTimeFormatStore, TimeFormat } from '@/lib/timeFormatStore';
 import { useFloatingBackgroundStore, FloatingMode } from '@/lib/floatingBackgroundStore';
 import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import {
+  useNotificationSettingsStore,
+  requestPermission,
+  refreshLocalNotifications,
+  cancelAllLocalObsyNotifications,
+} from '@/lib/notifications';
+import type { CheckinSlot } from '@/lib/notifications/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -233,6 +242,292 @@ const AmbientMoodFieldInline: React.FC = () => {
           />
         }
       />
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notifications Settings Inline Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+const formatSlotTime = (hour: number, minute: number): string => {
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const h = hour % 12 || 12;
+  const m = String(minute).padStart(2, '0');
+  return `${h}:${m} ${period}`;
+};
+
+const NotificationsInline: React.FC = () => {
+  const { colors, isLight } = useObsyTheme();
+  const {
+    remindersEnabled,
+    checkinSlots,
+    yearPixelsEnabled,
+    yearPixelsHour,
+    yearPixelsMinute,
+    setRemindersEnabled,
+    updateCheckinSlot,
+    setYearPixelsEnabled,
+    setYearPixelsTime,
+  } = useNotificationSettingsStore();
+
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [activePickerTarget, setActivePickerTarget] = useState<
+    | { type: 'checkin'; index: 0 | 1 | 2 }
+    | { type: 'yearPixels' }
+    | null
+  >(null);
+  const [pickerDate, setPickerDate] = useState(new Date());
+
+  const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  const switchThumb = isLight ? '#1a1a1a' : '#fff';
+  const subLabelColor = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+  const borderColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+
+  const handleMasterToggle = async (val: boolean) => {
+    if (val) {
+      const granted = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Notifications Disabled',
+          'Enable notifications in your device settings to receive Obsy reminders.',
+        );
+        return;
+      }
+    }
+    setRemindersEnabled(val);
+    if (!val) {
+      await cancelAllLocalObsyNotifications();
+    } else {
+      await refreshLocalNotifications();
+    }
+  };
+
+  const handleSlotToggle = async (index: 0 | 1 | 2, val: boolean) => {
+    updateCheckinSlot(index, { enabled: val });
+    // Settings store updates synchronously in Zustand, refresh scheduling
+    setTimeout(() => refreshLocalNotifications(), 50);
+  };
+
+  const handleYearPixelsToggle = async (val: boolean) => {
+    setYearPixelsEnabled(val);
+    setTimeout(() => refreshLocalNotifications(), 50);
+  };
+
+  const openTimePicker = (target: typeof activePickerTarget) => {
+    if (!target) return;
+    const d = new Date();
+    if (target.type === 'checkin') {
+      const slot = checkinSlots[target.index];
+      d.setHours(slot.hour, slot.minute, 0, 0);
+    } else {
+      d.setHours(yearPixelsHour, yearPixelsMinute, 0, 0);
+    }
+    setPickerDate(d);
+    setActivePickerTarget(target);
+    setShowTimePicker(true);
+  };
+
+  const handleTimePickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (!selectedDate || !activePickerTarget) {
+      setShowTimePicker(false);
+      return;
+    }
+
+    // On Android, the picker auto-dismisses on selection
+    // On iOS, we keep it open until explicitly dismissed
+    const hour = selectedDate.getHours();
+    const minute = selectedDate.getMinutes();
+    setPickerDate(selectedDate);
+
+    if (activePickerTarget.type === 'checkin') {
+      updateCheckinSlot(activePickerTarget.index, { hour, minute });
+    } else {
+      setYearPixelsTime(hour, minute);
+    }
+
+    // On Android, dismiss immediately; on iOS keep open
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+      setTimeout(() => refreshLocalNotifications(), 50);
+    }
+  };
+
+  const dismissTimePicker = () => {
+    setShowTimePicker(false);
+    setTimeout(() => refreshLocalNotifications(), 50);
+  };
+
+  const slotLabels = ['Morning', 'Midday', 'Evening'];
+
+  return (
+    <View style={styles.floatingInlineContainer}>
+      {/* Master toggle */}
+      <SettingRow
+        icon="notifications-outline"
+        title="Enable Reminders"
+        subtitle="Local reminders for check-ins and pixels"
+        showChevron={false}
+        rightElement={
+          <Switch
+            value={remindersEnabled}
+            onValueChange={handleMasterToggle}
+            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
+            thumbColor="#fff"
+          />
+        }
+      />
+
+      {/* Check-in Slots */}
+      <View style={[styles.notifSubSection, !remindersEnabled && { opacity: 0.35 }]}>
+        <ThemedText style={[styles.modeListTitle, { color: subLabelColor, paddingLeft: 44 }]}>
+          DAILY CHECK-INS
+        </ThemedText>
+        {checkinSlots.map((slot: CheckinSlot, i: number) => {
+          const idx = i as 0 | 1 | 2;
+          return (
+            <View
+              key={i}
+              style={[
+                styles.notifSlotRow,
+                i < 2 && [styles.notifSlotBorder, { borderBottomColor: borderColor }],
+              ]}
+            >
+              <View style={styles.notifSlotInfo}>
+                <ThemedText style={[styles.notifSlotLabel, { color: isLight ? '#1a1a1a' : '#fff' }]}>
+                  {slotLabels[i]}
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={() => remindersEnabled && openTimePicker({ type: 'checkin', index: idx })}
+                  disabled={!remindersEnabled}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={[styles.notifTimeLabel, { color: Colors.obsy.silver }]}>
+                    {formatSlotTime(slot.hour, slot.minute)}
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+              <Switch
+                value={slot.enabled}
+                onValueChange={(val) => { if (remindersEnabled) handleSlotToggle(idx, val); }}
+                trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
+                thumbColor="#fff"
+                disabled={!remindersEnabled}
+              />
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Year-in-Pixels Reminder */}
+      <View style={[styles.notifSubSection, !remindersEnabled && { opacity: 0.35 }]}>
+        <ThemedText style={[styles.modeListTitle, { color: subLabelColor, paddingLeft: 44 }]}>
+          YEAR IN PIXELS
+        </ThemedText>
+        <View style={styles.notifSlotRow}>
+          <View style={styles.notifSlotInfo}>
+            <ThemedText style={[styles.notifSlotLabel, { color: isLight ? '#1a1a1a' : '#fff' }]}>
+              Evening reminder
+            </ThemedText>
+            <TouchableOpacity
+              onPress={() => remindersEnabled && openTimePicker({ type: 'yearPixels' })}
+              disabled={!remindersEnabled}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={[styles.notifTimeLabel, { color: Colors.obsy.silver }]}>
+                {formatSlotTime(yearPixelsHour, yearPixelsMinute)}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+          <Switch
+            value={yearPixelsEnabled}
+            onValueChange={(val) => { if (remindersEnabled) handleYearPixelsToggle(val); }}
+            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
+            thumbColor="#fff"
+            disabled={!remindersEnabled}
+          />
+        </View>
+        <ThemedText style={[styles.notifHint, { color: subLabelColor, paddingLeft: 44 }]}>
+          Only fires if today's pixel is blank.
+        </ThemedText>
+      </View>
+
+      {/* Time Picker Modal (iOS) / Inline (Android) */}
+      {showTimePicker && (
+        <Modal transparent animationType="fade" visible={showTimePicker} onRequestClose={dismissTimePicker}>
+          <TouchableOpacity
+            style={styles.timePickerOverlay}
+            activeOpacity={1}
+            onPress={dismissTimePicker}
+          >
+            <View style={styles.timePickerContainer}>
+              <DateTimePicker
+                value={pickerDate}
+                mode="time"
+                display="spinner"
+                onChange={handleTimePickerChange}
+                minuteInterval={5}
+                themeVariant={isLight ? 'light' : 'dark'}
+              />
+              <TouchableOpacity style={styles.timePickerDone} onPress={dismissTimePicker}>
+                <ThemedText style={styles.timePickerDoneText}>Done</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Album Notifications Inline Component (future remote push)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AlbumNotificationsInline: React.FC = () => {
+  const { colors, isLight } = useObsyTheme();
+  const {
+    albumActivityEnabled,
+    albumNewPostsEnabled,
+    setAlbumActivityEnabled,
+    setAlbumNewPostsEnabled,
+  } = useNotificationSettingsStore();
+
+  const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  const disabledColor = isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)';
+  const borderColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+
+  return (
+    <View style={[styles.floatingInlineContainer, { opacity: 0.5 }]}>
+      <SettingRow
+        icon="people-outline"
+        title="Album Activity"
+        subtitle="Requires account and cloud sync"
+        showChevron={false}
+        rightElement={
+          <Switch
+            value={albumActivityEnabled}
+            onValueChange={setAlbumActivityEnabled}
+            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
+            thumbColor="#fff"
+            disabled
+          />
+        }
+      />
+      <View style={[styles.notifSubSection, { opacity: 0.6 }]}>
+        <View style={[styles.notifSlotRow, { paddingLeft: 44 }]}>
+          <ThemedText style={[styles.notifSlotLabel, { color: disabledColor }]}>
+            New posts in shared albums
+          </ThemedText>
+          <Switch
+            value={albumNewPostsEnabled}
+            onValueChange={setAlbumNewPostsEnabled}
+            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
+            thumbColor="#fff"
+            disabled
+          />
+        </View>
+      </View>
     </View>
   );
 };
@@ -618,6 +913,18 @@ export default function ProfileScreen() {
             onPress={handleTimeFormatPress}
             isLast
           />
+        </View>
+
+        {/* NOTIFICATIONS */}
+        <SectionHeader title="NOTIFICATIONS" flat />
+        <View style={styles.flatSection}>
+          <NotificationsInline />
+        </View>
+
+        {/* ALBUM ACTIVITY */}
+        <SectionHeader title="ALBUM ACTIVITY" flat />
+        <View style={styles.flatSection}>
+          <AlbumNotificationsInline />
         </View>
 
         {/* AI PERSONALIZATION */}
@@ -1176,6 +1483,68 @@ const styles = StyleSheet.create({
   themeButtonTextActive: {
     color: '#fff',
     fontWeight: '500',
+  },
+
+  // Notification Slots
+  notifSubSection: {
+    paddingBottom: 4,
+  },
+  notifSlotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingLeft: 44,
+    paddingRight: 16,
+  },
+  notifSlotBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  notifSlotInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  notifSlotLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  notifTimeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  notifHint: {
+    fontSize: 11,
+    marginTop: 2,
+    marginBottom: 8,
+    lineHeight: 15,
+  },
+  // Time Picker
+  timePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  timePickerContainer: {
+    backgroundColor: '#1c1c1e',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 40,
+    paddingTop: 8,
+  },
+  timePickerDone: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  timePickerDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 
   // Footer

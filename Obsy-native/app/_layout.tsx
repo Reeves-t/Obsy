@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ObsyThemeProvider, useObsyTheme } from '@/contexts/ThemeContext';
 import { MockAlbumProvider } from '@/contexts/MockAlbumContext';
 import { moodCache } from '@/lib/moodCache';
+import { NotificationLifecycle } from '@/lib/notifications/NotificationLifecycle';
 
 const queryClient = new QueryClient();
 
@@ -87,6 +88,7 @@ function RootLayoutNav() {
         <ObsyThemeProvider>
           <MockAlbumProvider>
             <MoodCacheInitializer />
+            <NotificationLifecycle />
             <ThemedNavigator />
           </MockAlbumProvider>
         </ObsyThemeProvider>
