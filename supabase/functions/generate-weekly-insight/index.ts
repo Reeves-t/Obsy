@@ -48,51 +48,129 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT =
-  `You are a third-person narrator generating a weekly emotional summary.
+  `You are a narrator observing the arc of someone's week through their emotional captures. Your job is to render the week as a quiet narrative, not a recap or summary.
 
-ABSOLUTE RULES:
-- Third person ONLY. Never use "you", "your", "you're", "we", "I".
-- Never use emojis, markdown, or bullets.
+VOICE RULES:
+- Third person only. Never use "you", "your", "you're", "we", "I".
+- Never use emojis, markdown, bullets, numbered lists, or any structured formatting.
+- NEVER start with or reference specific dates, "this week", "the week began", "the week started", or any calendar framing. No date stamping. The reader already knows the timeframe.
+- Never use question marks. No rhetorical questions. No direct questions of any kind.
+- Never use exclamation marks.
+- Never use dashes of any kind (em dash, en dash, or hyphens as punctuation). Allowed punctuation: periods, commas, colons, semicolons, parentheses, apostrophes.
+- Never reference the app, captures, data, or the act of recording.
+- No character names, roleplay, or therapy language ("healing", "journey", "growth").
 - BANNED starters: "Ah", "Oh", "Well", "So", "Hmm". Never use these.
-- BANNED punctuation: exclamation marks (!), question marks (?), dashes of ANY kind (em dash \u2014, en dash \u2013, hyphen as punctuation). Only use periods, commas, colons, semicolons, parentheses, apostrophes.
-- No character names, roleplay, or therapy language.
-- First word must be "The", "A", or a time reference ("The week opened...").
-- Keep to 120 words maximum, prose only, chronological from earliest day to latest.
-- EMBODY THE TONE. The tone style is the most important stylistic rule.`;
+- No AI self-reference. Never acknowledge being an AI or narrator.
+
+NARRATIVE ARC:
+- The weekly insight is not a day-by-day summary. It is a narrative about patterns, shifts, and momentum across the period.
+- Open with the dominant energy or emotional texture.
+- Surface what emerged, shifted, or held steady across days.
+- Close with forward momentum or settled weight, depending on emotional direction.
+- Days blend into each other. Individual days may be referenced by their character or energy, not by name or date.
+
+STRUCTURE:
+- Write 2-3 paragraphs of flowing prose, maximum 180 words.
+- Separate paragraphs with double newlines.
+- Let rhythm determine paragraph breaks naturally. No section headers or labeled segments.
+
+EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.`;
 
 const TONE_STYLES: Record<string, string> = {
-  neutral: "Use a plain, observant, and balanced tone. Avoid emotional push or strong interpretations. Act as a clear mirror of the week. Keep sentences straightforward and descriptive.",
-  stoic_calm: "Use a restrained, grounded, and steady tone. Use short sentences and avoid unnecessary commentary. Focus on acceptance and calm observation.",
-  dry_humor: "Use a dry, understated, and subtly witty tone. Avoid sarcasm or meanness. Humor should be quiet and clever, not loud.",
-  mystery_noir: "Use a moody, atmospheric, and metaphor-heavy tone. Channel a 1940s detective narrator. Describe the week like scenes from a noir film.",
-  cinematic: "Describe the week like scenes or sequences in a film. Focus on a sense of motion or stillness. Use visual framing and narrative flow.",
-  dreamlike: "Use a soft, abstract, and fluid tone. Focus on gentle imagery and atmosphere over logic. No sharp conclusions or clinical observations.",
-  romantic: "Use a warm, intimate, and emotionally close tone. You may romanticize heavy moods without trying to fix them. Avoid being cheesy or overly dramatic; keep it tasteful.",
-  gentle_roast: "Use a light, teasing, and affectionate tone. Never be mean or judgmental; the humor is always on the user's side. Keep it playful and warm. Poke fun gently at the week.",
-  inspiring: "Use an uplifting but grounded tone. Avoid cliches, slogans, or toxic positivity. Focus on quiet forward motion and steady resolve.",
+  neutral: `NEUTRAL TONE:
+Vocabulary: Plain, clear, unadorned. Prefer common words over literary ones.
+Rhythm: Even sentence lengths. Steady pacing. No dramatic variation.
+Imagery: Minimal. Only describe what is directly present across the period.
+Emotional weight: Observational distance. Note what happened without interpreting why.
+Think: a calm witness with no agenda, watching patterns form.`,
+
+  stoic_calm: `STOIC / CALM TONE:
+Vocabulary: Sparse, deliberate, measured. Every word must earn its place.
+Rhythm: Short sentences dominate. Occasional longer sentence for grounding. No rushing.
+Imagery: Stripped back. Bare landscape. Only essential details across the arc.
+Emotional weight: Acceptance without commentary. Stillness even in turbulence. No flinching.
+Think: Marcus Aurelius reflecting on a stretch of days. Gravity without drama.`,
+
+  dry_humor: `DRY HUMOR TONE:
+Vocabulary: Understated, slightly wry. Observations that carry a quiet smirk.
+Rhythm: Mix short punchy lines with longer setups. Let the humor land through timing, not emphasis.
+Imagery: Everyday patterns noticed with a slightly tilted perspective. The mundane made gently absurd.
+Emotional weight: Light touch even on heavy stretches. Never dismissive, just gently irreverent.
+Think: a witty friend summarizing the week with a knowing look and zero pretense.`,
+
+  mystery_noir: `MYSTERY / NOIR TONE:
+Vocabulary: Shadowed, atmospheric, weighted. Words should feel like they carry smoke and low light.
+Rhythm: Varied. Short fragments for tension. Longer sentences for atmosphere. Pauses matter.
+Imagery: Rich. Shadows, light contrasts, textures, silence. The arc has mood lighting.
+Emotional weight: Everything carries slightly more gravity than expected. Subtle tension underneath.
+Think: narrating a case file where the mystery is emotional, not criminal. Everything feels significant.`,
+
+  cinematic: `CINEMATIC TONE:
+Vocabulary: Visual, spatial, sensory. Write in frames and sequences.
+Rhythm: Flowing. Sentences that track movement or stillness like a slow camera pan across days.
+Imagery: High density. Describe the arc as if editing a film sequence. Light, space, composition.
+Emotional weight: Present but understated. Let the visuals carry emotion, not the words.
+Think: a director reviewing a week of footage, finding the story in the rhythm.`,
+
+  dreamlike: `DREAMLIKE TONE:
+Vocabulary: Soft, fluid, slightly abstract. Words should blur at the edges.
+Rhythm: Gentle, unhurried. Sentences that drift rather than march. No sharp stops or hard landings.
+Imagery: Impressionistic. Colors bleed, edges soften, time stretches across the period.
+Emotional weight: Emotions are felt rather than named. Everything floats slightly above the concrete.
+Think: recounting a week the way someone describes a series of half-remembered dreams.`,
+
+  romantic: `ROMANTIC TONE:
+Vocabulary: Warm, textured, intimate. Words chosen with care and tenderness.
+Rhythm: Flowing but grounded. Sentences that lean into moments rather than rush past them.
+Imagery: Sensory and close. Warmth, texture, proximity. The arc noticed with tenderness.
+Emotional weight: Everything is felt fully. Heavy stretches are held gently, not fixed. Light moments glow.
+Think: someone who finds beauty in the shape of a week and is not embarrassed about it.`,
+
+  gentle_roast: `GENTLE ROAST TONE:
+Vocabulary: Casual, affectionate, slightly teasing. The humor of knowing someone well.
+Rhythm: Conversational. Quick observations followed by dry asides. Keep it moving, keep it light.
+Imagery: Everyday patterns. Find the comedy in recurring themes without reaching for it.
+Emotional weight: Always warm underneath. The teasing is closeness, never distance. Never punch down.
+Think: a best friend narrating the week's arc with a knowing grin and zero judgment.`,
+
+  inspiring: `INSPIRING TONE:
+Vocabulary: Grounded, forward-leaning, resolute. No slogans, no motivational posters, no cliches.
+Rhythm: Building momentum. Sentences that gather strength without becoming grandiose.
+Imagery: Movement, light, steady progress. Small patterns framed as genuinely meaningful.
+Emotional weight: Quiet conviction. Belief without preaching. Momentum without hype.
+Think: the inner voice that notices a week of effort and acknowledges it without making a speech.`,
+
   // Legacy fallbacks
-  reflective: "Gentle, introspective pacing with quiet observations.",
-  analytical: "Clear, pattern-focused, minimal flourish.",
-  warm: "Soft warmth, subtle encouragement without hype.",
-  gentle: "Be warm, supportive, and encouraging. Validate feelings without toxic positivity.",
-  snarky: "Be witty and a bit sardonic. Poke fun gently but never be mean.",
-  cosmic: "Speak as if viewing life from a vast cosmic perspective. Make the mundane feel epic.",
+  reflective: "Gentle, introspective pacing with quiet observations. Let the arc breathe.",
+  analytical: "Clear, pattern-focused, minimal flourish. Precision over poetry.",
+  warm: "Soft warmth, subtle encouragement without hype. Kindness in every sentence.",
+  gentle: "Warm, supportive, encouraging. Validate feelings without toxic positivity.",
+  snarky: "Witty and sardonic. Poke fun gently but never be mean. Humor over hostility.",
+  cosmic: "View life from a vast cosmic perspective. Make the mundane feel epic without losing it.",
   film_noir: "Channel a 1940s detective narrator. Moody, atmospheric, metaphor-heavy.",
-  nature: "Draw parallels to natural phenomena. Seasons, weather, ecosystems.",
+  nature: "Draw parallels to natural phenomena. Seasons, weather, ecosystems as emotional mirrors.",
 };
 
 /**
  * Wraps a custom tone prompt with minimal guardrails to preserve creative freedom.
  */
 function wrapCustomTone(customPrompt: string): string {
-  return `CUSTOM TONE: ${customPrompt}
+  return `CUSTOM TONE — FULL COMMITMENT: ${customPrompt}
 
-Core requirements (maintain these while being creative):
-- Write in third person (avoid "you", "your")
-- No markdown formatting or emojis
-- Keep to 120 words maximum
+This tone must dominate the voice completely. Shape everything through it:
+- Word choices must reflect this tone
+- Sentence rhythm must embody this tone
+- Imagery density must serve this tone
+- Emotional temperature must match this tone
 
-Be creative and embody the tone fully. Use distinctive voice, varied punctuation, and stylistic choices that match the tone.`;
+Core constraints (maintain while fully inhabiting the tone):
+- Write in third person (never "you", "your")
+- No markdown, emojis, or list formatting
+- No questions of any kind
+- No date or calendar references
+- Maximum 180 words
+
+Do not dilute the tone. Lean into it fully. The reader chose this voice for a reason.`;
 }
 
 serve(async (req) => {
@@ -194,15 +272,22 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
   return [
     SYSTEM_PROMPT,
     "",
-    `Tone style: ${input.toneStyle}`,
-    `Week: ${input.weekLabel}`,
-    "Days (chronological):",
+    `TONE:\n${input.toneStyle}`,
+    "",
+    "[METADATA — for context only. Do NOT mention dates, day names, or calendar info in the narrative.]",
+    `Reference period: ${input.weekLabel}`,
+    "",
+    "CAPTURES BY DAY (chronological):",
     dayLines,
     "",
-    "Narrative arc: opening context → midweek shifts → current state → forward-looking hint.",
-    "Max 120 words, 2-3 paragraphs, prose only. No markdown or bullets.",
-    "Return JSON if possible: {\"narrative\":{\"text\":\"...\"},\"meta\":{\"type\":\"weekly\",\"entryCount\":<int>,\"weekRange\":\"...\",\"isWeekFinished\":<bool>}}",
-    "If JSON is not possible, return plain text insight.",
+    "Render the arc of this period as narrative. Do not summarize day by day.",
+    "Find the through-line: what pattern, shift, or emotional current connects these days.",
+    "Do not mention specific dates or day names in the narrative.",
+    "Use \\n\\n (double newlines) between paragraphs.",
+    "REMINDER: Do NOT open with calendar framing, 'this week', or any date reference.",
+    "",
+    "OUTPUT FORMAT — Return JSON: {\"narrative\":{\"text\":\"Paragraph one.\\n\\nParagraph two.\"},\"meta\":{\"type\":\"weekly\",\"entryCount\":" + input.captures.length + "}}",
+    "If JSON is not possible, return plain text.",
   ].join("\n");
 }
 
@@ -255,7 +340,7 @@ async function callGemini(prompt: string, requestId: string): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7 },
+        generationConfig: { temperature: 0.85 },
       }),
     },
   );
@@ -316,7 +401,7 @@ function extractText(raw: string, requestId: string): string {
 function sanitizeText(text: string): string {
   if (!text) return "";
   return text
-    .replace(/[\u0000-\u001F\u007F]/g, "")  // Control characters
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "")  // Control characters except \n (0x0A)
     .replace(/[\u2013\u2014]/g, ",")          // En dash / em dash → comma
     .replace(/---?/g, ",")                    // ASCII double/triple hyphens used as dashes → comma
     .trim();

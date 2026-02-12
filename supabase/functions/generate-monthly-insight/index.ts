@@ -400,7 +400,7 @@ function extractText(raw: string): string {
 function sanitizeText(text: string): string {
   if (!text) return "";
   return text
-    .replace(/[\u0000-\u001F\u007F]/g, "")  // Control characters
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "")  // Control characters except \n (0x0A)
     .replace(/[\u2013\u2014]/g, ",")          // En dash / em dash → comma
     .replace(/---?/g, ",")                    // ASCII double/triple hyphens used as dashes → comma
     .trim();
