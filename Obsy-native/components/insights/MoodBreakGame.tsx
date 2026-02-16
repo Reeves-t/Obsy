@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
-import { StyleSheet, View, Dimensions, LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, Dimensions, LayoutChangeEvent, TouchableOpacity } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -169,6 +169,10 @@ export const MoodBreakGame = memo(function MoodBreakGame({ captures, tone }: Moo
             });
     }, [captures]);
 
+    // Game key for replay support
+    const [gameKey, setGameKey] = useState(0);
+    const handleReplay = useCallback(() => setGameKey(k => k + 1), []);
+
     // Empty state
     if (weeklyMoods.length === 0) {
         return (
@@ -178,7 +182,7 @@ export const MoodBreakGame = memo(function MoodBreakGame({ captures, tone }: Moo
         );
     }
 
-    return <GameCanvas weeklyMoods={weeklyMoods} tone={tone} />;
+    return <GameCanvas key={gameKey} weeklyMoods={weeklyMoods} tone={tone} onReplay={handleReplay} />;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,9 +192,10 @@ export const MoodBreakGame = memo(function MoodBreakGame({ captures, tone }: Moo
 interface GameCanvasProps {
     weeklyMoods: WeeklyMoodStat[];
     tone: AiToneId;
+    onReplay: () => void;
 }
 
-function GameCanvas({ weeklyMoods, tone }: GameCanvasProps) {
+function GameCanvas({ weeklyMoods, tone, onReplay }: GameCanvasProps) {
     const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
 
     const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -206,6 +211,7 @@ function GameCanvas({ weeklyMoods, tone }: GameCanvasProps) {
                     height={containerSize.height}
                     weeklyMoods={weeklyMoods}
                     tone={tone}
+                    onReplay={onReplay}
                 />
             )}
         </View>
@@ -221,9 +227,10 @@ interface GameEngineProps {
     height: number;
     weeklyMoods: WeeklyMoodStat[];
     tone: AiToneId;
+    onReplay: () => void;
 }
 
-function GameEngine({ width, height, weeklyMoods, tone }: GameEngineProps) {
+function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEngineProps) {
     // ── Build bricks from mood data ──
     const initialBricks = useMemo(() => {
         const rows = weeklyMoods.slice(0, MAX_ROWS);
@@ -492,6 +499,13 @@ function GameEngine({ width, height, weeklyMoods, tone }: GameEngineProps) {
                 {allCleared && (
                     <View style={styles.clearedOverlay}>
                         <ThemedText style={styles.clearedText}>Weekly recap ready</ThemedText>
+                        <TouchableOpacity
+                            style={styles.replayButton}
+                            onPress={onReplay}
+                            activeOpacity={0.7}
+                        >
+                            <ThemedText style={styles.replayButtonText}>Play again</ThemedText>
+                        </TouchableOpacity>
                     </View>
                 )}
             </View>
@@ -581,5 +595,19 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 1,
         textTransform: 'uppercase',
+    },
+    replayButton: {
+        marginTop: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    replayButtonText: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.5)',
+        letterSpacing: 0.5,
     },
 });

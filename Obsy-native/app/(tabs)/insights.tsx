@@ -819,6 +819,11 @@ export default function InsightsScreen() {
                                 {/* WEEKLY MOOD - Mood breakdown / Mood Break game */}
                                 <SoftFadeDivider />
                                 <SectionHeader title={selectedTimeframe === 'week' ? "MOOD BREAK" : "MONTHLY MOOD"} />
+                                {selectedTimeframe === 'week' && (
+                                    <ThemedText style={{ fontSize: 13, color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.35)', marginBottom: 10, marginTop: -4 }}>
+                                        Your week in moods.
+                                    </ThemedText>
+                                )}
                                 {selectedTimeframe === 'week' ? (
                                     <MoodBreakGame captures={captures} tone={currentTone} />
                                 ) : (
