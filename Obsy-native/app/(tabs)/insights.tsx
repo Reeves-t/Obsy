@@ -33,6 +33,7 @@ import { getProfile, updateProfile } from '@/services/profile';
 import { archiveInsight } from '@/services/archive';
 import { ToneSelector } from '@/components/insights/ToneSelector';
 import { MoodChart } from '@/components/insights/MoodChart';
+import { MoodBreakGame } from '@/components/insights/MoodBreakGame';
 import { MoodFlow } from '@/components/insights/MoodFlow';
 import { ChronotypeDial } from '@/components/insights/ChronotypeDial';
 import { WeeklySummaryCard } from '@/components/insights/WeeklySummaryCard';
@@ -815,10 +816,14 @@ export default function InsightsScreen() {
                                     </View>
                                 </View>
 
-                                {/* WEEKLY MOOD - Mood breakdown chart */}
+                                {/* WEEKLY MOOD - Mood breakdown / Mood Break game */}
                                 <SoftFadeDivider />
-                                <SectionHeader title={selectedTimeframe === 'week' ? "WEEKLY MOOD" : "MONTHLY MOOD"} />
-                                <MoodChart captures={captures} timeframe={selectedTimeframe} />
+                                <SectionHeader title={selectedTimeframe === 'week' ? "MOOD BREAK" : "MONTHLY MOOD"} />
+                                {selectedTimeframe === 'week' ? (
+                                    <MoodBreakGame captures={captures} tone={currentTone} />
+                                ) : (
+                                    <MoodChart captures={captures} timeframe={selectedTimeframe} />
+                                )}
 
                                 {/* ROUTINES - Chronotype dial as hero artifact */}
                                 <SoftFadeDivider />
