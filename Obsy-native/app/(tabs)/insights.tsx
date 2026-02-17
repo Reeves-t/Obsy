@@ -825,7 +825,7 @@ export default function InsightsScreen() {
                                     </ThemedText>
                                 )}
                                 {selectedTimeframe === 'week' ? (
-                                    <MoodBreakGame captures={captures} tone={currentTone} />
+                                    <MoodBreakGame captures={captures} tone={currentTone} isLight={isLight} onRefresh={() => fetchCaptures(user)} />
                                 ) : (
                                     <MoodChart captures={captures} timeframe={selectedTimeframe} />
                                 )}

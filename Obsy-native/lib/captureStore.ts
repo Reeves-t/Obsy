@@ -187,7 +187,7 @@ export const useCaptureStore = create<CaptureState>()(
                         photo_path: data.image_path,
                         user_id: user.id,
                         captured_at: new Date().toISOString(),
-                        day_date: new Date().toISOString().split('T')[0],
+                        day_date: getLocalDayKey(),
                         tags: tags,
                         include_in_insights: includeInInsights,
                         ai_summary: data.obsy_note || null,

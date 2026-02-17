@@ -1,13 +1,10 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
-import { StyleSheet, View, Dimensions, LayoutChangeEvent, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, LayoutChangeEvent, TouchableOpacity } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
-    withTiming,
-    Easing,
-    runOnJS,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Capture } from '@/types/capture';
@@ -20,11 +17,11 @@ import { AiToneId } from '@/lib/aiTone';
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface WeeklyMoodStat {
+interface CaptureRow {
+    moodId: string;
     mood: string;
-    count: number;
-    percent: number;
     color: string;
+    totalForMood: number;
 }
 
 interface Brick {
@@ -37,13 +34,13 @@ interface Brick {
     mood: string;
     count: number;
     broken: boolean;
-    opacity: number;
-    scale: number;
 }
 
 interface MoodBreakGameProps {
     captures: Capture[];
     tone: AiToneId;
+    isLight: boolean;
+    onRefresh?: () => Promise<void>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -125,77 +122,159 @@ function pickRandom<T>(arr: T[]): T {
 const BALL_RADIUS = 5;
 const PADDLE_HEIGHT = 10;
 const PADDLE_WIDTH = 70;
-const BRICK_PADDING = 3;
-const BRICK_ROW_HEIGHT = 22;
-const MAX_ROWS = 8;
-const BALL_SPEED = 2.2; // Ambient, slow speed
-const FRAME_MS = 16; // ~60fps
+const BRICK_PADDING = 2;
+const BRICKS_PER_ROW = 10;
+const MAX_ROWS = 14;
+const BALL_SPEED = 2.2;
+const BRICK_ZONE_RATIO = 0.45; // Top 45% of container reserved for bricks
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build rows: one row per capture, grouped/sorted by mood
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildCaptureRows(captures: Capture[]): CaptureRow[] {
+    const now = new Date();
+    const cutoff = startOfWeek(now, { weekStartsOn: WEEK_STARTS_ON });
+    const filtered = captures.filter(c => c.mood_id && new Date(c.created_at) >= cutoff);
+
+    // Count totals per mood for insight text
+    const moodCounts: Record<string, number> = {};
+    filtered.forEach(c => {
+        moodCounts[c.mood_id!] = (moodCounts[c.mood_id!] || 0) + 1;
+    });
+
+    // Sort by mood_id so same moods group together as layers
+    const sorted = [...filtered].sort((a, b) => {
+        if (a.mood_id! < b.mood_id!) return -1;
+        if (a.mood_id! > b.mood_id!) return 1;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+
+    return sorted.slice(0, MAX_ROWS).map(c => {
+        const label = c.mood_name_snapshot || getMoodLabel(c.mood_id!);
+        return {
+            moodId: c.mood_id!,
+            mood: label,
+            color: resolveMoodColorById(c.mood_id!, label),
+            totalForMood: moodCounts[c.mood_id!] || 1,
+        };
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build bricks from rows
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildBricks(rows: CaptureRow[], containerWidth: number, containerHeight: number): Brick[] {
+    const bricks: Brick[] = [];
+    const topPadding = 8;
+    const sidePadding = 8;
+    const availableWidth = containerWidth - sidePadding * 2;
+
+    // Dynamically size rows to fit in the top portion of the container
+    const brickZoneHeight = containerHeight * BRICK_ZONE_RATIO;
+    const totalVerticalPadding = (rows.length - 1) * BRICK_PADDING;
+    const brickH = Math.max(8, Math.floor((brickZoneHeight - topPadding - totalVerticalPadding) / rows.length));
+
+    rows.forEach((row, rowIdx) => {
+        const totalHPadding = (BRICKS_PER_ROW - 1) * BRICK_PADDING;
+        const brickW = (availableWidth - totalHPadding) / BRICKS_PER_ROW;
+
+        for (let col = 0; col < BRICKS_PER_ROW; col++) {
+            bricks.push({
+                id: `${row.moodId}-${rowIdx}-${col}`,
+                x: sidePadding + col * (brickW + BRICK_PADDING),
+                y: topPadding + rowIdx * (brickH + BRICK_PADDING),
+                width: brickW,
+                height: brickH,
+                color: row.color,
+                mood: row.mood,
+                count: row.totalForMood,
+                broken: false,
+            });
+        }
+    });
+
+    return bricks;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const MoodBreakGame = memo(function MoodBreakGame({ captures, tone }: MoodBreakGameProps) {
-    // Compute weekly mood stats from captures (same logic as MoodChart)
-    const weeklyMoods = useMemo<WeeklyMoodStat[]>(() => {
-        const now = new Date();
-        const cutoff = startOfWeek(now, { weekStartsOn: WEEK_STARTS_ON });
-        const filtered = captures.filter(c => new Date(c.created_at) >= cutoff);
+export const MoodBreakGame = memo(function MoodBreakGame({ captures, tone, isLight, onRefresh }: MoodBreakGameProps) {
+    const rows = useMemo(() => buildCaptureRows(captures), [captures]);
 
-        const moodCounts: Record<string, number> = {};
-        const moodSnapshots: Record<string, string> = {};
-        let total = 0;
-
-        filtered.forEach(c => {
-            if (c.mood_id) {
-                moodCounts[c.mood_id] = (moodCounts[c.mood_id] || 0) + 1;
-                if (c.mood_name_snapshot) {
-                    moodSnapshots[c.mood_id] = c.mood_name_snapshot;
-                }
-                total++;
-            }
-        });
-
-        return Object.entries(moodCounts)
-            .sort(([, a], [, b]) => b - a)
-            .map(([moodId, count]) => {
-                const label = moodSnapshots[moodId] || getMoodLabel(moodId);
-                return {
-                    mood: label,
-                    count,
-                    percent: total > 0 ? Math.round((count / total) * 100) : 0,
-                    color: resolveMoodColorById(moodId, label),
-                };
-            });
-    }, [captures]);
-
-    // Game key for replay support
+    // Track captures count to detect new captures and reset to Start
+    const capturesCountRef = useRef(captures.length);
     const [gameKey, setGameKey] = useState(0);
-    const handleReplay = useCallback(() => setGameKey(k => k + 1), []);
+    const [gamePhase, setGamePhase] = useState<'idle' | 'loading' | 'playing' | 'cleared'>('idle');
 
-    // Empty state
-    if (weeklyMoods.length === 0) {
+    // When captures change (new mood captured), reset game to idle with fresh bricks
+    useEffect(() => {
+        if (captures.length !== capturesCountRef.current) {
+            capturesCountRef.current = captures.length;
+            setGameKey(k => k + 1);
+            setGamePhase('idle');
+        }
+    }, [captures.length]);
+
+    const handleStart = useCallback(async () => {
+        setGamePhase('loading');
+        try {
+            if (onRefresh) await onRefresh();
+        } catch { /* proceed even if refresh fails */ }
+        setGamePhase('playing');
+    }, [onRefresh]);
+
+    const handleReplay = useCallback(() => {
+        setGameKey(k => k + 1);
+        setGamePhase('idle');
+    }, []);
+
+    const handleCleared = useCallback(() => {
+        setGamePhase('cleared');
+    }, []);
+
+    if (rows.length === 0) {
         return (
             <View style={styles.emptyContainer}>
-                <ThemedText style={styles.emptyText}>No captures yet this week.</ThemedText>
+                <ThemedText style={[styles.emptyText, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>
+                    No captures yet this week.
+                </ThemedText>
             </View>
         );
     }
 
-    return <GameCanvas key={gameKey} weeklyMoods={weeklyMoods} tone={tone} onReplay={handleReplay} />;
+    return (
+        <GameCanvas
+            key={gameKey}
+            rows={rows}
+            tone={tone}
+            isLight={isLight}
+            gamePhase={gamePhase}
+            onStart={handleStart}
+            onReplay={handleReplay}
+            onCleared={handleCleared}
+        />
+    );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Game Canvas (internal, manages layout + game loop)
+// Game Canvas
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface GameCanvasProps {
-    weeklyMoods: WeeklyMoodStat[];
+    rows: CaptureRow[];
     tone: AiToneId;
+    isLight: boolean;
+    gamePhase: 'idle' | 'loading' | 'playing' | 'cleared';
+    onStart: () => void;
     onReplay: () => void;
+    onCleared: () => void;
 }
 
-function GameCanvas({ weeklyMoods, tone, onReplay }: GameCanvasProps) {
+function GameCanvas({ rows, tone, isLight, gamePhase, onStart, onReplay, onCleared }: GameCanvasProps) {
     const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
 
     const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -204,17 +283,24 @@ function GameCanvas({ weeklyMoods, tone, onReplay }: GameCanvasProps) {
     }, []);
 
     return (
-        <View style={styles.gameContainer} onLayout={onLayout}>
+        <GestureHandlerRootView style={[styles.gameContainer, {
+            backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)',
+            borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
+        }]} onLayout={onLayout}>
             {containerSize && (
                 <GameEngine
                     width={containerSize.width}
                     height={containerSize.height}
-                    weeklyMoods={weeklyMoods}
+                    rows={rows}
                     tone={tone}
+                    isLight={isLight}
+                    gamePhase={gamePhase}
+                    onStart={onStart}
                     onReplay={onReplay}
+                    onCleared={onCleared}
                 />
             )}
-        </View>
+        </GestureHandlerRootView>
     );
 }
 
@@ -225,132 +311,99 @@ function GameCanvas({ weeklyMoods, tone, onReplay }: GameCanvasProps) {
 interface GameEngineProps {
     width: number;
     height: number;
-    weeklyMoods: WeeklyMoodStat[];
+    rows: CaptureRow[];
     tone: AiToneId;
+    isLight: boolean;
+    gamePhase: 'idle' | 'loading' | 'playing' | 'cleared';
+    onStart: () => void;
     onReplay: () => void;
+    onCleared: () => void;
 }
 
-function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEngineProps) {
-    // ── Build bricks from mood data ──
-    const initialBricks = useMemo(() => {
-        const rows = weeklyMoods.slice(0, MAX_ROWS);
-        const maxCount = Math.max(...rows.map(r => r.count), 1);
-        // Scale brick width to fit the widest row
-        const brickH = BRICK_ROW_HEIGHT;
-        const bricks: Brick[] = [];
-        const topPadding = 8;
+function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, onReplay, onCleared }: GameEngineProps) {
+    const initialBricks = useMemo(() => buildBricks(rows, width, height), [rows, width, height]);
 
-        rows.forEach((moodStat, rowIdx) => {
-            const numBricks = Math.max(1, moodStat.count);
-            const totalPadding = (numBricks - 1) * BRICK_PADDING;
-            const brickW = Math.min(
-                (width - totalPadding - 16) / numBricks,
-                (width - 16) / Math.max(maxCount, 1)
-            );
-            const rowWidth = numBricks * brickW + totalPadding;
-            const startX = (width - rowWidth) / 2;
-
-            for (let col = 0; col < numBricks; col++) {
-                bricks.push({
-                    id: `${moodStat.mood}-${rowIdx}-${col}`,
-                    x: startX + col * (brickW + BRICK_PADDING),
-                    y: topPadding + rowIdx * (brickH + BRICK_PADDING),
-                    width: brickW,
-                    height: brickH,
-                    color: moodStat.color,
-                    mood: moodStat.mood,
-                    count: moodStat.count,
-                    broken: false,
-                    opacity: 1,
-                    scale: 1,
-                });
-            }
-        });
-
-        return bricks;
-    }, [weeklyMoods, width]);
-
-    // ── State ──
     const [bricks, setBricks] = useState<Brick[]>(initialBricks);
     const [microInsight, setMicroInsight] = useState<string | null>(null);
-    const [allCleared, setAllCleared] = useState(false);
     const insightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Physics state in refs (avoid re-renders per frame)
+    // Physics refs
     const ballPos = useRef({ x: width / 2, y: height - 50 });
     const ballVel = useRef({ x: BALL_SPEED * 0.7, y: -BALL_SPEED });
     const paddleXRef = useRef(width / 2 - PADDLE_WIDTH / 2);
     const bricksRef = useRef<Brick[]>(initialBricks);
-    const gameActive = useRef(true);
+    const gameActiveRef = useRef(false);
 
-    // Animated values for rendering
+    // Animated values
     const ballX = useSharedValue(width / 2);
     const ballY = useSharedValue(height - 50);
     const paddleX = useSharedValue(width / 2 - PADDLE_WIDTH / 2);
 
-    // Sync bricksRef with state
+    // Sync bricks when rows change
     useEffect(() => {
-        bricksRef.current = initialBricks;
-        setBricks(initialBricks);
-        gameActive.current = true;
-        setAllCleared(false);
+        const newBricks = buildBricks(rows, width, height);
+        bricksRef.current = newBricks;
+        setBricks(newBricks);
         ballPos.current = { x: width / 2, y: height - 50 };
         ballVel.current = { x: BALL_SPEED * 0.7, y: -BALL_SPEED };
         ballX.value = width / 2;
         ballY.value = height - 50;
-    }, [initialBricks]);
+        paddleXRef.current = width / 2 - PADDLE_WIDTH / 2;
+        paddleX.value = width / 2 - PADDLE_WIDTH / 2;
+    }, [rows, width]);
 
-    // ── Paddle gesture ──
+    // Start/stop game loop based on phase
+    useEffect(() => {
+        gameActiveRef.current = gamePhase === 'playing';
+    }, [gamePhase]);
+
+    // Paddle gesture
     const paddleGesture = Gesture.Pan()
         .onUpdate((e) => {
+            if (!gameActiveRef.current) return;
             const newX = Math.max(0, Math.min(width - PADDLE_WIDTH, e.absoluteX - PADDLE_WIDTH / 2));
             paddleX.value = newX;
             paddleXRef.current = newX;
         });
 
-    // ── Brick hit handler (called from game loop via runOnJS) ──
+    // Brick hit handler
     const onBrickHit = useCallback((brickId: string) => {
         const brick = bricksRef.current.find(b => b.id === brickId);
         if (!brick || brick.broken) return;
 
-        // Mark broken in ref
         brick.broken = true;
-
-        // Haptic feedback
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-        // Update rendered bricks
         setBricks(prev => prev.map(b =>
-            b.id === brickId ? { ...b, broken: true, opacity: 0, scale: 0.3 } : b
+            b.id === brickId ? { ...b, broken: true } : b
         ));
 
-        // Show micro insight
         const insight = generateMicroInsight(brick.mood, brick.count, tone);
         setMicroInsight(insight);
         if (insightTimer.current) clearTimeout(insightTimer.current);
         insightTimer.current = setTimeout(() => setMicroInsight(null), 1500);
 
-        // Check if all cleared
         const remaining = bricksRef.current.filter(b => !b.broken).length;
         if (remaining === 0) {
-            gameActive.current = false;
-            setAllCleared(true);
+            gameActiveRef.current = false;
+            onCleared();
         }
-    }, [tone]);
+    }, [tone, onCleared]);
 
-    // ── Game loop ──
+    // Game loop — only runs when gamePhase is 'playing'
     useEffect(() => {
+        if (gamePhase !== 'playing') return;
+
         let frameId: number;
 
         const tick = () => {
-            if (!gameActive.current) return;
+            if (!gameActiveRef.current) return;
 
             const ball = ballPos.current;
             const vel = ballVel.current;
             const pX = paddleXRef.current;
             const paddleY = height - PADDLE_HEIGHT - 16;
 
-            // Move ball
             ball.x += vel.x;
             ball.y += vel.y;
 
@@ -368,7 +421,7 @@ function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEnginePr
                 vel.y = Math.abs(vel.y);
             }
 
-            // Bottom wall (ball resets instead of game over — ambient, forgiving)
+            // Bottom — forgiving reset
             if (ball.y + BALL_RADIUS >= height) {
                 ball.y = height - 50;
                 ball.x = width / 2;
@@ -385,8 +438,7 @@ function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEnginePr
                 vel.y > 0
             ) {
                 vel.y = -Math.abs(vel.y);
-                // Adjust x velocity based on hit position
-                const hitPos = (ball.x - pX) / PADDLE_WIDTH; // 0..1
+                const hitPos = (ball.x - pX) / PADDLE_WIDTH;
                 vel.x = BALL_SPEED * (hitPos - 0.5) * 2;
                 ball.y = paddleY - BALL_RADIUS;
             }
@@ -401,12 +453,10 @@ function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEnginePr
                     ball.y + BALL_RADIUS > brick.y &&
                     ball.y - BALL_RADIUS < brick.y + brick.height
                 ) {
-                    // Determine which side was hit
                     const overlapLeft = (ball.x + BALL_RADIUS) - brick.x;
                     const overlapRight = (brick.x + brick.width) - (ball.x - BALL_RADIUS);
                     const overlapTop = (ball.y + BALL_RADIUS) - brick.y;
                     const overlapBottom = (brick.y + brick.height) - (ball.y - BALL_RADIUS);
-
                     const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
 
                     if (minOverlap === overlapTop || minOverlap === overlapBottom) {
@@ -415,17 +465,22 @@ function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEnginePr
                         vel.x = -vel.x;
                     }
 
-                    runOnJS(onBrickHit)(brick.id);
-                    break; // One collision per frame
+                    onBrickHit(brick.id);
+                    break;
                 }
             }
 
-            // Update animated values
             ballX.value = ball.x;
             ballY.value = ball.y;
 
             frameId = requestAnimationFrame(tick);
         };
+
+        // Reset ball position at game start
+        ballPos.current = { x: width / 2, y: height - 50 };
+        ballVel.current = { x: BALL_SPEED * 0.7, y: -BALL_SPEED };
+        ballX.value = width / 2;
+        ballY.value = height - 50;
 
         frameId = requestAnimationFrame(tick);
 
@@ -433,9 +488,9 @@ function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEnginePr
             cancelAnimationFrame(frameId);
             if (insightTimer.current) clearTimeout(insightTimer.current);
         };
-    }, [width, height, onBrickHit]);
+    }, [gamePhase, width, height, onBrickHit]);
 
-    // ── Animated styles ──
+    // Animated styles
     const ballStyle = useAnimatedStyle(() => ({
         transform: [
             { translateX: ballX.value - BALL_RADIUS },
@@ -447,12 +502,25 @@ function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEnginePr
         transform: [{ translateX: paddleX.value }],
     }));
 
+    // Theme-aware colors
+    const ballColor = isLight ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)';
+    const ballShadow = isLight ? '#000' : '#fff';
+    const paddleBg = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)';
+    const paddleBorder = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)';
+    const brickBorder = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)';
+    const overlayTextColor = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)';
+    const subtleTextColor = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)';
+    const buttonBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)';
+    const buttonBorder = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)';
+
+    const isPlaying = gamePhase === 'playing';
+
     return (
         <GestureDetector gesture={paddleGesture}>
             <View style={[styles.canvas, { width, height }]}>
-                {/* Bricks */}
+                {/* Bricks — always visible */}
                 {bricks.map(brick => (
-                    <Animated.View
+                    <View
                         key={brick.id}
                         style={[
                             styles.brick,
@@ -465,46 +533,74 @@ function GameEngine({ width, height, weeklyMoods, tone, onReplay }: GameEnginePr
                                 opacity: brick.broken ? 0 : 0.85,
                                 transform: [{ scale: brick.broken ? 0.3 : 1 }],
                                 shadowColor: brick.color,
+                                borderColor: brickBorder,
                             },
                         ]}
                     />
                 ))}
 
-                {/* Ball */}
-                {!allCleared && (
-                    <Animated.View style={[styles.ball, ballStyle]} />
+                {/* Ball — only when playing */}
+                {isPlaying && (
+                    <Animated.View style={[styles.ball, {
+                        backgroundColor: ballColor,
+                        shadowColor: ballShadow,
+                    }, ballStyle]} />
                 )}
 
-                {/* Paddle */}
-                {!allCleared && (
+                {/* Paddle — only when playing */}
+                {isPlaying && (
                     <Animated.View
                         style={[
                             styles.paddle,
-                            { top: height - PADDLE_HEIGHT - 16 },
+                            {
+                                top: height - PADDLE_HEIGHT - 16,
+                                backgroundColor: paddleBg,
+                                borderColor: paddleBorder,
+                            },
                             paddleStyle,
                         ]}
                     />
                 )}
 
-                {/* Micro insight overlay */}
-                {microInsight && (
+                {/* Micro insight overlay — during play */}
+                {microInsight && isPlaying && (
                     <View style={[styles.insightOverlay, { top: height - 48 }]}>
-                        <ThemedText style={styles.insightText} numberOfLines={2}>
+                        <ThemedText style={[styles.insightText, { color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)' }]} numberOfLines={2}>
                             {microInsight}
                         </ThemedText>
                     </View>
                 )}
 
-                {/* All cleared state */}
-                {allCleared && (
-                    <View style={styles.clearedOverlay}>
-                        <ThemedText style={styles.clearedText}>Weekly recap ready</ThemedText>
+                {/* IDLE — Start overlay */}
+                {(gamePhase === 'idle' || gamePhase === 'loading') && (
+                    <View style={styles.overlayCenter}>
                         <TouchableOpacity
-                            style={styles.replayButton}
+                            style={[styles.startButton, { borderColor: buttonBorder, backgroundColor: buttonBg }]}
+                            onPress={onStart}
+                            activeOpacity={0.7}
+                            disabled={gamePhase === 'loading'}
+                        >
+                            <ThemedText style={[styles.startButtonText, { color: overlayTextColor }]}>
+                                {gamePhase === 'loading' ? 'Loading...' : 'Start'}
+                            </ThemedText>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* CLEARED — All bricks broken */}
+                {gamePhase === 'cleared' && (
+                    <View style={styles.overlayCenter}>
+                        <ThemedText style={[styles.clearedText, { color: overlayTextColor }]}>
+                            Week cleared
+                        </ThemedText>
+                        <TouchableOpacity
+                            style={[styles.replayButton, { borderColor: buttonBorder, backgroundColor: buttonBg }]}
                             onPress={onReplay}
                             activeOpacity={0.7}
                         >
-                            <ThemedText style={styles.replayButtonText}>Play again</ThemedText>
+                            <ThemedText style={[styles.replayButtonText, { color: subtleTextColor }]}>
+                                Play again
+                            </ThemedText>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -524,7 +620,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     emptyText: {
-        color: 'rgba(255,255,255,0.4)',
         fontSize: 14,
         fontStyle: 'italic',
     },
@@ -533,18 +628,15 @@ const styles = StyleSheet.create({
         height: 300,
         borderRadius: 16,
         overflow: 'hidden',
-        backgroundColor: 'rgba(255,255,255,0.03)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
     },
     canvas: {
         position: 'relative',
     },
     brick: {
         position: 'absolute',
-        borderRadius: 6,
+        borderRadius: 4,
         borderWidth: 0.5,
-        borderColor: 'rgba(255,255,255,0.1)',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.4,
         shadowRadius: 6,
@@ -555,8 +647,6 @@ const styles = StyleSheet.create({
         width: BALL_RADIUS * 2,
         height: BALL_RADIUS * 2,
         borderRadius: BALL_RADIUS,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        shadowColor: '#fff',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.6,
         shadowRadius: 8,
@@ -567,9 +657,7 @@ const styles = StyleSheet.create({
         width: PADDLE_WIDTH,
         height: PADDLE_HEIGHT,
         borderRadius: PADDLE_HEIGHT / 2,
-        backgroundColor: 'rgba(255,255,255,0.25)',
         borderWidth: 0.5,
-        borderColor: 'rgba(255,255,255,0.15)',
     },
     insightOverlay: {
         position: 'absolute',
@@ -579,19 +667,29 @@ const styles = StyleSheet.create({
     },
     insightText: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.6)',
         textAlign: 'center',
         fontStyle: 'italic',
         letterSpacing: 0.3,
     },
-    clearedOverlay: {
+    overlayCenter: {
         ...StyleSheet.absoluteFillObject,
         alignItems: 'center',
         justifyContent: 'center',
     },
+    startButton: {
+        paddingHorizontal: 32,
+        paddingVertical: 12,
+        borderRadius: 24,
+        borderWidth: 1,
+    },
+    startButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
     clearedText: {
         fontSize: 15,
-        color: 'rgba(255,255,255,0.55)',
         fontWeight: '600',
         letterSpacing: 1,
         textTransform: 'uppercase',
@@ -602,12 +700,9 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-        backgroundColor: 'rgba(255,255,255,0.06)',
     },
     replayButtonText: {
         fontSize: 13,
-        color: 'rgba(255,255,255,0.5)',
         letterSpacing: 0.5,
     },
 });
