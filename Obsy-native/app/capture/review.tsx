@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Image, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { StyleSheet, View, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -11,7 +11,9 @@ import { useCaptureStore } from '@/lib/captureStore';
 import { useDailyChallenges } from '@/lib/challengeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { BlurView } from 'expo-blur';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 import { TagInput } from '@/components/capture/TagInput';
+import { LinedJournalInput } from '@/components/capture/LinedJournalInput';
 import { generateCaptureInsightSecure, CaptureData } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +25,7 @@ import { useCustomMoodStore } from '@/lib/customMoodStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { optimizeCapture, formatBytes } from '@/services/imageOptimizer';
 import { useSubscription } from '@/hooks/useSubscription';
+import { getMoodColor } from '@/lib/moodColors';
 
 export default function CaptureReviewScreen() {
     const { imageUri, challengeId, challengeTemplateId, challengeTitle, albumId: initialAlbumId,
@@ -34,11 +37,12 @@ export default function CaptureReviewScreen() {
         albumId?: string,
     }>();
     const router = useRouter();
-    const { createCapture, getAllTags, lastUsedAlbumId, setLastUsedAlbumId } = useCaptureStore();
+    const { createCapture, getAllTags, lastUsedAlbumId, setLastUsedAlbumId, setPendingSaveAnimationUri, setPendingSaveMoodColor, setPendingSaveComplete } = useCaptureStore();
     const { user } = useAuth();
     const { tier } = useSubscription();
     const { completeChallenge: markChallengeComplete } = useDailyChallenges(user?.id ?? null);
     const { setHasSharedPublicImage } = useMockAlbums();
+    const { isDark, colors } = useObsyTheme();
 
     const [moodId, setMoodId] = useState<string | null>(null);
     const [note, setNote] = useState('');
@@ -91,6 +95,7 @@ export default function CaptureReviewScreen() {
         }
     }, [user]);
 
+
     if (!imageUri) {
         router.back();
         return null;
@@ -110,16 +115,35 @@ export default function CaptureReviewScreen() {
         if (!moodId) return;
 
         setIsSaving(true);
+
+        // Capture all values from component scope before navigating away
+        const saveMoodId = moodId;
+        const saveNote = note;
+        const saveTags = tags;
+        const saveDestinations = postDestinations;
+        const saveUsePhotoForInsight = usePhotoForInsight;
+        const saveTier = tier;
+        const saveUser = user;
+        const saveChallengeId = challengeId;
+        const saveChallengeTemplateId = challengeTemplateId;
+
+        // Set animation state and navigate to home IMMEDIATELY
+        setPendingSaveAnimationUri(imageUri);
+        setPendingSaveMoodColor(getMoodColor(saveMoodId));
+        setPendingSaveComplete(false);
+
+        router.dismissAll();
+        setTimeout(() => {
+            router.replace('/(tabs)');
+        }, 100);
+
+        // ── Background save (continues after component unmounts) ────────
+        // All store updates use Zustand (global), so they work after unmount.
         try {
-            // 0. Optimize image for storage efficiency (BeReal-style tiered storage)
-            // Creates: thumbnail (~10KB), preview (~80KB), full-res (~200KB)
-            // Saves ~90% storage vs raw camera output
+            // 0. Optimize image for storage efficiency
             console.log('[Review] Optimizing image for storage...');
             const optimized = await optimizeCapture(imageUri);
-            console.log('[Review] Image optimized:');
-            console.log('  - Thumbnail:', optimized.thumbnail);
-            console.log('  - Preview:', optimized.preview);
-            console.log('  - Full-res (for cloud):', optimized.fullRes);
+            console.log('[Review] Image optimized');
 
             // Check if user wants Obsy Notes
             const profile = await getProfile();
@@ -127,18 +151,16 @@ export default function CaptureReviewScreen() {
 
             if (profile?.ai_per_photo_captions) {
                 try {
-                    const moodLabel = MOODS.find(m => m.id === moodId)?.label || "neutral";
+                    const moodLabel = MOODS.find(m => m.id === saveMoodId)?.label || "neutral";
 
-                    // Build CaptureData for secure AI call
                     const captureData: CaptureData = {
                         mood: moodLabel,
-                        note: note || undefined,
+                        note: saveNote || undefined,
                         capturedAt: new Date().toISOString(),
-                        tags: tags,
+                        tags: saveTags,
                         timeBucket: undefined,
                     };
 
-                    // Call secure edge function with user's tone settings
                     obsyNote = await generateCaptureInsightSecure(
                         captureData,
                         profile.ai_tone || 'friendly',
@@ -146,98 +168,66 @@ export default function CaptureReviewScreen() {
                     );
                 } catch (aiError: any) {
                     console.error('[Review] Obsy Note generation failed:', aiError);
-
-                    // Check for rate limit error
-                    if (aiError.message?.includes('Rate limit')) {
-                        alert('AI caption limit reached for today. Your capture will be saved without an Obsy Note.');
-                    }
-                    // Don't block save - continue without Obsy Note
                     obsyNote = null;
                 }
             }
 
-            // 1. Create the Master Capture (using preview for local display)
-            // Get the mood name for the snapshot - required for historical preservation
-            const moodName = getMoodById(moodId)?.name || MOODS.find(m => m.id === moodId)?.label || moodId;
+            // 1. Create the Master Capture
+            const moodName = getMoodById(saveMoodId)?.name || MOODS.find(m => m.id === saveMoodId)?.label || saveMoodId;
 
             const newCaptureId = await createCapture(
-                optimized.preview, // Use optimized preview instead of raw image
-                moodId,
+                optimized.preview,
+                saveMoodId,
                 moodName,
-                note,
-                tags,
-                challengeId && challengeTemplateId ? { challengeId, templateId: challengeTemplateId } : undefined,
+                saveNote,
+                saveTags,
+                saveChallengeId && saveChallengeTemplateId ? { challengeId: saveChallengeId, templateId: saveChallengeTemplateId } : undefined,
                 obsyNote,
-                usePhotoForInsight,
-                tier
+                saveUsePhotoForInsight,
+                saveTier
             );
 
-            if (challengeId && newCaptureId) {
-                await markChallengeComplete(user?.id ?? null, challengeId, newCaptureId);
+            if (saveChallengeId && newCaptureId) {
+                await markChallengeComplete(saveUser?.id ?? null, saveChallengeId, newCaptureId);
             }
 
             // 2. Link to Albums
             if (newCaptureId) {
-                // Filter out 'private' and 'public' (mock album, not in database)
-                const albumIds = postDestinations.filter(id => id !== 'private' && id !== 'public');
+                const albumIds = saveDestinations.filter(id => id !== 'private' && id !== 'public');
                 console.log('[Review] Albums to link:', albumIds, 'Entry ID:', newCaptureId);
 
                 if (albumIds.length > 0) {
-                    // CRITICAL: Upload the optimized full-res image to cloud for sharing
-                    // This is smaller than raw (~200KB vs 2-5MB) but still high quality
                     let cloudUploadSucceeded = false;
 
-                    if (user) {
+                    if (saveUser) {
                         console.log('[Review] Album selected, uploading optimized full-res for sharing...');
-                        console.log('[Review] User ID:', user.id);
-                        console.log('[Review] Album IDs to link:', albumIds);
-                        console.log('[Review] Using optimized full-res:', optimized.fullRes);
 
-                        // Use the optimized full-res image directly (already exists, no need to fetch from DB)
                         const localFilePath = optimized.fullRes;
-
-                        // Verify optimized full-res exists
                         const fileInfo = await FileSystem.getInfoAsync(localFilePath);
-                        console.log('[Review] Optimized full-res check:', {
-                            exists: fileInfo.exists,
-                            size: fileInfo.exists && 'size' in fileInfo ? formatBytes(fileInfo.size) : 0,
-                            path: localFilePath
-                        });
 
                         if (!fileInfo.exists) {
                             console.error('[Review] Optimized full-res file does not exist, cannot upload');
                         } else {
-                            console.log('[Review] Uploading optimized full-res to cloud...');
-
-                            // Try upload with one retry
-                            let remotePath = await uploadCaptureImage(localFilePath, user.id);
+                            let remotePath = await uploadCaptureImage(localFilePath, saveUser.id);
 
                             if (!remotePath) {
-                                console.warn('[Review] First upload attempt failed, retrying in 1 second...');
+                                console.warn('[Review] First upload attempt failed, retrying...');
                                 await new Promise(resolve => setTimeout(resolve, 1000));
-                                remotePath = await uploadCaptureImage(localFilePath, user.id);
+                                remotePath = await uploadCaptureImage(localFilePath, saveUser.id);
                             }
 
                             if (remotePath) {
-                                console.log('[Review] Upload successful. Remote path:', remotePath);
-
-                                // Update the entry in DB with the remote path
                                 const { error: updateError } = await supabase
                                     .from('entries')
                                     .update({ photo_path: remotePath })
                                     .eq('id', newCaptureId);
 
-                                if (updateError) {
-                                    console.error('[Review] Error updating photo_path after upload:', updateError);
-                                } else {
-                                    console.log('[Review] Entry updated with remote photo_path:', remotePath);
+                                if (!updateError) {
                                     cloudUploadSucceeded = true;
                                 }
 
-                                // Clean up local full-res after successful upload (keep preview + thumbnail)
                                 try {
                                     await FileSystem.deleteAsync(localFilePath, { idempotent: true });
-                                    console.log('[Review] Deleted local full-res after cloud upload (saves space)');
                                 } catch (cleanupError) {
                                     console.warn('[Review] Could not delete local full-res:', cleanupError);
                                 }
@@ -247,123 +237,58 @@ export default function CaptureReviewScreen() {
                         }
                     }
 
-                    // Only proceed with album linking if cloud upload succeeded
-                    // This ensures album bubbles will render correctly with cloud photos
-                    if (!cloudUploadSucceeded) {
-                        console.warn('[Review] Cloud upload failed - skipping album insertion to prevent empty bubbles');
-                        alert('Entry saved to your journal, but could not upload photo for album sharing. Please try sharing again later.');
-                        // Skip album insertion - entry is saved locally but won't appear in albums
-                    } else {
-                        // Validate user membership in each album before attempting insert
-                    const { data: membershipData, error: membershipError } = await supabase
-                        .from('album_members')
-                        .select('album_id')
-                        .eq('user_id', user?.id)
-                        .in('album_id', albumIds);
+                    if (cloudUploadSucceeded) {
+                        const { data: membershipData } = await supabase
+                            .from('album_members')
+                            .select('album_id')
+                            .eq('user_id', saveUser?.id)
+                            .in('album_id', albumIds);
 
-                    console.log('[Review] Membership check:', { membershipData, membershipError });
+                        const validAlbumIds = membershipData?.map(m => m.album_id) || [];
 
-                    if (membershipError) {
-                        console.error('Error validating album membership:', membershipError);
-                    }
+                        if (validAlbumIds.length > 0) {
+                            const albumEntries = validAlbumIds.map(albumId => ({
+                                album_id: albumId,
+                                entry_id: newCaptureId
+                            }));
 
-                    // Filter to only albums where user is confirmed member
-                    const validAlbumIds = membershipData?.map(m => m.album_id) || [];
-                    const invalidAlbumIds = albumIds.filter(id => !validAlbumIds.includes(id));
+                            try {
+                                const { error: albumError } = await supabase
+                                    .from('album_entries')
+                                    .insert(albumEntries)
+                                    .select();
 
-                    console.log('[Review] Valid albums:', validAlbumIds, 'Invalid:', invalidAlbumIds);
-
-                    if (invalidAlbumIds.length > 0) {
-                        console.warn('User is not a member of some selected albums:', invalidAlbumIds);
-                    }
-
-                    // Only insert into albums where user is a member
-                    if (validAlbumIds.length > 0) {
-                        const albumEntries = validAlbumIds.map(albumId => ({
-                            album_id: albumId,
-                            entry_id: newCaptureId
-                        }));
-
-                        console.log('[Review] Inserting album_entries:', albumEntries);
-
-                        try {
-                            const { data: insertedData, error: albumError } = await supabase
-                                .from('album_entries')
-                                .insert(albumEntries)
-                                .select();
-
-                            console.log('[Review] album_entries insert result:', { insertedData, albumError });
-
-                            // Verify album_entries were actually inserted
-                            const { data: verifyAlbumEntries, error: verifyAlbumError } = await supabase
-                                .from('album_entries')
-                                .select('id, album_id, entry_id')
-                                .eq('entry_id', newCaptureId);
-
-                            console.log('[Review] Album entries verification:', {
-                                entryId: newCaptureId,
-                                expectedAlbums: validAlbumIds,
-                                insertedCount: verifyAlbumEntries?.length,
-                                insertedData: verifyAlbumEntries,
-                                verifyError: verifyAlbumError
-                            });
-
-                            if (albumError) {
-                                console.error('Error linking to albums:', albumError, {
-                                    albumIds: validAlbumIds,
-                                    entryId: newCaptureId
-                                });
-
-                                // Don't fail the entire save - entry was saved to private journal
-                                // Just inform user about album linking issue
-                                if (validAlbumIds.length === albumIds.length) {
-                                    // All albums failed
-                                    alert('Entry saved, but could not link to selected albums. Please try again.');
+                                if (!albumError) {
+                                    setLastUsedAlbumId(validAlbumIds[validAlbumIds.length - 1]);
                                 } else {
-                                    // Some albums might have succeeded before error
-                                    alert('Entry saved, but some albums could not be linked.');
+                                    console.error('Error linking to albums:', albumError);
                                 }
-                            } else {
-                                console.log('[Review] Successfully linked to albums:', validAlbumIds);
-                                // Success - update last used album
-                                setLastUsedAlbumId(validAlbumIds[validAlbumIds.length - 1]);
+                            } catch (insertError) {
+                                console.error('Unexpected error linking to albums:', insertError);
                             }
-                        } catch (insertError) {
-                            console.error('Unexpected error linking to albums:', insertError);
-                            alert('Entry saved to your journal, but album linking failed.');
+                        } else {
+                            setLastUsedAlbumId(null);
                         }
                     } else {
-                        // No valid albums to link to
-                        console.warn('No valid albums to link entry to - user not a member of any selected albums');
-                        setLastUsedAlbumId(null);
+                        console.warn('[Review] Cloud upload failed - skipping album linking');
                     }
-                    } // End of cloudUploadSucceeded else block
                 } else {
-                    // Only private selected
-                    console.log('[Review] Only private journal selected, no album linking needed');
                     setLastUsedAlbumId(null);
                 }
             }
 
-            router.dismissAll();
-            // Small delay to allow modal to close before switching tabs if needed
-            setTimeout(() => {
-                const hasSharedToAlbum = postDestinations.some(id => id !== 'private');
+            // Track album sharing for onboarding
+            const hasSharedToAlbum = saveDestinations.some(id => id !== 'private');
+            if (hasSharedToAlbum) {
+                setHasSharedPublicImage(true);
+            }
 
-                // If we posted to at least one album, go to albums tab
-                // and mark that the user has now shared a public image (to dismiss onboarding)
-                if (hasSharedToAlbum) {
-                    setHasSharedPublicImage(true);
-                    router.replace('/albums');  // Use replace to avoid stacking screens
-                } else {
-                    router.replace('/(tabs)');  // Use replace to avoid stacking screens
-                }
-            }, 100);
+            console.log('[Review] Background save complete');
+            setPendingSaveComplete(true);
         } catch (error) {
-            console.error('Failed to save capture:', error);
-            alert('Failed to save capture. Please try again.');
-        } finally {
-            setIsSaving(false);
+            console.error('[Review] Background save failed:', error);
+            // Clear animation on error — orb disappears
+            setPendingSaveAnimationUri(null);
         }
     };
 
@@ -492,13 +417,9 @@ export default function CaptureReviewScreen() {
                         onPress={handleSave}
                         disabled={!moodId || isSaving}
                     >
-                        {isSaving ? (
-                            <ActivityIndicator color="white" />
-                        ) : (
-                            <ThemedText style={styles.saveButtonText}>
-                                {postDestinations.length > 0 ? 'Save Entry' : 'Select Destination'}
-                            </ThemedText>
-                        )}
+                        <ThemedText style={styles.saveButtonText}>
+                            {postDestinations.length > 0 ? 'Save Entry' : 'Select Destination'}
+                        </ThemedText>
                     </TouchableOpacity>
 
                 </ScrollView>
@@ -511,26 +432,24 @@ export default function CaptureReviewScreen() {
                 transparent={true}
                 onRequestClose={() => setJournalModalVisible(false)}
             >
-                <BlurView intensity={95} tint="dark" style={styles.modalContainer}>
+                <BlurView
+                    intensity={isDark ? 95 : 80}
+                    tint={isDark ? 'dark' : 'light'}
+                    style={styles.modalContainer}
+                >
                     <KeyboardAvoidingView
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                         style={styles.modalKeyboardAvoid}
                     >
-                        <View style={styles.modalHeader}>
+                        <View style={[styles.modalHeader, { borderBottomColor: colors.cardBorder }]}>
                             <TouchableOpacity onPress={() => setJournalModalVisible(false)}>
                                 <ThemedText style={styles.modalDoneText}>Done</ThemedText>
                             </TouchableOpacity>
                         </View>
 
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Write anything about this moment..."
-                            placeholderTextColor="rgba(255,255,255,0.4)"
-                            multiline
-                            textAlignVertical="top"
+                        <LinedJournalInput
                             value={note}
                             onChangeText={setNote}
-                            autoFocus={true}
                         />
                     </KeyboardAvoidingView>
                 </BlurView>
@@ -543,6 +462,7 @@ export default function CaptureReviewScreen() {
                 onSelect={setMoodId}
                 onClose={() => setMoodModalVisible(false)}
             />
+
         </ScreenWrapper>
     );
 }
@@ -686,19 +606,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingBottom: 20,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.1)',
     },
     modalDoneText: {
         color: Colors.obsy.silver,
         fontSize: 18,
         fontWeight: '600',
-    },
-    modalInput: {
-        flex: 1,
-        padding: 20,
-        color: 'white',
-        fontSize: 18,
-        lineHeight: 28,
     },
     challengeBanner: {
         position: 'absolute',

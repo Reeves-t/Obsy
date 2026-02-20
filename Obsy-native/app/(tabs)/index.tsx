@@ -34,6 +34,7 @@ import { AmbientMoodField } from '@/components/ambient/AmbientMoodField';
 import { useWeeklyMoodAggregation } from '@/hooks/useWeeklyMoodAggregation';
 import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
 import { useFocusEffect } from '@react-navigation/native';
+import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
 
 const { height } = Dimensions.get('window');
 
@@ -45,7 +46,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const router = useRouter();
-  const { captures, fetchCaptures, loading } = useCaptureStore();
+  const { captures, fetchCaptures, loading, pendingSaveAnimationUri, setPendingSaveAnimationUri, pendingSaveMoodColor, setPendingSaveMoodColor, pendingSaveComplete, setPendingSaveComplete } = useCaptureStore();
   const { timeFormat } = useTimeFormatStore();
   const { colors, isLight } = useObsyTheme();
   const { getUnseenPhotoCount } = useMockAlbums();
@@ -231,6 +232,20 @@ export default function HomeScreen() {
         )}
 
       </ScrollView>
+
+      {/* Save Capture Animation — plays on home screen after review navigates here */}
+      {pendingSaveAnimationUri && (
+        <SaveCaptureAnimation
+          imageUri={pendingSaveAnimationUri}
+          moodColor={pendingSaveMoodColor ?? '#9CA3AF'}
+          isSaving={!pendingSaveComplete}
+          onComplete={() => {
+            setPendingSaveAnimationUri(null);
+            setPendingSaveMoodColor(null);
+            setPendingSaveComplete(false);
+          }}
+        />
+      )}
     </ScreenWrapper>
   );
 }

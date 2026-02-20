@@ -26,7 +26,7 @@ import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTimeFormatStore, TimeFormat } from '@/lib/timeFormatStore';
-import { useFloatingBackgroundStore, FloatingMode } from '@/lib/floatingBackgroundStore';
+import { useFloatingBackgroundStore } from '@/lib/floatingBackgroundStore';
 import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,26 +142,17 @@ const SectionHeader: React.FC<{ title: string; flat?: boolean }> = ({ title, fla
 // Floating Backgrounds Inline Component
 // ─────────────────────────────────────────────────────────────────────────────
 const FloatingBackgroundsInline: React.FC = () => {
-  const { colors, isLight } = useObsyTheme();
-  const { enabled, mode, toggleEnabled, setMode } = useFloatingBackgroundStore();
-
-  const modes: { id: FloatingMode; label: string }[] = [
-    { id: 'obsy-drift', label: 'Obsy Drift' },
-    { id: 'static-drift', label: 'Static Drift' },
-    { id: 'orbital-float', label: 'Orbital Float' },
-    { id: 'parallax-float', label: 'Parallax Float' },
-  ];
+  const { isLight } = useObsyTheme();
+  const { enabled, toggleEnabled } = useFloatingBackgroundStore();
 
   const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-  const modeBorderColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
-  const selectedTextColor = isLight ? colors.text : '#fff';
 
   return (
     <View style={styles.floatingInlineContainer}>
       <SettingRow
         icon="images-outline"
-        title="Enable Floating Images"
-        subtitle="Capture-based background animations"
+        title="Floating Images"
+        subtitle="Capture bubbles drift across the home screen"
         showChevron={false}
         rightElement={
           <Switch
@@ -172,37 +163,6 @@ const FloatingBackgroundsInline: React.FC = () => {
           />
         }
       />
-
-      <View style={[styles.modeListContainer, !enabled && { opacity: 0.4 }]}>
-        <ThemedText style={[styles.modeListTitle, { color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)' }]}>FLOATING STYLE</ThemedText>
-        {modes.map((item, index) => {
-          const isSelected = mode === item.id;
-          const isLast = index === modes.length - 1;
-          return (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.modeItem,
-                !isLast && [styles.modeItemBorder, { borderBottomColor: modeBorderColor }]
-              ]}
-              onPress={() => enabled && setMode(item.id)}
-              activeOpacity={0.7}
-              disabled={!enabled}
-            >
-              <ThemedText style={[
-                styles.modeLabel,
-                { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)' },
-                isSelected && { color: selectedTextColor, fontWeight: '600' }
-              ]}>
-                {item.label}
-              </ThemedText>
-              {isSelected && (
-                <Ionicons name="checkmark-circle" size={20} color={Colors.obsy.silver} />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
     </View>
   );
 };
@@ -1063,33 +1023,6 @@ const styles = StyleSheet.create({
   // Floating Inline
   floatingInlineContainer: {
     marginTop: 0,
-  },
-  modeListContainer: {
-    paddingLeft: 44, // Align with setting items text
-    paddingBottom: 8,
-  },
-  modeListTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.3)',
-    letterSpacing: 1,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  modeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingRight: 16,
-  },
-  modeItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  modeLabel: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
   },
 
   // Setting Row

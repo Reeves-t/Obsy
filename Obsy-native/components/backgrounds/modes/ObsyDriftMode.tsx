@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Dimensions } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -8,28 +8,44 @@ import Animated, {
     Easing,
     withSequence,
     withDelay,
-    interpolate,
     cancelAnimation
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 
 const { width, height } = Dimensions.get('window');
 
+// ── Constants ────────────────────────────────────────────────────────
+const BUBBLE_SIZE = 80;
+const SMALL_SCALE = 0.45;           // Background bubbles
+const FEATURED_SCALE = 1.0;         // Featured bubble
+const SMALL_OPACITY = 0.25;         // Background bubbles
+const FEATURED_OPACITY = 0.85;      // Featured bubble
+const FEATURE_DURATION = 7000;      // How long each bubble stays featured (ms)
+const TRANSITION_DURATION = 800;    // Scale/opacity transition speed (ms)
+
 interface ObsyDriftModeProps {
     captures: any[];
 }
 
-const FloatingBubble = ({ uri, index }: { uri: string; index: number }) => {
+// ── Single Bubble ────────────────────────────────────────────────────
+const FloatingBubble = ({
+    uri,
+    index,
+    isFeatured,
+}: {
+    uri: string;
+    index: number;
+    isFeatured: boolean;
+}) => {
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
-    const depth = useSharedValue(0);
     const rotate = useSharedValue(0);
+    const featureScale = useSharedValue(SMALL_SCALE);
+    const featureOpacity = useSharedValue(0);
 
     const randomPath = useMemo(() => {
         const moveDuration = 40000 + Math.random() * 20000;
         const stepDuration = moveDuration / 4;
-        const breatheDuration = 3000 + Math.random() * 4000;
-        const entranceDuration = 6000 + Math.random() * 3000;
         const startDelay = Math.random() * 2000 + (index * 500);
 
         const waypoints = Array.from({ length: 4 }, () => ({
@@ -39,36 +55,38 @@ const FloatingBubble = ({ uri, index }: { uri: string; index: number }) => {
 
         const rotationDegrees = Math.random() > 0.5 ? 360 : -360;
 
-        return { waypoints, moveDuration, stepDuration, breatheDuration, entranceDuration, startDelay, rotationDegrees };
+        return { waypoints, moveDuration, stepDuration, startDelay, rotationDegrees };
     }, [index]);
 
+    // Drift + rotation (always running)
     useEffect(() => {
-        const { waypoints, moveDuration, stepDuration, breatheDuration, entranceDuration, startDelay, rotationDegrees } = randomPath;
+        const { waypoints, moveDuration, stepDuration, startDelay, rotationDegrees } = randomPath;
 
-        translateX.value = withRepeat(
-            withSequence(...waypoints.map(wp => withTiming(wp.x, { duration: stepDuration, easing: Easing.inOut(Easing.ease) }))),
-            -1,
-            true
-        );
-        translateY.value = withRepeat(
-            withSequence(...waypoints.map(wp => withTiming(wp.y, { duration: stepDuration, easing: Easing.inOut(Easing.ease) }))),
-            -1,
-            true
-        );
-
-        depth.value = withDelay(
+        translateX.value = withDelay(
             startDelay,
-            withSequence(
-                withTiming(1, { duration: entranceDuration, easing: Easing.out(Easing.quad) }),
-                withRepeat(
-                    withSequence(
-                        withTiming(0.15, { duration: breatheDuration, easing: Easing.inOut(Easing.ease) }),
-                        withTiming(1, { duration: breatheDuration, easing: Easing.inOut(Easing.ease) })
-                    ),
-                    -1,
-                    true
-                )
+            withRepeat(
+                withSequence(...waypoints.map(wp =>
+                    withTiming(wp.x, { duration: stepDuration, easing: Easing.inOut(Easing.ease) })
+                )),
+                -1,
+                true
             )
+        );
+        translateY.value = withDelay(
+            startDelay,
+            withRepeat(
+                withSequence(...waypoints.map(wp =>
+                    withTiming(wp.y, { duration: stepDuration, easing: Easing.inOut(Easing.ease) })
+                )),
+                -1,
+                true
+            )
+        );
+
+        // Entrance fade
+        featureOpacity.value = withDelay(
+            startDelay,
+            withTiming(SMALL_OPACITY, { duration: 2000, easing: Easing.out(Easing.quad) })
         );
 
         rotate.value = withRepeat(
@@ -80,26 +98,32 @@ const FloatingBubble = ({ uri, index }: { uri: string; index: number }) => {
         return () => {
             cancelAnimation(translateX);
             cancelAnimation(translateY);
-            cancelAnimation(depth);
             cancelAnimation(rotate);
         };
     }, [randomPath]);
 
-    const animatedStyle = useAnimatedStyle(() => {
-        const scale = interpolate(depth.value, [0, 0.15, 1], [0.0, 0.15, 1]);
-        const opacity = interpolate(depth.value, [0, 0.15, 1], [0, 0.2, 0.85]);
+    // Featured state transition
+    useEffect(() => {
+        featureScale.value = withTiming(
+            isFeatured ? FEATURED_SCALE : SMALL_SCALE,
+            { duration: TRANSITION_DURATION, easing: Easing.inOut(Easing.ease) }
+        );
+        featureOpacity.value = withTiming(
+            isFeatured ? FEATURED_OPACITY : SMALL_OPACITY,
+            { duration: TRANSITION_DURATION, easing: Easing.inOut(Easing.ease) }
+        );
+    }, [isFeatured]);
 
-        return {
-            opacity,
-            transform: [
-                { translateX: translateX.value },
-                { translateY: translateY.value },
-                { scale },
-                { rotate: `${rotate.value}deg` }
-            ],
-            zIndex: Math.round(depth.value * 100),
-        };
-    });
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: featureOpacity.value,
+        transform: [
+            { translateX: translateX.value },
+            { translateY: translateY.value },
+            { scale: featureScale.value },
+            { rotate: `${rotate.value}deg` }
+        ],
+        zIndex: isFeatured ? 100 : 1,
+    }));
 
     return (
         <Animated.View style={[styles.bubble, animatedStyle]}>
@@ -114,7 +138,21 @@ const FloatingBubble = ({ uri, index }: { uri: string; index: number }) => {
     );
 };
 
+// ── Mode Component ───────────────────────────────────────────────────
 export const ObsyDriftMode = ({ captures }: ObsyDriftModeProps) => {
+    const [featuredIndex, setFeaturedIndex] = useState(0);
+
+    // Rotate featured bubble on a timer
+    useEffect(() => {
+        if (captures.length <= 1) return;
+
+        const interval = setInterval(() => {
+            setFeaturedIndex(prev => (prev + 1) % captures.length);
+        }, FEATURE_DURATION);
+
+        return () => clearInterval(interval);
+    }, [captures.length]);
+
     return (
         <>
             {captures.map((capture, index) => (
@@ -122,6 +160,7 @@ export const ObsyDriftMode = ({ captures }: ObsyDriftModeProps) => {
                     key={capture.id}
                     uri={capture.image_url}
                     index={index}
+                    isFeatured={index === featuredIndex}
                 />
             ))}
         </>
@@ -131,11 +170,11 @@ export const ObsyDriftMode = ({ captures }: ObsyDriftModeProps) => {
 const styles = StyleSheet.create({
     bubble: {
         position: 'absolute',
-        width: 80,
-        height: 80,
-        left: width / 2 - 40,
-        top: height / 2 - 40,
-        borderRadius: 40,
+        width: BUBBLE_SIZE,
+        height: BUBBLE_SIZE,
+        left: width / 2 - BUBBLE_SIZE / 2,
+        top: height / 2 - BUBBLE_SIZE / 2,
+        borderRadius: BUBBLE_SIZE / 2,
         overflow: 'hidden',
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },

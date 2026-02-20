@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(npm ls:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(git merge:*)",
+      "Bash(ls -la \"c:\\\\Users\\\\mescu\\\\Obsy-Gotenks\\\\Obsy-native\"\" | grep -E \"package.json)",
+      "Bash(app \")",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx expo typescript:check:*)"
+    ]
+  }
+}

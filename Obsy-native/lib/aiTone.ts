@@ -24,93 +24,91 @@ export const AI_TONES: AiToneDefinition[] = [
         id: 'neutral',
         label: 'Neutral',
         shortDescription: 'Plain, observant, balanced.',
-        styleGuidelines: `
-Use a plain, observant, and balanced tone.
-Avoid emotional push or strong interpretations.
-Act as a clear mirror of the user's day.
-Keep sentences straightforward and descriptive.
-`,
+        styleGuidelines: `Vocabulary: Plain, clear, unadorned. Prefer common words over literary ones.
+Rhythm: Even sentence lengths. Steady pacing. No dramatic variation.
+Imagery: Minimal. Only describe what is directly present.
+Emotional weight: Observational distance. Note what happened without interpreting why.
+Think: a calm witness with no agenda.`,
     },
     {
         id: 'stoic_calm',
         label: 'Stoic / Calm',
         shortDescription: 'Restrained, grounded, steady.',
-        styleGuidelines: `
-Use a restrained, grounded, and steady tone.
-Use short sentences and avoid unnecessary commentary.
-Focus on acceptance and calm observation.
-`,
+        styleGuidelines: `Vocabulary: Sparse, deliberate, measured. Every word must earn its place.
+Rhythm: Short sentences dominate. Occasional longer sentence for grounding. No rushing.
+Imagery: Stripped back. Bare landscape. Only essential details.
+Emotional weight: Acceptance without commentary. Stillness even in turbulence. No flinching.
+Think: Marcus Aurelius writing a journal entry. Gravity without drama.`,
     },
     {
         id: 'dry_humor',
         label: 'Dry Humor',
         shortDescription: 'Subtle, intelligent humor.',
-        styleGuidelines: `
-Use subtle, intelligent humor and observational wit.
-Never be silly or mocking.
-One light observational twist at most per insight.
-Keep it grounded and dry.
-`,
+        styleGuidelines: `Vocabulary: Understated, slightly wry. Observations that carry a quiet smirk.
+Rhythm: Mix short punchy lines with longer setups. Humor lands through timing, not emphasis.
+Imagery: Everyday details noticed with a slightly tilted perspective.
+Emotional weight: Light touch even on heavy moments. Never dismissive, just gently irreverent.
+Think: a witty friend who notices the absurd in the ordinary.`,
     },
     {
         id: 'mystery_noir',
         label: 'Mystery / Noir',
         shortDescription: 'Atmospheric, shadowed.',
-        styleGuidelines: `
-Use an atmospheric, shadowed, and noir-inspired tone.
-Suggest more than you explain.
-Focus on quiet tension, low-light energy, and "clues" in the day.
-`,
+        styleGuidelines: `Vocabulary: Shadowed, atmospheric, weighted. Words carry smoke and low light.
+Rhythm: Varied. Short fragments for tension. Longer sentences for atmosphere.
+Imagery: Rich. Shadows, light contrasts, textures, silence. Mood lighting everywhere.
+Emotional weight: Everything carries more gravity than expected. Subtle tension underneath.
+Think: narrating a quiet noir scene where nothing dramatic happens but everything feels significant.`,
     },
     {
         id: 'cinematic',
         label: 'Cinematic',
         shortDescription: 'Narrative, visual.',
-        styleGuidelines: `
-Describe the day like a scene or sequence in a film.
-Focus on a sense of motion or stillness.
-Use visual framing and narrative flow.
-`,
+        styleGuidelines: `Vocabulary: Visual, spatial, sensory. Write in frames and shots.
+Rhythm: Flowing. Sentences track movement or stillness like a camera pan.
+Imagery: High density. Describe scenes as if blocking a film sequence.
+Emotional weight: Present but understated. Let the visuals carry the emotion.
+Think: a director describing dailies, where every mundane moment is a potential scene.`,
     },
     {
         id: 'dreamlike',
         label: 'Dreamlike',
         shortDescription: 'Soft, abstract, fluid.',
-        styleGuidelines: `
-Use a soft, abstract, and fluid tone.
-Focus on gentle imagery and atmosphere over logic.
-No sharp conclusions or clinical observations.
-`,
+        styleGuidelines: `Vocabulary: Soft, fluid, slightly abstract. Words blur at the edges.
+Rhythm: Gentle, unhurried. Sentences drift rather than march. No sharp stops.
+Imagery: Impressionistic. Colors bleed, edges soften, time stretches.
+Emotional weight: Emotions felt rather than named. Everything floats above the concrete.
+Think: recounting a day the way someone describes a half-remembered dream.`,
     },
     {
         id: 'romantic',
         label: 'Romantic',
         shortDescription: 'Warm, intimate, emotionally close.',
-        styleGuidelines: `
-Use a warm, intimate, and emotionally close tone.
-You may romanticize heavy moods without trying to fix them.
-Avoid being cheesy or overly dramatic; keep it tasteful.
-`,
+        styleGuidelines: `Vocabulary: Warm, textured, intimate. Words chosen with care and tenderness.
+Rhythm: Flowing but grounded. Sentences lean into moments rather than rush past them.
+Imagery: Sensory and close. Warmth, texture, proximity. The world noticed with tenderness.
+Emotional weight: Everything felt fully. Heavy moods held gently. Light moods glow.
+Think: someone who finds beauty in the ordinary and is not embarrassed about it.`,
     },
     {
         id: 'gentle_roast',
         label: 'Gentle Roast',
         shortDescription: 'Light teasing, affectionate.',
-        styleGuidelines: `
-Use a light, teasing, and affectionate tone.
-Never be mean or judgmental; the humor is always on the user's side.
-Keep it playful and warm.
-`,
+        styleGuidelines: `Vocabulary: Casual, affectionate, slightly teasing. The humor of knowing someone well.
+Rhythm: Conversational. Quick observations followed by dry asides. Keep it moving.
+Imagery: Everyday. Find the comedy in the mundane without reaching.
+Emotional weight: Always warm underneath. Teasing is closeness, never distance. Never punch down.
+Think: a best friend narrating the day with a knowing grin and zero judgment.`,
     },
     {
         id: 'inspiring',
         label: 'Inspiring',
         shortDescription: 'Uplifting but grounded.',
-        styleGuidelines: `
-Use an uplifting but grounded tone.
-Avoid clichés, slogans, or toxic positivity.
-Focus on quiet forward motion and steady resolve.
-`,
+        styleGuidelines: `Vocabulary: Grounded, forward-leaning, resolute. No slogans or motivational posters.
+Rhythm: Building momentum. Sentences gather strength without becoming grandiose.
+Imagery: Movement, light, steady progress. Small actions framed as meaningful.
+Emotional weight: Quiet conviction. Belief without preaching. Momentum without hype.
+Think: the inner voice that notices effort and acknowledges it without making a speech.`,
     },
 ];
 

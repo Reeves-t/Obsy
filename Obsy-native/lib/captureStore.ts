@@ -53,6 +53,13 @@ type CaptureState = {
     clearCaptures: () => void;
     lastUsedAlbumId: string | null;
     setLastUsedAlbumId: (id: string | null) => void;
+    // Save animation: set imageUri to trigger animation on home screen
+    pendingSaveAnimationUri: string | null;
+    setPendingSaveAnimationUri: (uri: string | null) => void;
+    pendingSaveMoodColor: string | null;
+    setPendingSaveMoodColor: (color: string | null) => void;
+    pendingSaveComplete: boolean;
+    setPendingSaveComplete: (complete: boolean) => void;
 };
 
 export const useCaptureStore = create<CaptureState>()(
@@ -443,10 +450,22 @@ export const useCaptureStore = create<CaptureState>()(
 
             lastUsedAlbumId: null,
             setLastUsedAlbumId: (id) => set({ lastUsedAlbumId: id }),
+
+            pendingSaveAnimationUri: null,
+            setPendingSaveAnimationUri: (uri) => set({ pendingSaveAnimationUri: uri }),
+            pendingSaveMoodColor: null,
+            setPendingSaveMoodColor: (color) => set({ pendingSaveMoodColor: color }),
+            pendingSaveComplete: false,
+            setPendingSaveComplete: (complete) => set({ pendingSaveComplete: complete }),
         }),
         {
             name: 'obsy-capture-storage',
             storage: createJSONStorage(() => AsyncStorage),
+            partialize: (state) => ({
+                captures: state.captures,
+                lastUsedAlbumId: state.lastUsedAlbumId,
+                // Exclude transient animation state from persistence
+            }),
         }
     )
 );
