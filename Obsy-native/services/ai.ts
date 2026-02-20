@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { AiToneId, getToneDefinition, DEFAULT_AI_TONE_ID } from "@/lib/aiTone";
 import { AlbumContextEntry } from "@/lib/albumEngine";
 import { PRIVACY_FLAGS } from "@/lib/privacyFlags";
@@ -185,7 +186,7 @@ function groupCapturesByDay(captures: CaptureInsightInput[]): DaySummaryForInsig
     const grouped: Record<string, CaptureInsightInput[]> = {};
 
     captures.forEach(c => {
-        const dateStr = c.capturedAt ? c.capturedAt.split('T')[0] : new Date().toISOString().split('T')[0];
+        const dateStr = format(c.capturedAt ? new Date(c.capturedAt) : new Date(), 'yyyy-MM-dd');
         if (!grouped[dateStr]) grouped[dateStr] = [];
         grouped[dateStr].push(c);
     });
@@ -197,7 +198,7 @@ function groupCapturesByDay(captures: CaptureInsightInput[]): DaySummaryForInsig
         // Sort captures by time
         dayCaptures.sort((a, b) => new Date(a.capturedAt || 0).getTime() - new Date(b.capturedAt || 0).getTime());
 
-        const dateObj = new Date(dateStr);
+        const dateObj = new Date(dateStr + 'T12:00:00');
         const primaryMoods = Array.from(new Set(dayCaptures.map(c => c.mood || 'neutral')));
 
         return {

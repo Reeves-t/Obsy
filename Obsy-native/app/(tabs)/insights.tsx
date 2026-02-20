@@ -360,7 +360,7 @@ export default function InsightsScreen() {
 
             // Filter captures for this month
             const monthCaptures = captures.filter((c) => {
-                const dateKey = c.created_at.split('T')[0];
+                const dateKey = formatDateKey(new Date(c.created_at));
                 return dateKey >= startDate && dateKey <= endDate;
             });
 

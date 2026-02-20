@@ -276,7 +276,7 @@ export default function GalleryScreen() {
             // Add header
             data.push({
                 type: 'header',
-                title: format(new Date(date), 'EEEE, MMM d').toUpperCase(),
+                title: format(new Date(date + 'T12:00:00'), 'EEEE, MMM d').toUpperCase(),
                 id: `header-${date}`
             });
             // Add rows of 2 captures each
@@ -320,7 +320,7 @@ export default function GalleryScreen() {
             // Add header
             data.push({
                 type: 'header',
-                title: format(new Date(date), 'EEEE, MMM d').toUpperCase(),
+                title: format(new Date(date + 'T12:00:00'), 'EEEE, MMM d').toUpperCase(),
                 id: `journal-header-${date}`
             });
             // Add entries

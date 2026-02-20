@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { Capture } from "@/types/capture";
-import { formatMonthKey } from "@/lib/dailyMoodFlows";
+import { formatMonthKey, formatDateKey } from "@/lib/dailyMoodFlows";
 import { getMoodLabel } from "@/lib/moodUtils";
 
 export interface MonthSignals {
@@ -47,7 +47,7 @@ export function getMonthSignals(captures: Capture[], monthKey: string, throughDa
         moodCounts[moodId] = (moodCounts[moodId] || 0) + 1;
         if (c.mood_name_snapshot) moodSnapshots[moodId] = c.mood_name_snapshot;
 
-        const dayKey = c.created_at.split('T')[0];
+        const dayKey = formatDateKey(new Date(c.created_at));
         if (!dayMoods[dayKey]) dayMoods[dayKey] = [];
         dayMoods[dayKey].push(moodId);
     });

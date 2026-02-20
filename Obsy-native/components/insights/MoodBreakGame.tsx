@@ -1,9 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, View, LayoutChangeEvent, TouchableOpacity } from 'react-native';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-} from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -210,22 +206,29 @@ export const MoodBreakGame = memo(function MoodBreakGame({ captures, tone, isLig
     const [gameKey, setGameKey] = useState(0);
     const [gamePhase, setGamePhase] = useState<'idle' | 'loading' | 'playing' | 'cleared'>('idle');
 
-    // When captures change (new mood captured), reset game to idle with fresh bricks
+    // When captures change outside of our own refresh, reset game to idle with fresh bricks
+    const isRefreshingRef = useRef(false);
     useEffect(() => {
         if (captures.length !== capturesCountRef.current) {
             capturesCountRef.current = captures.length;
-            setGameKey(k => k + 1);
-            setGamePhase('idle');
+            // Don't reset if we triggered the refresh ourselves (Start button)
+            if (!isRefreshingRef.current) {
+                setGameKey(k => k + 1);
+                setGamePhase('idle');
+            }
         }
     }, [captures.length]);
 
     const handleStart = useCallback(async () => {
         setGamePhase('loading');
         try {
+            isRefreshingRef.current = true;
             if (onRefresh) await onRefresh();
         } catch { /* proceed even if refresh fails */ }
+        isRefreshingRef.current = false;
+        capturesCountRef.current = captures.length;
         setGamePhase('playing');
-    }, [onRefresh]);
+    }, [onRefresh, captures.length]);
 
     const handleReplay = useCallback(() => {
         setGameKey(k => k + 1);
@@ -324,20 +327,17 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
     const initialBricks = useMemo(() => buildBricks(rows, width, height), [rows, width, height]);
 
     const [bricks, setBricks] = useState<Brick[]>(initialBricks);
+    const [ballRender, setBallRender] = useState({ x: width / 2, y: height - 50 });
+    const [paddleRenderX, setPaddleRenderX] = useState(width / 2 - PADDLE_WIDTH / 2);
     const [microInsight, setMicroInsight] = useState<string | null>(null);
     const insightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Physics refs
+    // Physics refs (mutable, not rendered directly)
     const ballPos = useRef({ x: width / 2, y: height - 50 });
     const ballVel = useRef({ x: BALL_SPEED * 0.7, y: -BALL_SPEED });
     const paddleXRef = useRef(width / 2 - PADDLE_WIDTH / 2);
     const bricksRef = useRef<Brick[]>(initialBricks);
     const gameActiveRef = useRef(false);
-
-    // Animated values
-    const ballX = useSharedValue(width / 2);
-    const ballY = useSharedValue(height - 50);
-    const paddleX = useSharedValue(width / 2 - PADDLE_WIDTH / 2);
 
     // Sync bricks when rows change
     useEffect(() => {
@@ -346,25 +346,19 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
         setBricks(newBricks);
         ballPos.current = { x: width / 2, y: height - 50 };
         ballVel.current = { x: BALL_SPEED * 0.7, y: -BALL_SPEED };
-        ballX.value = width / 2;
-        ballY.value = height - 50;
+        setBallRender({ x: width / 2, y: height - 50 });
         paddleXRef.current = width / 2 - PADDLE_WIDTH / 2;
-        paddleX.value = width / 2 - PADDLE_WIDTH / 2;
+        setPaddleRenderX(width / 2 - PADDLE_WIDTH / 2);
     }, [rows, width]);
 
-    // Start/stop game loop based on phase
-    useEffect(() => {
-        gameActiveRef.current = gamePhase === 'playing';
-    }, [gamePhase]);
-
-    // Paddle gesture
+    // Paddle gesture — updates ref + render state
     const paddleGesture = Gesture.Pan()
         .onUpdate((e) => {
             if (!gameActiveRef.current) return;
             const newX = Math.max(0, Math.min(width - PADDLE_WIDTH, e.absoluteX - PADDLE_WIDTH / 2));
-            paddleX.value = newX;
             paddleXRef.current = newX;
-        });
+        })
+        .runOnJS(true);
 
     // Brick hit handler
     const onBrickHit = useCallback((brickId: string) => {
@@ -394,9 +388,12 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
     useEffect(() => {
         if (gamePhase !== 'playing') return;
 
-        let frameId: number;
+        // Reset ball position at game start
+        ballPos.current = { x: width / 2, y: height - 50 };
+        ballVel.current = { x: BALL_SPEED * 0.7, y: -BALL_SPEED };
+        gameActiveRef.current = true;
 
-        const tick = () => {
+        const interval = setInterval(() => {
             if (!gameActiveRef.current) return;
 
             const ball = ballPos.current;
@@ -470,37 +467,17 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
                 }
             }
 
-            ballX.value = ball.x;
-            ballY.value = ball.y;
-
-            frameId = requestAnimationFrame(tick);
-        };
-
-        // Reset ball position at game start
-        ballPos.current = { x: width / 2, y: height - 50 };
-        ballVel.current = { x: BALL_SPEED * 0.7, y: -BALL_SPEED };
-        ballX.value = width / 2;
-        ballY.value = height - 50;
-
-        frameId = requestAnimationFrame(tick);
+            // Update render state for ball and paddle
+            setBallRender({ x: ball.x, y: ball.y });
+            setPaddleRenderX(pX);
+        }, 16);
 
         return () => {
-            cancelAnimationFrame(frameId);
+            clearInterval(interval);
+            gameActiveRef.current = false;
             if (insightTimer.current) clearTimeout(insightTimer.current);
         };
     }, [gamePhase, width, height, onBrickHit]);
-
-    // Animated styles
-    const ballStyle = useAnimatedStyle(() => ({
-        transform: [
-            { translateX: ballX.value - BALL_RADIUS },
-            { translateY: ballY.value - BALL_RADIUS },
-        ],
-    }));
-
-    const paddleStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: paddleX.value }],
-    }));
 
     // Theme-aware colors
     const ballColor = isLight ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)';
@@ -541,23 +518,25 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
 
                 {/* Ball — only when playing */}
                 {isPlaying && (
-                    <Animated.View style={[styles.ball, {
+                    <View style={[styles.ball, {
+                        left: ballRender.x - BALL_RADIUS,
+                        top: ballRender.y - BALL_RADIUS,
                         backgroundColor: ballColor,
                         shadowColor: ballShadow,
-                    }, ballStyle]} />
+                    }]} />
                 )}
 
                 {/* Paddle — only when playing */}
                 {isPlaying && (
-                    <Animated.View
+                    <View
                         style={[
                             styles.paddle,
                             {
+                                left: paddleRenderX,
                                 top: height - PADDLE_HEIGHT - 16,
                                 backgroundColor: paddleBg,
                                 borderColor: paddleBorder,
                             },
-                            paddleStyle,
                         ]}
                     />
                 )}

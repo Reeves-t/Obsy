@@ -1,4 +1,5 @@
 import { getMoodLabel } from '@/lib/moodUtils';
+import { formatDateKey } from '@/lib/dailyMoodFlows';
 
 // Define the types the UI expects
 export interface DailyInsightSnapshot {
@@ -55,7 +56,7 @@ export const buildWeeklyStatsFromCaptures = (
     const totalCaptures = weekCaptures.length;
 
     // Count unique active days
-    const uniqueDays = new Set(weekCaptures.map(c => c.created_at.split('T')[0]));
+    const uniqueDays = new Set(weekCaptures.map(c => formatDateKey(new Date(c.created_at))));
     const activeDays = uniqueDays.size;
 
     // Calculate average per active day
