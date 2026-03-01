@@ -168,22 +168,23 @@ const FloatingBackgroundsInline: React.FC = () => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Ambient Mood Field Inline Component
+// Ambient Background Inline Component (with mode toggle)
 // ─────────────────────────────────────────────────────────────────────────────
 const AmbientMoodFieldInline: React.FC = () => {
-  const { colors, isLight } = useObsyTheme();
-  const { enabled, toggleEnabled } = useAmbientMoodFieldStore();
+  const { colors, isLight, isDark } = useObsyTheme();
+  const { enabled, mode, toggleEnabled, setMode } = useAmbientMoodFieldStore();
 
   const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  const isMoodverse = mode === 'moodverse';
 
   return (
     <View style={styles.floatingInlineContainer}>
       <SettingRow
         icon="planet-outline"
-        title="Ambient Mood Field"
-        subtitle="Subtle week-level mood visualization"
+        title="Ambient Background"
+        subtitle="Home screen atmosphere"
         showChevron={false}
-        isLast
+        isLast={!enabled}
         rightElement={
           <Switch
             value={enabled}
@@ -193,6 +194,45 @@ const AmbientMoodFieldInline: React.FC = () => {
           />
         }
       />
+      {enabled && (
+        <View style={styles.modeToggleRow}>
+          <TouchableOpacity
+            style={[
+              styles.modeToggleContainer,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+              },
+            ]}
+            onPress={() => setMode(isMoodverse ? 'sparkles' : 'moodverse')}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.modeToggleIndicator,
+                {
+                  transform: [{ translateX: isMoodverse ? 40 : 2 }],
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.8)',
+                },
+              ]}
+            />
+            <View style={styles.modeToggleIcon}>
+              <Ionicons
+                name="sparkles-outline"
+                size={16}
+                color={!isMoodverse ? (isDark ? '#fff' : '#000') : colors.textTertiary}
+              />
+            </View>
+            <View style={styles.modeToggleIcon}>
+              <Ionicons
+                name="planet-outline"
+                size={16}
+                color={isMoodverse ? (isDark ? '#fff' : '#000') : colors.textTertiary}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -1023,6 +1063,33 @@ const styles = StyleSheet.create({
   // Floating Inline
   floatingInlineContainer: {
     marginTop: 0,
+  },
+  modeToggleRow: {
+    paddingLeft: 60,
+    paddingBottom: 14,
+  },
+  modeToggleContainer: {
+    width: 80,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+    position: 'relative',
+  },
+  modeToggleIndicator: {
+    position: 'absolute',
+    width: 36,
+    height: 28,
+    borderRadius: 14,
+  },
+  modeToggleIcon: {
+    flex: 1,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
   },
 
   // Setting Row

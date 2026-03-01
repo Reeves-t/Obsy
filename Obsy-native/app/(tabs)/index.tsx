@@ -35,6 +35,9 @@ import { useWeeklyMoodAggregation } from '@/hooks/useWeeklyMoodAggregation';
 import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
+import { MoodverseEntryCard } from '@/components/moodverse/MoodverseEntryCard';
+import { GalaxyBackground } from '@/components/moodverse/GalaxyBackground';
+import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 
 const { height } = Dimensions.get('window');
 
@@ -46,7 +49,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const router = useRouter();
-  const { captures, fetchCaptures, loading, pendingSaveAnimationUri, setPendingSaveAnimationUri, pendingSaveMoodColor, setPendingSaveMoodColor, pendingSaveComplete, setPendingSaveComplete } = useCaptureStore();
+  const { captures, fetchCaptures, loading, pendingSaveAnimationUri, setPendingSaveAnimationUri, pendingSaveMoodGradient, setPendingSaveMoodGradient, pendingSaveComplete, setPendingSaveComplete } = useCaptureStore();
   const { timeFormat } = useTimeFormatStore();
   const { colors, isLight } = useObsyTheme();
   const { getUnseenPhotoCount } = useMockAlbums();
@@ -65,7 +68,7 @@ export default function HomeScreen() {
   const onBgTextTertiary = colors.textTertiary;
 
   // Ambient Mood Field
-  const { enabled: ambientEnabled, loadSavedState } = useAmbientMoodFieldStore();
+  const { enabled: ambientEnabled, mode: ambientMode, loadSavedState } = useAmbientMoodFieldStore();
   const weeklyMoodWeights = useWeeklyMoodAggregation(captures);
   const [isScreenFocused, setIsScreenFocused] = useState(true);
   const [isAppActive, setIsAppActive] = useState(true);
@@ -94,6 +97,17 @@ export default function HomeScreen() {
 
   // Determine if ambient field should be paused
   const isAmbientPaused = !ambientEnabled || !isScreenFocused || !isAppActive;
+
+  // Galaxy background data (only computed when moodverse mode is active)
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const galaxyData = useMemo(() => {
+    if (ambientMode !== 'moodverse' || !user?.id) return null;
+    const src = captures.length > 0 ? captures : generateMockCaptures(user.id, currentYear);
+    return computeGalaxyLayout(src, user.id, currentYear);
+  }, [ambientMode, captures, user?.id, currentYear]);
+
+  // GL context safety: only mount when home is focused + app is active
+  const shouldMountGalaxy = ambientEnabled && ambientMode === 'moodverse' && isScreenFocused && isAppActive;
 
   // Handle scroll (placeholder for potential future needs, currently simplified)
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -146,13 +160,26 @@ export default function HomeScreen() {
     <ScreenWrapper
       edges={['top', 'left', 'right', 'bottom']}
       screenName="home"
-      hideFloatingBackground={false}
+      hideFloatingBackground={ambientEnabled && ambientMode === 'moodverse'}
     >
-      {/* Ambient Mood Field - Behind all content */}
-      <AmbientMoodField
-        moodWeights={weeklyMoodWeights}
-        isPaused={isAmbientPaused}
-      />
+      {/* Ambient Background - Behind all content */}
+      {ambientEnabled && ambientMode === 'sparkles' && (
+        <AmbientMoodField
+          moodWeights={weeklyMoodWeights}
+          isPaused={isAmbientPaused}
+        />
+      )}
+      {shouldMountGalaxy && galaxyData && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={{ flex: 1, opacity: 0.45 }}>
+            <GalaxyBackground
+              orbs={galaxyData.orbs}
+              clusters={galaxyData.clusters}
+              isPaused={false}
+            />
+          </View>
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -206,6 +233,11 @@ export default function HomeScreen() {
               />
             </View>
           </PremiumGate>
+
+          {/* Moodverse entry — bottom of hero */}
+          <View style={[styles.moodverseContainer, { bottom: insets.bottom + 48 }]}>
+            <MoodverseEntryCard />
+          </View>
         </View>
 
         {/* SECTION 2: YEAR IN PIXELS */}
@@ -231,17 +263,18 @@ export default function HomeScreen() {
           </View>
         )}
 
+
       </ScrollView>
 
       {/* Save Capture Animation — plays on home screen after review navigates here */}
       {pendingSaveAnimationUri && (
         <SaveCaptureAnimation
           imageUri={pendingSaveAnimationUri}
-          moodColor={pendingSaveMoodColor ?? '#9CA3AF'}
+          moodGradient={pendingSaveMoodGradient ?? { from: '#A8A8A8', to: '#808080' }}
           isSaving={!pendingSaveComplete}
           onComplete={() => {
             setPendingSaveAnimationUri(null);
-            setPendingSaveMoodColor(null);
+            setPendingSaveMoodGradient(null);
             setPendingSaveComplete(false);
           }}
         />
@@ -345,5 +378,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   collectionDate: {
+  },
+  moodverseContainer: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
   },
 });

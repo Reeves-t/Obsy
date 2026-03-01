@@ -5,7 +5,7 @@ import { ThemedText } from '@/components/ui/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomMoodStore, initializeMoodStore } from '@/lib/customMoodStore';
 import { CreateCustomMoodModal } from './CreateCustomMoodModal';
-import { resolveMoodColor } from '@/lib/moodColorUtils';
+import { getMoodTheme } from '@/lib/moods';
 import { Mood } from '@/types/mood';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -273,7 +273,7 @@ export function MoodSelectionModal({
                                         <View style={styles.moodGrid}>
                                             {activeCustomMoods.map((mood) => {
                                                 const isSelected = selectedMood === mood.id;
-                                                const moodColor = resolveMoodColor(mood);
+                                                const moodColor = getMoodTheme(mood.name).solid;
                                                 const isBeingDeleted = isDeleting === mood.id;
                                                 return (
                                                     <TouchableOpacity

@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { MoodGradient } from '@/lib/moods';
 
 // ── Constants ────────────────────────────────────────────────────────
 const IMAGE_START_SIZE = 160;          // Starting orb size (circle)
@@ -39,46 +40,6 @@ function getRandomPosition(): { x: number; y: number } {
         x: minX + Math.random() * (maxX - minX),
         y: minY + Math.random() * (maxY - minY),
     };
-}
-
-// ── Gradient Color Helpers ───────────────────────────────────────────
-function hexToHSL(hex: string): [number, number, number] {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h = 0, s = 0;
-    const l = (max + min) / 2;
-    if (max !== min) {
-        const d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-        if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-        else if (max === g) h = ((b - r) / d + 2) / 6;
-        else h = ((r - g) / d + 4) / 6;
-    }
-    return [h * 360, s * 100, l * 100];
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-    s /= 100; l /= 100;
-    const a = s * Math.min(l, 1 - l);
-    const f = (n: number) => {
-        const k = (n + h / 30) % 12;
-        const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-        return Math.round(255 * c).toString(16).padStart(2, '0');
-    };
-    return `#${f(0)}${f(8)}${f(4)}`;
-}
-
-/** Build a [start, end] gradient pair from a mood hex.
- *  Boosts saturation for greys and shifts hue ±25° for visual richness. */
-function buildGradientPair(hex: string): [string, string] {
-    const [h, s, l] = hexToHSL(hex);
-    // If desaturated (grey-ish), boost saturation so it reads as colored
-    const boostedS = Math.max(s, 50);
-    const start = hslToHex((h - 25 + 360) % 360, boostedS, Math.min(l + 8, 85));
-    const end = hslToHex((h + 25) % 360, boostedS, Math.max(l - 5, 30));
-    return [start, end];
 }
 
 // ── Fragment Config ──────────────────────────────────────────────────
@@ -194,14 +155,17 @@ function ShatterFragment({
 // ── Main Component ───────────────────────────────────────────────────
 interface SaveCaptureAnimationProps {
     imageUri: string;
-    moodColor: string;     // hex color for shatter orbs
-    isSaving: boolean;     // true = show rotating orb, false = trigger shatter
+    moodGradient: MoodGradient;  // canonical 2-stop gradient for shatter orbs
+    isSaving: boolean;           // true = show rotating orb, false = trigger shatter
     onComplete: () => void;
 }
 
-export function SaveCaptureAnimation({ imageUri, moodColor, isSaving, onComplete }: SaveCaptureAnimationProps) {
+export function SaveCaptureAnimation({ imageUri, moodGradient, isSaving, onComplete }: SaveCaptureAnimationProps) {
     const fragments = useMemo(() => buildFragments(), []);
-    const gradientColors = useMemo(() => buildGradientPair(moodColor), [moodColor]);
+    const gradientColors = useMemo<[string, string]>(
+        () => [moodGradient.from, moodGradient.to],
+        [moodGradient.from, moodGradient.to]
+    );
     const [startShatter, setStartShatter] = useState(false);
     const [shrinkDone, setShrinkDone] = useState(false);
     const hasTriggeredShatter = useRef(false);

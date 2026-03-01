@@ -3,8 +3,7 @@ import { StyleSheet, View, TouchableOpacity, Dimensions } from "react-native";
 import Svg, { Path, G, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from "react-native-reanimated";
 import { ThemedText } from "@/components/ui/ThemedText";
-import { getMoodColor as getSystemMoodColor, MOOD_COLOR_MAP } from "@/lib/moodColors";
-import { getMoodColor as getHashMoodColor } from "@/lib/moodColorUtils";
+import { getMoodTheme } from "@/lib/moods";
 import { DailyMoodFlowData } from "@/lib/dailyMoodFlows";
 import { useObsyTheme } from "@/contexts/ThemeContext";
 
@@ -100,13 +99,11 @@ function computeMoodDistribution(
 
     const distribution = Object.entries(moodTotals)
         .map(([mood, weight]) => {
-            // 1. Pre-computed valid hex from segment data
-            if (moodColors[mood]) return { mood, percentage: (weight / totalWeight) * 100, color: moodColors[mood] };
-            // 2. System mood map (only if it's an actual system mood ID)
-            const systemColor = MOOD_COLOR_MAP[mood as keyof typeof MOOD_COLOR_MAP];
-            if (systemColor) return { mood, percentage: (weight / totalWeight) * 100, color: systemColor };
-            // 3. Hash-based deterministic color for custom/descriptive names
-            return { mood, percentage: (weight / totalWeight) * 100, color: getHashMoodColor(mood) };
+            // Use pre-computed segment color if valid, otherwise resolve via theme
+            const color = (moodColors[mood] && HEX_COLOR_RE.test(moodColors[mood]))
+                ? moodColors[mood]
+                : getMoodTheme(mood).solid;
+            return { mood, percentage: (weight / totalWeight) * 100, color };
         })
         .sort((a, b) => b.percentage - a.percentage);
 

@@ -8,6 +8,7 @@ import Colors from "@/constants/Colors";
 import { useMoodResolver } from "@/hooks/useMoodResolver";
 import { useObsyTheme } from "@/contexts/ThemeContext";
 import { MoodSegment, MoodFlowReading, MoodFlowData, isMoodFlowReading, isMoodFlowSegments } from "@/lib/dailyMoodFlows";
+import { getMoodTheme } from "@/lib/moods";
 
 interface MoodFlowProps {
     moodFlow?: MoodFlowData | null;
@@ -19,46 +20,28 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-function blendColor(a: string, b: string): string {
-    const parse = (c: string) => {
-        const v = c.replace("#", "");
-        return [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16));
-    };
-    const [r1, g1, b1] = parse(a);
-    const [r2, g2, b2] = parse(b);
-    const r = Math.round((r1 + r2) / 2);
-    const g = Math.round((g1 + g2) / 2);
-    const bVal = Math.round((b1 + b2) / 2);
-    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${bVal
-        .toString(16)
-        .padStart(2, "0")}`;
-}
-
-function lightenColor(hex: string, amount: number): string {
-    const v = hex.replace("#", "");
-    const [r, g, b] = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16));
-    const lighten = (c: number) => Math.min(255, Math.round(c + (255 - c) * amount));
-    return `#${lighten(r).toString(16).padStart(2, "0")}${lighten(g).toString(16).padStart(2, "0")}${lighten(b).toString(16).padStart(2, "0")}`;
-}
-
 function buildGradientColors(flow: MoodSegment[]): [string, string, ...string[]] {
     if (!flow.length) return ["#1f2937", "#0f172a"];
+
+    if (flow.length === 1) {
+        // Single mood — use its canonical gradient stops for a rich, natural gradient
+        const theme = getMoodTheme(flow[0].mood);
+        return [theme.gradient.from, theme.gradient.to];
+    }
+
+    // Multiple moods — interleave each mood's gradient.from with blended transitions
     const colors: string[] = [];
     flow.forEach((segment, idx) => {
-        const color = segment.color || "#9CA3AF";
-        colors.push(color);
-        const next = flow[idx + 1];
-        if (next) {
-            colors.push(blendColor(color, next.color || color));
+        const theme = getMoodTheme(segment.mood);
+        colors.push(theme.gradient.from);
+        if (idx < flow.length - 1) {
+            // Transition: use this mood's "to" stop as the bridge to the next mood
+            colors.push(theme.gradient.to);
         }
     });
-
-    if (colors.length === 1) {
-        // Create a subtle gradient for single-mood flows instead of flat color
-        const base = colors[0];
-        const lighter = lightenColor(base, 0.15);
-        return [lighter, base];
-    }
+    // Cap with the last mood's "to" stop
+    const lastTheme = getMoodTheme(flow[flow.length - 1].mood);
+    colors.push(lastTheme.gradient.to);
 
     return colors as [string, string, ...string[]];
 }

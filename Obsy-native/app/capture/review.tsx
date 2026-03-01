@@ -25,7 +25,7 @@ import { useCustomMoodStore } from '@/lib/customMoodStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { optimizeCapture, formatBytes } from '@/services/imageOptimizer';
 import { useSubscription } from '@/hooks/useSubscription';
-import { getMoodColor } from '@/lib/moodColors';
+import { getMoodTheme } from '@/lib/moods';
 
 export default function CaptureReviewScreen() {
     const { imageUri, challengeId, challengeTemplateId, challengeTitle, albumId: initialAlbumId,
@@ -37,7 +37,7 @@ export default function CaptureReviewScreen() {
         albumId?: string,
     }>();
     const router = useRouter();
-    const { createCapture, getAllTags, lastUsedAlbumId, setLastUsedAlbumId, setPendingSaveAnimationUri, setPendingSaveMoodColor, setPendingSaveComplete } = useCaptureStore();
+    const { createCapture, getAllTags, lastUsedAlbumId, setLastUsedAlbumId, setPendingSaveAnimationUri, setPendingSaveMoodGradient, setPendingSaveComplete } = useCaptureStore();
     const { user } = useAuth();
     const { tier } = useSubscription();
     const { completeChallenge: markChallengeComplete } = useDailyChallenges(user?.id ?? null);
@@ -129,7 +129,7 @@ export default function CaptureReviewScreen() {
 
         // Set animation state and navigate to home IMMEDIATELY
         setPendingSaveAnimationUri(imageUri);
-        setPendingSaveMoodColor(getMoodColor(saveMoodId));
+        setPendingSaveMoodGradient(getMoodTheme(saveMoodId).gradient);
         setPendingSaveComplete(false);
 
         router.dismissAll();

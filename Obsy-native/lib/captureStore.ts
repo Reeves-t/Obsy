@@ -11,6 +11,7 @@ import { PRIVACY_FLAGS } from "@/lib/privacyFlags";
 import { Capture } from "@/types/capture";
 import { getMoodLabel } from "@/lib/moodUtils";
 import { moodCache } from "@/lib/moodCache";
+import type { MoodGradient } from "@/lib/moods";
 import { useTodayInsight } from "./todayInsightStore";
 import { useWeeklyInsight } from "./weeklyInsightStore";
 import { useMonthlyInsight } from "./monthlyInsightStore";
@@ -56,8 +57,8 @@ type CaptureState = {
     // Save animation: set imageUri to trigger animation on home screen
     pendingSaveAnimationUri: string | null;
     setPendingSaveAnimationUri: (uri: string | null) => void;
-    pendingSaveMoodColor: string | null;
-    setPendingSaveMoodColor: (color: string | null) => void;
+    pendingSaveMoodGradient: MoodGradient | null;
+    setPendingSaveMoodGradient: (gradient: MoodGradient | null) => void;
     pendingSaveComplete: boolean;
     setPendingSaveComplete: (complete: boolean) => void;
 };
@@ -453,8 +454,8 @@ export const useCaptureStore = create<CaptureState>()(
 
             pendingSaveAnimationUri: null,
             setPendingSaveAnimationUri: (uri) => set({ pendingSaveAnimationUri: uri }),
-            pendingSaveMoodColor: null,
-            setPendingSaveMoodColor: (color) => set({ pendingSaveMoodColor: color }),
+            pendingSaveMoodGradient: null,
+            setPendingSaveMoodGradient: (gradient) => set({ pendingSaveMoodGradient: gradient }),
             pendingSaveComplete: false,
             setPendingSaveComplete: (complete) => set({ pendingSaveComplete: complete }),
         }),

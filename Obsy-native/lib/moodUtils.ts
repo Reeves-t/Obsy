@@ -1,7 +1,7 @@
-import { MOODS } from '@/constants/Moods';
-import { resolveMoodColor } from '@/lib/moodColorUtils';
 import { moodCache } from '@/lib/moodCache';
 import { Mood } from '@/types/mood';
+import { getMoodTheme } from './moods';
+import type { MoodTheme } from './moods';
 
 /**
  * Resolves a mood ID to its full Mood object.
@@ -41,16 +41,25 @@ export function getMoodLabel(moodId: string, nameSnapshot?: string): string {
 }
 
 /**
- * Resolves a color for a mood ID.
+ * Resolves the full MoodTheme for a mood ID.
+ * Returns gradient, solid, textOn, and all derived tokens.
+ */
+export function resolveMoodThemeById(moodId: string, nameSnapshot?: string): MoodTheme {
+    // For custom moods, try to resolve via name for better gradient
+    if (moodId.startsWith('custom_')) {
+        const mood = resolveMood(moodId);
+        if (mood) return getMoodTheme(mood.name);
+        if (nameSnapshot && !nameSnapshot.startsWith('custom_')) {
+            return getMoodTheme(nameSnapshot);
+        }
+    }
+    return getMoodTheme(moodId);
+}
+
+/**
+ * Resolves a solid color for a mood ID.
+ * For gradients, use resolveMoodThemeById() instead.
  */
 export function resolveMoodColorById(moodId: string, nameSnapshot?: string): string {
-    const mood = resolveMood(moodId);
-    if (mood) return resolveMoodColor(mood);
-
-    if (nameSnapshot) {
-        // Deterministic color based on snapshot name
-        return resolveMoodColor({ name: nameSnapshot, type: 'custom' } as Mood);
-    }
-
-    return "#9CA3AF"; // Default gray
+    return resolveMoodThemeById(moodId, nameSnapshot).solid;
 }

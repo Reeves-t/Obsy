@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback, memo } from 'react';
 import { StyleSheet, View, LayoutChangeEvent, TouchableOpacity } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Capture } from '@/types/capture';
-import { resolveMoodColorById, getMoodLabel } from '@/lib/moodUtils';
+import { getMoodLabel } from '@/lib/moodUtils';
+import { getMoodTheme } from '@/lib/moods';
 import { startOfWeek } from 'date-fns';
 import { WEEK_STARTS_ON } from '@/lib/dateUtils';
 import { AiToneId } from '@/lib/aiTone';
@@ -17,6 +19,8 @@ interface CaptureRow {
     moodId: string;
     mood: string;
     color: string;
+    gradientFrom: string;
+    gradientTo: string;
     totalForMood: number;
 }
 
@@ -27,6 +31,8 @@ interface Brick {
     width: number;
     height: number;
     color: string;
+    gradientFrom: string;
+    gradientTo: string;
     mood: string;
     count: number;
     broken: boolean;
@@ -148,10 +154,13 @@ function buildCaptureRows(captures: Capture[]): CaptureRow[] {
 
     return sorted.slice(0, MAX_ROWS).map(c => {
         const label = c.mood_name_snapshot || getMoodLabel(c.mood_id!);
+        const theme = getMoodTheme(c.mood_id!);
         return {
             moodId: c.mood_id!,
             mood: label,
-            color: resolveMoodColorById(c.mood_id!, label),
+            color: theme.solid,
+            gradientFrom: theme.gradient.from,
+            gradientTo: theme.gradient.to,
             totalForMood: moodCounts[c.mood_id!] || 1,
         };
     });
@@ -184,6 +193,8 @@ function buildBricks(rows: CaptureRow[], containerWidth: number, containerHeight
                 width: brickW,
                 height: brickH,
                 color: row.color,
+                gradientFrom: row.gradientFrom,
+                gradientTo: row.gradientTo,
                 mood: row.mood,
                 count: row.totalForMood,
                 broken: false,
@@ -495,7 +506,7 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
     return (
         <GestureDetector gesture={paddleGesture}>
             <View style={[styles.canvas, { width, height }]}>
-                {/* Bricks — always visible */}
+                {/* Bricks — always visible, gradient-filled */}
                 {bricks.map(brick => (
                     <View
                         key={brick.id}
@@ -506,14 +517,20 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
                                 top: brick.y,
                                 width: brick.width,
                                 height: brick.height,
-                                backgroundColor: brick.color,
                                 opacity: brick.broken ? 0 : 0.85,
                                 transform: [{ scale: brick.broken ? 0.3 : 1 }],
                                 shadowColor: brick.color,
                                 borderColor: brickBorder,
                             },
                         ]}
-                    />
+                    >
+                        <LinearGradient
+                            colors={[brick.gradientFrom, brick.gradientTo]}
+                            start={{ x: 0, y: 0.5 }}
+                            end={{ x: 1, y: 0.5 }}
+                            style={StyleSheet.absoluteFillObject}
+                        />
+                    </View>
                 ))}
 
                 {/* Ball — only when playing */}
@@ -616,6 +633,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         borderRadius: 4,
         borderWidth: 0.5,
+        overflow: 'hidden',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.4,
         shadowRadius: 6,

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { moodCache } from '@/lib/moodCache';
-import { resolveMoodColor } from '@/lib/moodColorUtils';
 import { Mood } from '@/types/mood';
 import { supabase } from '@/lib/supabase';
+import { getMoodTheme } from '@/lib/moods';
+import type { MoodGradient } from '@/lib/moods';
 
 export function useMoodResolver() {
     const [isLoading, setIsLoading] = useState(!moodCache.isInitialized());
@@ -40,20 +41,25 @@ export function useMoodResolver() {
         const mood = moodCache.getMoodById(moodId);
 
         if (!mood) {
-            // If mood not found, fallback to snapshot if available
             if (nameSnapshot) {
+                const theme = getMoodTheme(nameSnapshot);
                 return {
                     name: nameSnapshot,
-                    color: resolveMoodColor({ name: nameSnapshot, type: 'custom' } as Mood),
+                    color: theme.solid,
+                    gradient: theme.gradient,
+                    textOn: theme.textOn,
                     type: 'custom' as const,
                 };
             }
             return null;
         }
 
+        const theme = getMoodTheme(mood.type === 'system' ? mood.id : mood.name);
         return {
             name: mood.name,
-            color: resolveMoodColor(mood),
+            color: theme.solid,
+            gradient: theme.gradient,
+            textOn: theme.textOn,
             type: mood.type,
         };
     }, []);
