@@ -1,5 +1,6 @@
 import { Capture } from "@/types/capture";
 import { resolveMoodColorById, getMoodLabel } from "@/lib/moodUtils";
+import { getMoodTheme } from "@/lib/moods";
 
 /**
  * A segment in the mood flow bar (old/legacy format)
@@ -9,6 +10,12 @@ export interface MoodSegment {
     percentage: number;
     color: string;
     context?: string;
+    /** Original mood ID for proper gradient/theme resolution */
+    moodId?: string;
+    /** Gradient "from" (light) color for this mood */
+    gradientFrom?: string;
+    /** Gradient "to" (dark) color for this mood */
+    gradientTo?: string;
 }
 
 /**
@@ -49,6 +56,8 @@ export function isMoodFlowSegments(data: any): data is MoodSegment[] {
 export interface DailyMoodFlowData {
     segments: MoodSegment[];
     dominant: string;
+    /** Original mood ID of the dominant mood for reliable color resolution */
+    dominantId?: string;
     totalCaptures: number;
     title?: string;       // AI-generated evocative title
     subtitle?: string;    // AI-generated descriptive sentence
@@ -133,11 +142,15 @@ export function computeDailyMoodFlow(captures: Capture[]): DailyMoodFlowData {
             const descriptiveName = getDescriptiveMoodName(moodId, label, notes);
             // Use first note as context if available
             const context = notes.length > 0 ? notes[0].slice(0, 80) : undefined;
+            const theme = getMoodTheme(moodId);
             return {
                 mood: descriptiveName,
                 percentage: (count / totalCaptures) * 100,
-                color: resolveMoodColorById(moodId, label),
+                color: theme.solid,
                 context,
+                moodId,
+                gradientFrom: theme.gradient.from,
+                gradientTo: theme.gradient.to,
             };
         })
         .sort((a, b) => b.percentage - a.percentage);
@@ -160,6 +173,7 @@ export function computeDailyMoodFlow(captures: Capture[]): DailyMoodFlowData {
     return {
         segments,
         dominant: resolveLabel(dominantId),
+        dominantId,
         totalCaptures,
     };
 }

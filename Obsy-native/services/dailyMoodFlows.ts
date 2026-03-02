@@ -66,9 +66,15 @@ export async function fetchDailyMoodFlows(
 
         const flowMap: Record<string, DailyMoodFlowData> = {};
         for (const row of data || []) {
+            const segments = row.segments as DailyMoodFlowData["segments"];
+            // Derive dominantId from the highest-percentage segment's moodId
+            const topSegment = segments && segments.length > 0
+                ? segments.reduce((a, b) => (b.percentage > a.percentage ? b : a))
+                : null;
             flowMap[row.date_key] = {
-                segments: row.segments as DailyMoodFlowData["segments"],
+                segments,
                 dominant: row.dominant,
+                dominantId: topSegment?.moodId,
                 totalCaptures: row.total_captures,
                 title: row.title,
                 subtitle: row.subtitle,

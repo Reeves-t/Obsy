@@ -20,28 +20,35 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+function resolveSegmentGradient(segment: MoodSegment): { from: string; to: string } {
+    // Prefer pre-computed gradient fields; fall back to moodId, then descriptive name
+    if (segment.gradientFrom && segment.gradientTo) {
+        return { from: segment.gradientFrom, to: segment.gradientTo };
+    }
+    const key = segment.moodId || segment.mood;
+    const theme = getMoodTheme(key);
+    return { from: theme.gradient.from, to: theme.gradient.to };
+}
+
 function buildGradientColors(flow: MoodSegment[]): [string, string, ...string[]] {
     if (!flow.length) return ["#1f2937", "#0f172a"];
 
     if (flow.length === 1) {
-        // Single mood — use its canonical gradient stops for a rich, natural gradient
-        const theme = getMoodTheme(flow[0].mood);
-        return [theme.gradient.from, theme.gradient.to];
+        const grad = resolveSegmentGradient(flow[0]);
+        return [grad.from, grad.to];
     }
 
     // Multiple moods — interleave each mood's gradient.from with blended transitions
     const colors: string[] = [];
     flow.forEach((segment, idx) => {
-        const theme = getMoodTheme(segment.mood);
-        colors.push(theme.gradient.from);
+        const grad = resolveSegmentGradient(segment);
+        colors.push(grad.from);
         if (idx < flow.length - 1) {
-            // Transition: use this mood's "to" stop as the bridge to the next mood
-            colors.push(theme.gradient.to);
+            colors.push(grad.to);
         }
     });
-    // Cap with the last mood's "to" stop
-    const lastTheme = getMoodTheme(flow[flow.length - 1].mood);
-    colors.push(lastTheme.gradient.to);
+    const lastGrad = resolveSegmentGradient(flow[flow.length - 1]);
+    colors.push(lastGrad.to);
 
     return colors as [string, string, ...string[]];
 }

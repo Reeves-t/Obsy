@@ -73,20 +73,30 @@ function computeMoodDistribution(
 ): Array<{ mood: string; percentage: number; color: string }> {
     const moodTotals: Record<string, number> = {};
     const moodColors: Record<string, string> = {};
+    const moodLabels: Record<string, string> = {};
     let totalWeight = 0;
 
-    // Sum all daily flow segment totals per mood (not just dominant)
+    // Aggregate by moodId (original ID) instead of descriptive name to avoid
+    // splitting the same mood across multiple entries with different labels
     for (let day = 1; day <= daysInMonth; day++) {
         const dateKey = getDateKeyForDay(monthYear.year, monthYear.month, day);
         const flowData = dailyFlows[dateKey];
         if (flowData && flowData.segments && flowData.segments.length > 0) {
             for (const segment of flowData.segments) {
-                // Each segment has a mood and percentage - use percentage as weight
                 const weight = segment.percentage * flowData.totalCaptures / 100;
-                moodTotals[segment.mood] = (moodTotals[segment.mood] || 0) + weight;
-                // Preserve the segment's pre-computed color only if it's valid hex
-                if (!moodColors[segment.mood] && segment.color && HEX_COLOR_RE.test(segment.color)) {
-                    moodColors[segment.mood] = segment.color;
+                // Use moodId as the aggregation key when available; fall back to mood name
+                const key = segment.moodId || segment.mood;
+                moodTotals[key] = (moodTotals[key] || 0) + weight;
+                // Resolve color from the canonical theme using moodId
+                if (!moodColors[key]) {
+                    if (segment.moodId) {
+                        moodColors[key] = getMoodTheme(segment.moodId).solid;
+                    } else if (segment.color && HEX_COLOR_RE.test(segment.color)) {
+                        moodColors[key] = segment.color;
+                    }
+                }
+                if (!moodLabels[key]) {
+                    moodLabels[key] = segment.mood;
                 }
                 totalWeight += weight;
             }
@@ -98,12 +108,11 @@ function computeMoodDistribution(
     }
 
     const distribution = Object.entries(moodTotals)
-        .map(([mood, weight]) => {
-            // Use pre-computed segment color if valid, otherwise resolve via theme
-            const color = (moodColors[mood] && HEX_COLOR_RE.test(moodColors[mood]))
-                ? moodColors[mood]
-                : getMoodTheme(mood).solid;
-            return { mood, percentage: (weight / totalWeight) * 100, color };
+        .map(([key, weight]) => {
+            const color = (moodColors[key] && HEX_COLOR_RE.test(moodColors[key]))
+                ? moodColors[key]
+                : getMoodTheme(key).solid;
+            return { mood: moodLabels[key] || key, percentage: (weight / totalWeight) * 100, color };
         })
         .sort((a, b) => b.percentage - a.percentage);
 

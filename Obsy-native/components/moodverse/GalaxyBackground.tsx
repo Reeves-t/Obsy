@@ -24,17 +24,25 @@ const CAMERA_OFFSET_X = -4; // shift galaxy to the right on screen
 const CENTER_CLEAR_RADIUS = 5;
 
 /**
- * Push a point outward so it's at least `minRadius` from the XY origin.
+ * Compute push delta for a cluster anchor so it's at least `minRadius` from origin.
+ * Returns the delta (dx, dy) to apply to the cluster and all its orbs.
  */
-function enforceMinRadius(x: number, y: number, minRadius: number): { x: number; y: number } {
-    const dist = Math.sqrt(x * x + y * y);
+function computeClusterPushDelta(
+    anchorX: number,
+    anchorY: number,
+    minRadius: number,
+): { dx: number; dy: number } {
+    const dist = Math.sqrt(anchorX * anchorX + anchorY * anchorY);
+    if (dist >= minRadius) return { dx: 0, dy: 0 };
     if (dist < 0.01) {
-        // Dead center — push in a seeded direction
-        return { x: minRadius, y: 0 };
+        // Dead center — push rightward
+        return { dx: minRadius, dy: 0 };
     }
-    if (dist >= minRadius) return { x, y };
     const scale = minRadius / dist;
-    return { x: x * scale, y: y * scale };
+    return {
+        dx: anchorX * scale - anchorX,
+        dy: anchorY * scale - anchorY,
+    };
 }
 
 /**
@@ -42,7 +50,9 @@ function enforceMinRadius(x: number, y: number, minRadius: number): { x: number;
  *
  * Reuses the same orb/cluster primitives as the full MoodVerse but strips out
  * edges, shimmer, raycasting, selection, and gesture control.
- * Orbs are pushed outward from center to ring around the CTA capture button.
+ *
+ * Clusters are pushed outward as cohesive units (preserving internal structure)
+ * to ring around the CTA capture button.
  */
 export function GalaxyBackground({ orbs, clusters, isPaused }: GalaxyBackgroundProps) {
     const [sceneReady, setSceneReady] = useState(false);
@@ -56,22 +66,48 @@ export function GalaxyBackground({ orbs, clusters, isPaused }: GalaxyBackgroundP
 
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
-    // ── Push orbs + clusters outward to clear the center ────────────────
-    const ringOrbs = useMemo(() => {
-        return orbs.map((orb) => {
-            const pushed = enforceMinRadius(orb.x, orb.y, CENTER_CLEAR_RADIUS);
-            if (pushed.x === orb.x && pushed.y === orb.y) return orb;
-            return { ...orb, x: pushed.x, y: pushed.y };
-        });
-    }, [orbs]);
+    // ── Push clusters outward as cohesive units ─────────────────────────
+    // Instead of pushing individual orbs (which fragments clusters),
+    // compute a single push vector per cluster and apply it uniformly
+    // to the cluster anchor and all its orbs.
+    const { ringOrbs, ringClusters } = useMemo(() => {
+        // Build cluster ID → push delta map
+        const clusterDeltas = new Map<string, { dx: number; dy: number }>();
+        const pushedClusters: GalaxyCluster[] = [];
 
-    const ringClusters = useMemo(() => {
-        return clusters.map((cluster) => {
-            const pushed = enforceMinRadius(cluster.anchorX, cluster.anchorY, CENTER_CLEAR_RADIUS);
-            if (pushed.x === cluster.anchorX && pushed.y === cluster.anchorY) return cluster;
-            return { ...cluster, anchorX: pushed.x, anchorY: pushed.y };
+        for (const cluster of clusters) {
+            const delta = computeClusterPushDelta(
+                cluster.anchorX,
+                cluster.anchorY,
+                CENTER_CLEAR_RADIUS,
+            );
+            clusterDeltas.set(cluster.id, delta);
+            pushedClusters.push(
+                delta.dx === 0 && delta.dy === 0
+                    ? cluster
+                    : {
+                        ...cluster,
+                        anchorX: cluster.anchorX + delta.dx,
+                        anchorY: cluster.anchorY + delta.dy,
+                        // Also push orbs within the cluster data
+                        orbs: cluster.orbs.map(o => ({
+                            ...o,
+                            x: o.x + delta.dx,
+                            y: o.y + delta.dy,
+                        })),
+                    },
+            );
+        }
+
+        // Apply the same delta to each orb based on its cluster membership
+        const pushedOrbs = orbs.map((orb) => {
+            const delta = clusterDeltas.get(orb.clusterId);
+            if (!delta || (delta.dx === 0 && delta.dy === 0)) return orb;
+            return { ...orb, x: orb.x + delta.dx, y: orb.y + delta.dy };
         });
-    }, [clusters]);
+
+        return { ringOrbs: pushedOrbs, ringClusters: pushedClusters };
+    }, [orbs, clusters]);
 
     // ── Rebuild orbs + clusters when data changes ───────────────────────
     useEffect(() => {

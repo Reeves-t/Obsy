@@ -11,7 +11,7 @@ import { MoodRingDial } from "@/components/insights/MoodRingDial";
 import Colors from "@/constants/Colors";
 import { Capture } from "@/types/capture";
 import { DailyMoodFlowData, filterCapturesForDate, formatDateKey } from "@/lib/dailyMoodFlows";
-import { getMoodColor } from "@/lib/moodColors";
+import { getMoodTheme } from "@/lib/moods";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
 import { format } from "date-fns";
 import { BookmarkButton } from "@/components/insights/BookmarkButton";
@@ -332,7 +332,7 @@ function MonthCalendar({
                     const dateKey = day > 0 ? getDateKeyForDay(day) : "";
                     const flowData = dateKey ? dailyFlows[dateKey] : null;
                     const hasData = flowData && flowData.totalCaptures > 0;
-                    const moodColor = hasData ? getMoodColor(flowData.dominant) : null;
+                    const moodColor = hasData ? getMoodTheme(flowData.dominantId || flowData.dominant).solid : null;
 
                     return (
                         <TouchableOpacity
@@ -389,6 +389,7 @@ function SelectedDayPanel({
     ).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 
     const dominantMood = flowData?.dominant || "neutral";
+    const dominantMoodId = flowData?.dominantId || dominantMood;
     const captureCount = dayCaptures.length;
 
     return (
@@ -398,7 +399,7 @@ function SelectedDayPanel({
                     {dateLabel}
                 </ThemedText>
                 <View style={styles.selectedDayMeta}>
-                    <View style={[styles.dominantDot, { backgroundColor: getMoodColor(dominantMood) }]} />
+                    <View style={[styles.dominantDot, { backgroundColor: getMoodTheme(dominantMoodId).solid }]} />
                     <ThemedText style={[styles.metaText, colors && { color: colors.cardTextSecondary }]}>{dominantMood}</ThemedText>
                     <ThemedText style={[styles.metaText, colors && { color: colors.cardTextSecondary }]}>• {captureCount} captures</ThemedText>
                 </View>

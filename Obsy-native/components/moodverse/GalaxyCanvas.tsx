@@ -424,28 +424,43 @@ export function GalaxyCanvas({
                         const mat = sub.material as THREE.ShaderMaterial;
                         if (!mat.uniforms) continue;
 
-                        if (isSelected || isAiHighlighted) {
-                            mat.uniforms.colorCenter.value.copy(origCenter);
-                            mat.uniforms.colorEdge.value.copy(origEdge);
-                            mat.uniforms.opacity.value = 1.0;
-                        } else if (isHighlighted) {
-                            mat.uniforms.colorCenter.value.copy(origCenter);
-                            if (hlPhase > 0.5) mat.uniforms.colorCenter.value.multiplyScalar(1.3);
-                            mat.uniforms.colorEdge.value.copy(origEdge);
-                            mat.uniforms.opacity.value = 1.0;
-                        } else if (hasAiHighlight) {
-                            // Dim non-highlighted orbs during AI explanation
-                            mat.uniforms.colorCenter.value.copy(DIM_COLOR).lerp(origCenter, 0.2);
-                            mat.uniforms.colorEdge.value.copy(DIM_COLOR).lerp(origEdge, 0.2);
-                            mat.uniforms.opacity.value = 0.2;
-                        } else if (hasSelection) {
-                            mat.uniforms.colorCenter.value.copy(DIM_COLOR).lerp(origCenter, 0.25);
-                            mat.uniforms.colorEdge.value.copy(DIM_COLOR).lerp(origEdge, 0.25);
-                            mat.uniforms.opacity.value = 0.6;
+                        const isGlow = sub.userData.isGlow;
+
+                        if (isGlow) {
+                            // Glow layer: adjust opacity based on selection state
+                            if (isSelected || isAiHighlighted) {
+                                mat.uniforms.glowOpacity.value = mat.userData?.origGlowOpacity ?? 0.15;
+                            } else if (isHighlighted) {
+                                mat.uniforms.glowOpacity.value = (mat.userData?.origGlowOpacity ?? 0.15) * 1.5;
+                            } else if (hasAiHighlight || hasSelection) {
+                                mat.uniforms.glowOpacity.value = 0.0;
+                            } else {
+                                mat.uniforms.glowOpacity.value = mat.userData?.origGlowOpacity ?? 0.15;
+                            }
                         } else {
-                            mat.uniforms.colorCenter.value.copy(origCenter);
-                            mat.uniforms.colorEdge.value.copy(origEdge);
-                            mat.uniforms.opacity.value = 1.0;
+                            // Core sphere: update color uniforms
+                            if (isSelected || isAiHighlighted) {
+                                mat.uniforms.colorFrom.value.copy(origCenter);
+                                mat.uniforms.colorTo.value.copy(origEdge);
+                                mat.uniforms.opacity.value = 1.0;
+                            } else if (isHighlighted) {
+                                mat.uniforms.colorFrom.value.copy(origCenter);
+                                if (hlPhase > 0.5) mat.uniforms.colorFrom.value.multiplyScalar(1.3);
+                                mat.uniforms.colorTo.value.copy(origEdge);
+                                mat.uniforms.opacity.value = 1.0;
+                            } else if (hasAiHighlight) {
+                                mat.uniforms.colorFrom.value.copy(DIM_COLOR).lerp(origCenter, 0.2);
+                                mat.uniforms.colorTo.value.copy(DIM_COLOR).lerp(origEdge, 0.2);
+                                mat.uniforms.opacity.value = 0.2;
+                            } else if (hasSelection) {
+                                mat.uniforms.colorFrom.value.copy(DIM_COLOR).lerp(origCenter, 0.25);
+                                mat.uniforms.colorTo.value.copy(DIM_COLOR).lerp(origEdge, 0.25);
+                                mat.uniforms.opacity.value = 0.6;
+                            } else {
+                                mat.uniforms.colorFrom.value.copy(origCenter);
+                                mat.uniforms.colorTo.value.copy(origEdge);
+                                mat.uniforms.opacity.value = 1.0;
+                            }
                         }
                     }
                 }
