@@ -137,10 +137,12 @@ export function getMoodTheme(moodIdOrLabel: string): MoodTheme {
         return theme;
     }
 
-    // 2. Custom mood from cache
+    // 2. Custom mood from cache — prefer stored AI-assigned colors, fall back to hash
     const dbMood = moodCache.getMoodById(moodIdOrLabel);
     if (dbMood) {
-        const gradient = generateMoodGradient(dbMood.name);
+        const gradient = (dbMood.gradient_from && dbMood.gradient_to)
+            ? { from: dbMood.gradient_from, to: dbMood.gradient_to }
+            : generateMoodGradient(dbMood.name);
         theme = buildTheme(dbMood.id, dbMood.name, 'medium', gradient);
         themeCache.set(moodIdOrLabel, theme);
         return theme;

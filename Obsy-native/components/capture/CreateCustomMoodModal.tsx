@@ -89,7 +89,7 @@ export function CreateCustomMoodModal({ visible, onClose, onSave, isLoading = fa
                                     <ThemedText style={styles.errorText}>{localError}</ThemedText>
                                 ) : (
                                     <ThemedText style={styles.helperText}>
-                                        Colors are assigned automatically based on the mood name.
+                                        AI will pick colors that match this mood's feeling.
                                     </ThemedText>
                                 )}
                             </View>

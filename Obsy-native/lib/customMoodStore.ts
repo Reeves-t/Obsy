@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Mood } from '@/types/mood';
 import { supabase } from '@/lib/supabase';
 import { moodCache } from '@/lib/moodCache';
+import { generateMoodGradient, invalidateMoodThemeCache } from '@/lib/moods';
 
 const ASYNC_STORAGE_KEY = 'obsy-custom-moods';
 const MIGRATION_FLAG_KEY = 'obsy-custom-moods-migrated';
@@ -79,12 +80,42 @@ export const useCustomMoodStore = create<CustomMoodState>()((set, get) => ({
 
         const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+        // Generate fallback gradient from hash (used if AI call fails)
+        const fallbackGradient = generateMoodGradient(trimmedName);
+
+        // Request AI-assigned colors (non-blocking — we don't hold up creation)
+        let aiGradient: { gradient_from: string; gradient_to: string } | null = null;
+        try {
+            const colorResult = await Promise.race([
+                supabase.functions.invoke('generate-mood-color', {
+                    body: { moodName: trimmedName },
+                }),
+                new Promise<{ data: null; error: Error }>((_, reject) =>
+                    setTimeout(() => reject(new Error('Color generation timed out')), 8000)
+                ),
+            ]) as any;
+
+            if (colorResult?.data?.gradient_from && colorResult?.data?.gradient_to) {
+                aiGradient = {
+                    gradient_from: colorResult.data.gradient_from,
+                    gradient_to: colorResult.data.gradient_to,
+                };
+                console.log(`[MoodStore] AI colors for "${trimmedName}": ${aiGradient.gradient_from} → ${aiGradient.gradient_to}`);
+            } else if (colorResult?.error) {
+                console.warn('[MoodStore] AI color generation failed, using fallback:', colorResult.error);
+            }
+        } catch (colorErr) {
+            console.warn('[MoodStore] AI color generation error, using fallback:', colorErr);
+        }
+
         const newMood: Mood = {
             id,
             name: trimmedName,
             type: 'custom',
             user_id: userId,
             created_at: new Date().toISOString(),
+            gradient_from: aiGradient?.gradient_from ?? fallbackGradient.from,
+            gradient_to: aiGradient?.gradient_to ?? fallbackGradient.to,
         };
 
         console.log('[MoodStore] Creating custom mood:', trimmedName, 'for user:', userId);
@@ -129,8 +160,9 @@ export const useCustomMoodStore = create<CustomMoodState>()((set, get) => ({
             // Add to local state
             set(state => ({ customMoods: [...state.customMoods, data] }));
 
-            // Invalidate mood cache so it picks up the new mood
+            // Invalidate caches so the new mood + colors are picked up
             moodCache.invalidateCache();
+            invalidateMoodThemeCache();
 
             return data;
         } catch (err) {

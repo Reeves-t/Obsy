@@ -5,6 +5,8 @@ export interface Mood {
     user_id?: string;                    // Only for custom moods
     created_at: string;                  // ISO timestamp
     deleted_at?: string;                 // Soft delete timestamp
+    gradient_from?: string;              // AI-assigned lighter gradient stop (hex)
+    gradient_to?: string;                // AI-assigned deeper gradient stop (hex)
 }
 
 export interface MoodSnapshot {
