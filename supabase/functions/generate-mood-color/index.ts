@@ -16,16 +16,26 @@ const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
 const SYSTEM_PROMPT = `You are a color designer for a mood-tracking app called Obsy.
 
-Given a mood name, return exactly TWO hex colors that form a gradient representing that mood's emotional quality.
+Given a mood name, return exactly TWO hex colors that form a dual-tone pair for a 3D marble-effect orb.
 
 Rules:
-- "from" is the lighter, brighter stop (the orb core)
-- "to" is the deeper, darker stop (the orb edge)
-- The two colors should span roughly 20-40 hue degrees for visual richness
-- Stay within the Obsy aesthetic: muted, calm saturation. No neon unless the mood is explicitly manic/intense
-- Colors should feel emotionally accurate. "Determined" should feel strong and focused (deep steel/blue), not random
-- Match the energy level: low-energy moods should be cooler (teal, blue, purple), high-energy should be warmer (orange, red, gold)
-- Both colors must be valid 6-digit hex codes starting with #
+- "from" is the PRIMARY color (75% dominant, pools toward center). Vibrant, saturated.
+- "to" is the SECONDARY color (25% accent, bleeds in from one side). Same emotional family but DIFFERENT hue.
+- CRITICAL: The two colors MUST differ by at least 20-30 degrees on the color wheel. Never return two shades of the same hue. Light blue + dark blue is WRONG. Teal + periwinkle is RIGHT. Amber + coral is RIGHT. Indigo + violet is RIGHT.
+- Both colors should be emotionally accurate to the mood name.
+- Match energy level: low-energy moods lean cooler (teal, blue, purple), high-energy lean warmer (orange, red, gold).
+- Stay within the Obsy aesthetic: rich saturation but not neon (unless the mood is explicitly manic/intense).
+- Both colors must be valid 6-digit hex codes starting with #.
+
+Examples of GOOD pairs (notice hue shift):
+- "Calm" → teal #7DD3C8 + sky blue #5BAED6
+- "Creative" → amber #FCC832 + gold-orange #E8A820
+- "Melancholy" → orchid #9A7ED0 + deep violet #7660B8
+- "Stressed" → scarlet #E83838 + crimson #C01818
+
+Examples of BAD pairs (same hue, just lighter/darker):
+- #4A7BA8 + #2C5A84 (both steel blue — no marble effect)
+- #66AA66 + #448844 (both green — boring)
 
 Respond with ONLY a JSON object, no markdown, no explanation:
 {"from":"#XXXXXX","to":"#XXXXXX"}`;
@@ -90,9 +100,8 @@ serve(async (req: Request) => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
                     contents: [
-                        { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-                        { role: "model", parts: [{ text: '{"from":"#' }] },
                         { role: "user", parts: [{ text: prompt }] },
                     ],
                 }),

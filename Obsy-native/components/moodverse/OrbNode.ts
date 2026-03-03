@@ -83,15 +83,31 @@ uniform float fogFar;
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
+varying vec3 vWorldPosition;
 
 void main() {
     vec3 viewDir = normalize(-vViewPosition);
     float facing = clamp(dot(vNormal, viewDir), 0.0, 1.0);
 
-    // Radial gradient: lighter/saturated core -> deeper/darker edge
-    // Use a steeper curve so the bright core is concentrated
-    float t = 1.0 - pow(facing, 0.55);
-    vec3 color = mix(colorFrom, colorTo, t);
+    // ── Dual-tone marble interior ────────────────────────────────────
+    // Primary color (colorFrom) pools toward center (75% dominant).
+    // Secondary color (colorTo) bleeds in from one side with angular
+    // bias, capped at 25% to keep the primary in control.
+
+    // Radial factor: bright core concentrated via steep power curve
+    float radial = 1.0 - pow(facing, 0.55);
+
+    // Angular bias: secondary bleeds in from upper-right hemisphere
+    vec3 biasDir = normalize(vec3(0.6, 0.5, 0.3));
+    float angular = dot(vNormal, biasDir) * 0.5 + 0.5;          // 0..1
+    float secondaryBlend = smoothstep(0.3, 0.9, angular);
+    secondaryBlend = clamp(secondaryBlend, 0.0, 0.28);          // cap at ~25%
+
+    // Compose: primary radial base, then layer secondary on top
+    vec3 primary = colorFrom;
+    vec3 edgeTint = mix(colorFrom, colorTo, 0.45);
+    vec3 radialBase = mix(primary, edgeTint, radial);
+    vec3 color = mix(radialBase, colorTo, secondaryBlend);
 
     // Specular highlight — offset slightly from center to simulate a light source
     // Light direction: upper-left
@@ -163,11 +179,11 @@ void main() {
  * Creates a Three.js Group for a single galaxy orb.
  *
  * Renders with:
- * - Core sphere: radial gradient using the mood's two-tone color pair
- *   (from = lighter/saturated core, to = deeper/darker edge)
+ * - Core sphere: dual-tone marble interior using the mood's color pair
+ *   (from = primary 75% dominant, to = secondary 25% accent with angular bias)
  * - Specular highlight: small bright spot offset from center simulating
  *   a light source for the sphere illusion
- * - Outer glow: soft additive halo matching the base mood color
+ * - Outer glow: soft additive halo matching the primary mood color
  */
 export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
     const group = new THREE.Group();
@@ -177,14 +193,14 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
 
     const radius = RADIUS_MIN + orb.richness * (RADIUS_MAX - RADIUS_MIN);
 
-    // Derive center + edge colors from mood's two-tone gradient pair
+    // Derive primary + secondary colors from mood's two-tone gradient pair
     const fromColor = new THREE.Color(orb.colorFrom);
     const toColor = new THREE.Color(orb.colorTo);
 
-    // Core color: brighten and saturate the "from" color for the glowing center
+    // Primary color (75% dominant): brighten and saturate for glowing center
     const coreColor = brighten(saturate(fromColor, 1.2), config.coreLightness);
-    // Edge color: darken the "to" color for the deep outer ring
-    const edgeColor = darken(toColor, config.edgeDarkness);
+    // Secondary color (25% accent): saturate to preserve hue contrast, darken less
+    const edgeColor = saturate(darken(toColor, config.edgeDarkness * 0.6), 1.15);
 
     // ── Core sphere ─────────────────────────────────────────────────────
     const coreMaterial = new THREE.ShaderMaterial({
