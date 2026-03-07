@@ -44,6 +44,8 @@ export interface GalaxyCluster {
     anchorY: number;
     anchorZ: number;
     orbs: GalaxyOrb[];
+    nebulaColor?: string;            // Blended avg color of month's moods (for fog)
+    nebulaRadius?: number;           // Scatter radius for volumetric fog
 }
 
 export interface GalaxyEdge {

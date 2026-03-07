@@ -19,7 +19,7 @@ import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodvers
 import { computeEdgesForOrb, computeAmbientMesh } from '@/components/moodverse/edgeCompute';
 
 const DEFAULT_CAMERA_Z = 35;
-const CAMERA_Z_MIN = 15;
+const CAMERA_Z_MIN = 5;
 const CAMERA_Z_MAX = 90;
 const PAN_LIMIT = 20;
 const PAN_SENSITIVITY = 0.018;
@@ -130,15 +130,9 @@ export default function MoodversePage() {
         return computeEdgesForOrb(orb, orbs);
     }, [selectedOrbId, orbs]);
 
-    // Camera target: lerp toward selected orb's position
+    // Camera target: disabled to prevent camera movement on selection
     useEffect(() => {
-        if (selectedOrbId) {
-            const orb = orbs.find((o) => o.id === selectedOrbId);
-            if (orb) {
-                cameraTargetRef.current = { x: orb.x, y: orb.y };
-                return;
-            }
-        }
+        // Keep camera target null to disable auto-focus on selected orbs
         cameraTargetRef.current = null;
     }, [selectedOrbId, orbs]);
 

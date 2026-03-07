@@ -64,7 +64,10 @@ function getWeekOfYear(date: Date): number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MAX_ORBS = 1000;
-const MIN_ORB_DISTANCE = 0.4;
+// Single Archimedean spiral constants
+const SPIRAL_TIGHTNESS = 0.18;      // Radians per orb (controls arm openness)
+const SPIRAL_START_RADIUS = 1.0;    // Starting radius at center
+const SPIRAL_GROWTH = 0.08;         // Radius growth per orb (arm expansion rate)
 
 export interface LayoutResult {
     orbs: GalaxyOrb[];
@@ -83,146 +86,131 @@ export function computeGalaxyLayout(
     const seed = djb2(`${userId}:${year}`);
     const rng = new SeededRNG(seed);
 
+    // ── Step 1: Sort chronologically (oldest first) with mood-affinity secondary sort ──
     const yearCaptures = captures
         .filter((c) => {
             const d = new Date(c.created_at);
             return d.getFullYear() === year && c.mood_id;
         })
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            const timeDiff = timeA - timeB;
+
+            // If captures are within 7 days, group by mood for affinity
+            if (Math.abs(timeDiff) < 7 * 24 * 60 * 60 * 1000) {
+                return a.mood_id.localeCompare(b.mood_id);
+            }
+            return timeDiff;
+        })
         .slice(0, MAX_ORBS);
 
-    // Count mood frequencies for novelty scoring
+    // ── Step 2: Calculate mood frequencies across entire dataset ──
     const moodFreq: Record<string, number> = {};
     for (const c of yearCaptures) {
         moodFreq[c.mood_id] = (moodFreq[c.mood_id] || 0) + 1;
     }
     const maxFreq = Math.max(...Object.values(moodFreq), 1);
 
-    const byMonth: Map<number, Capture[]> = new Map();
-    for (const c of yearCaptures) {
-        const month = new Date(c.created_at).getMonth();
-        if (!byMonth.has(month)) byMonth.set(month, []);
-        byMonth.get(month)!.push(c);
-    }
+    // Sort moods by frequency to determine tiers
+    const moodsSortedByFreq = Object.entries(moodFreq)
+        .sort((a, b) => b[1] - a[1])
+        .map(([moodId]) => moodId);
 
-    // Generate 12 month cluster anchors using golden angle spiral
-    const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-    const monthAnchors: Array<{ x: number; y: number; z: number }> = [];
-    for (let m = 0; m < 12; m++) {
-        const angle = m * GOLDEN_ANGLE + rng.range(-0.15, 0.15);
-        const radius = 4 + Math.sqrt((m + 1) / 12) * 5 + rng.range(-0.5, 0.5);
-        const z = (m - 5.5) * 1.5;
-        monthAnchors.push({
-            x: Math.cos(angle) * radius,
-            y: Math.sin(angle) * radius,
-            z,
-        });
-    }
+    const totalMoods = moodsSortedByFreq.length;
+    const topThirdThreshold = Math.floor(totalMoods / 3);
+    const middleThirdThreshold = Math.floor((totalMoods * 2) / 3);
 
     const allOrbs: GalaxyOrb[] = [];
-    const allClusters: GalaxyCluster[] = [];
-    const placedPositions: Array<{ x: number; y: number; z: number }> = [];
 
-    for (let m = 0; m < 12; m++) {
-        const monthCaptures = byMonth.get(m) || [];
-        const anchor = monthAnchors[m];
-        const clusterId = `month-${m}`;
-        const clusterOrbs: GalaxyOrb[] = [];
+    // ── Step 3: Position each orb on the continuous Archimedean spiral ──
+    for (let i = 0; i < yearCaptures.length; i++) {
+        const capture = yearCaptures[i];
+        const theme = getMoodTheme(capture.mood_id);
+        const label = capture.mood_name_snapshot || getMoodLabel(capture.mood_id);
+        const date = new Date(capture.created_at);
 
-        const byMood: Map<string, Capture[]> = new Map();
-        for (const c of monthCaptures) {
-            if (!byMood.has(c.mood_id)) byMood.set(c.mood_id, []);
-            byMood.get(c.mood_id)!.push(c);
+        // Base spiral position
+        const angle = i * SPIRAL_TIGHTNESS;
+        const radius = SPIRAL_START_RADIUS + (i * SPIRAL_GROWTH);
+
+        // ── Step 4: Radial offset based on mood frequency ──
+        const moodRank = moodsSortedByFreq.indexOf(capture.mood_id);
+        let offsetMagnitude: number;
+
+        if (moodRank < topThirdThreshold) {
+            // Common moods - on the spiral spine
+            offsetMagnitude = 0.0;
+        } else if (moodRank < middleThirdThreshold) {
+            // Medium frequency moods - slight offset
+            offsetMagnitude = 0.3;
+        } else {
+            // Rare/one-off moods - larger offset (outlier stars)
+            offsetMagnitude = rng.range(0.6, 0.8);
         }
 
-        let moodIdx = 0;
-        for (const [, moodCaptures] of byMood) {
-            const subAngle = (moodIdx / Math.max(byMood.size, 1)) * Math.PI * 2 + rng.range(-0.3, 0.3);
-            const subRadius = rng.range(0.8, 2.0);
-            const subAnchor = {
-                x: anchor.x + Math.cos(subAngle) * subRadius,
-                y: anchor.y + Math.sin(subAngle) * subRadius,
-                z: anchor.z + rng.range(-1.2, 1.2),
-            };
+        // Alternate offset direction (both sides of spiral arm)
+        const offsetSign = (i % 2 === 0) ? 1 : -1;
 
-            for (const capture of moodCaptures) {
-                const theme = getMoodTheme(capture.mood_id);
-                const label = capture.mood_name_snapshot || getMoodLabel(capture.mood_id);
-                const date = new Date(capture.created_at);
+        // Calculate perpendicular offset (perpendicular to radial direction)
+        const perpendicularAngle = angle + Math.PI / 2;
+        const offsetX = Math.cos(perpendicularAngle) * offsetMagnitude * offsetSign;
+        const offsetY = Math.sin(perpendicularAngle) * offsetMagnitude * offsetSign;
 
-                let px = subAnchor.x + rng.range(-0.6, 0.6);
-                let py = subAnchor.y + rng.range(-0.6, 0.6);
-                let pz = subAnchor.z + rng.range(-0.8, 0.8);
+        // Final position (flat, no z variation)
+        const x = Math.cos(angle) * radius + offsetX;
+        const y = Math.sin(angle) * radius + offsetY;
+        const z = 0;
 
-                for (let attempt = 0; attempt < 5; attempt++) {
-                    let tooClose = false;
-                    for (const placed of placedPositions) {
-                        const dx = px - placed.x;
-                        const dy = py - placed.y;
-                        const dz = pz - placed.z;
-                        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                        if (dist < MIN_ORB_DISTANCE) {
-                            const pushFactor = (MIN_ORB_DISTANCE - dist + 0.1);
-                            px += (dx / (dist || 0.01)) * pushFactor;
-                            py += (dy / (dist || 0.01)) * pushFactor;
-                            pz += (dz / (dist || 0.01)) * pushFactor * 0.2;
-                            tooClose = true;
-                            break;
-                        }
-                    }
-                    if (!tooClose) break;
-                }
+        // Calculate orb metadata
+        const freq = moodFreq[capture.mood_id] || 1;
+        const novelty = 1 - (freq / maxFreq);
 
-                const freq = moodFreq[capture.mood_id] || 1;
-                const novelty = 1 - (freq / maxFreq); // rare moods = higher novelty
+        // Richness: note length + tags + photo presence → 0-1
+        const noteLen = capture.note ? Math.min(capture.note.length, 200) : 0;
+        const richness = Math.min(1, (noteLen / 200) * 0.4 + (capture.tags?.length || 0) * 0.15 + (capture.image_url ? 0.2 : 0));
 
-                // Richness: note length + tags + photo presence → 0-1
-                const noteLen = capture.note ? Math.min(capture.note.length, 200) : 0;
-                const richness = Math.min(1, (noteLen / 200) * 0.4 + (capture.tags?.length || 0) * 0.15 + (capture.image_url ? 0.2 : 0));
+        const orb: GalaxyOrb = {
+            id: capture.id,
+            timestamp: date.getTime(),
+            dateKey: format(date, 'yyyy-MM-dd'),
+            moodId: capture.mood_id,
+            moodLabel: label,
+            colorFrom: theme.gradient.from,
+            colorTo: theme.gradient.to,
+            colorSolid: theme.solid,
+            notePreview: capture.note ? capture.note.slice(0, 80) : null,
+            tags: capture.tags || [],
+            photoUri: capture.image_url || null,
+            includeInInsights: capture.includeInInsights,
+            year,
+            month: new Date(capture.created_at).getMonth(),
+            weekOfYear: getWeekOfYear(date),
+            timeOfDayBucket: getTimeOfDayBucket(date.getHours()),
+            clusterId: `spiral-${year}`,  // Single spiral cluster
+            x,
+            y,
+            z,
+            bridgeScore: 0,
+            noveltyScore: novelty,
+            richness,
+        };
 
-                const orb: GalaxyOrb = {
-                    id: capture.id,
-                    timestamp: date.getTime(),
-                    dateKey: format(date, 'yyyy-MM-dd'),
-                    moodId: capture.mood_id,
-                    moodLabel: label,
-                    colorFrom: theme.gradient.from,
-                    colorTo: theme.gradient.to,
-                    colorSolid: theme.solid,
-                    notePreview: capture.note ? capture.note.slice(0, 80) : null,
-                    tags: capture.tags || [],
-                    photoUri: capture.image_url || null,
-                    includeInInsights: capture.includeInInsights,
-                    year,
-                    month: m,
-                    weekOfYear: getWeekOfYear(date),
-                    timeOfDayBucket: getTimeOfDayBucket(date.getHours()),
-                    clusterId,
-                    x: px,
-                    y: py,
-                    z: pz,
-                    bridgeScore: 0,
-                    noveltyScore: novelty,
-                    richness,
-                };
-
-                allOrbs.push(orb);
-                clusterOrbs.push(orb);
-                placedPositions.push({ x: px, y: py, z: pz });
-            }
-            moodIdx++;
-        }
-
-        allClusters.push({
-            id: clusterId,
-            month: m,
-            label: MONTH_NAMES[m],
-            anchorX: anchor.x,
-            anchorY: anchor.y,
-            anchorZ: anchor.z,
-            orbs: clusterOrbs,
-        });
+        allOrbs.push(orb);
     }
+
+    // Create single spiral cluster metadata
+    const allClusters: GalaxyCluster[] = [{
+        id: `spiral-${year}`,
+        month: 0,  // Not month-based
+        label: `${year}`,
+        anchorX: 0,
+        anchorY: 0,
+        anchorZ: 0,
+        orbs: allOrbs,
+        nebulaColor: '#5A0C8A',  // Default purple
+        nebulaRadius: 0,  // Not used in spiral mode
+    }];
 
     // ── Center galaxy on the centroid of placed orbs ───────────────────────
     if (allOrbs.length > 0) {

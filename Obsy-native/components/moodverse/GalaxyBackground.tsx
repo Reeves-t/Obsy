@@ -139,14 +139,8 @@ export function GalaxyBackground({ orbs, clusters, isPaused }: GalaxyBackgroundP
             scene.remove(clusterGroupRef.current);
         }
 
+        // Nebula fog disabled - orbs now scatter within nebula radius instead
         const clusterGroup = new THREE.Group();
-        for (const cluster of ringClusters) {
-            if (cluster.orbs.length === 0) continue;
-            const colorCounts: Record<string, number> = {};
-            for (const o of cluster.orbs) colorCounts[o.colorFrom] = (colorCounts[o.colorFrom] || 0) + 1;
-            const topColor = Object.entries(colorCounts).sort((a, b) => b[1] - a[1])[0][0];
-            clusterGroup.add(createClusterCloud(cluster.anchorX, cluster.anchorY, cluster.anchorZ, topColor, cluster.orbs.length));
-        }
         scene.add(clusterGroup);
         clusterGroupRef.current = clusterGroup;
     }, [ringOrbs, ringClusters, sceneReady]);

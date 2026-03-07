@@ -7,8 +7,8 @@ const SHARED_GLOW_SPHERE = new THREE.SphereGeometry(1, 12, 12);
 const SHARED_CLUSTER_SPHERE = new THREE.SphereGeometry(1, 12, 12);
 
 // ── Size hierarchy ──────────────────────────────────────────────────────
-const RADIUS_MIN = 0.06;
-const RADIUS_MAX = 0.22;
+const RADIUS_MIN = 0.12;  // 2x original base size for spiral formation
+const RADIUS_MAX = 0.44;  // 2x original base size for spiral formation
 
 // ── Orb types ───────────────────────────────────────────────────────────
 type OrbType = 'bright' | 'soft' | 'faint';
@@ -90,24 +90,15 @@ void main() {
     float facing = clamp(dot(vNormal, viewDir), 0.0, 1.0);
 
     // ── Dual-tone marble interior ────────────────────────────────────
-    // Primary color (colorFrom) pools toward center (75% dominant).
-    // Secondary color (colorTo) bleeds in from one side with angular
-    // bias, capped at 25% to keep the primary in control.
+    // Simple radial gradient: 50/50 blend from center to edge.
+    // Primary color (colorFrom) at center, secondary (colorTo) at edges,
+    // smooth transition in between.
 
-    // Radial factor: bright core concentrated via steep power curve
-    float radial = 1.0 - pow(facing, 0.55);
+    // Radial factor: core-to-edge falloff (0 = center, 1 = edge)
+    float radial = 1.0 - pow(facing, 0.6);
 
-    // Angular bias: secondary bleeds in from upper-right hemisphere
-    vec3 biasDir = normalize(vec3(0.6, 0.5, 0.3));
-    float angular = dot(vNormal, biasDir) * 0.5 + 0.5;          // 0..1
-    float secondaryBlend = smoothstep(0.3, 0.9, angular);
-    secondaryBlend = clamp(secondaryBlend, 0.0, 0.28);          // cap at ~25%
-
-    // Compose: primary radial base, then layer secondary on top
-    vec3 primary = colorFrom;
-    vec3 edgeTint = mix(colorFrom, colorTo, 0.45);
-    vec3 radialBase = mix(primary, edgeTint, radial);
-    vec3 color = mix(radialBase, colorTo, secondaryBlend);
+    // Pure 50/50 radial blend: primary center → secondary edge
+    vec3 color = mix(colorFrom, colorTo, radial);
 
     // Specular highlight — offset slightly from center to simulate a light source
     // Light direction: upper-left
@@ -224,33 +215,7 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
     coreMesh.userData = { isCore: true };
     group.add(coreMesh);
 
-    // ── Outer glow layer ────────────────────────────────────────────────
-    // Slightly larger sphere with inverted rim lighting and additive blending
-    const glowColor = new THREE.Color(orb.colorFrom);
-    const glowMaterial = new THREE.ShaderMaterial({
-        vertexShader: GLOW_VERTEX_SHADER,
-        fragmentShader: GLOW_FRAGMENT_SHADER,
-        uniforms: {
-            glowColor: { value: glowColor },
-            glowOpacity: { value: config.glowOpacity },
-            fogColor: { value: new THREE.Color(0x050608) },
-            fogNear: { value: 40.0 },
-            fogFar: { value: 120.0 },
-        },
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        side: THREE.BackSide,
-    });
-
-    // Store original glow opacity for animation restore
-    glowMaterial.userData = { origGlowOpacity: config.glowOpacity };
-
-    const glowMesh = new THREE.Mesh(SHARED_GLOW_SPHERE, glowMaterial);
-    // Glow sphere is 60% larger than core for soft halo
-    glowMesh.scale.setScalar(radius * 1.6);
-    glowMesh.userData = { isGlow: true };
-    group.add(glowMesh);
+    // Outer glow layer removed — orb's internal gradient provides sufficient glow
 
     group.position.set(orb.x, orb.y, orb.z);
     group.userData = {
@@ -275,7 +240,8 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
 }
 
 /**
- * Creates a cluster cloud mesh for LOD (zoomed-out view).
+ * Creates a subtle nebula fog mesh for each month cluster.
+ * Renders as a soft, volumetric cloud with the blended average color of the month's moods.
  */
 export function createClusterCloud(
     x: number,
@@ -283,17 +249,23 @@ export function createClusterCloud(
     z: number,
     color: string,
     orbCount: number,
+    nebulaRadius?: number,
 ): THREE.Mesh {
     const material = new THREE.MeshBasicMaterial({
         color: new THREE.Color(color),
         transparent: true,
-        opacity: Math.min(0.25, 0.06 + orbCount * 0.012),
+        opacity: 0.12, // Subtle but visible fog (12%)
+        depthWrite: false, // Allow fog to blend softly behind orbs
+        side: THREE.FrontSide,
+        blending: THREE.NormalBlending,
     });
     const mesh = new THREE.Mesh(SHARED_CLUSTER_SPHERE, material);
-    const size = Math.min(3, 0.8 + orbCount * 0.06);
-    mesh.scale.set(size, size, size);
+    // Large soft sphere ~1.5x the cluster scatter radius
+    const size = nebulaRadius ? nebulaRadius * 1.5 : Math.min(8, 3.5 + orbCount * 0.12);
+    mesh.scale.set(size, size, size * 0.8); // Slightly flattened cloud
+    mesh.renderOrder = -1; // Render behind orbs
     mesh.position.set(x, y, z);
-    mesh.userData = { isCluster: true };
+    mesh.userData = { isCluster: true, isNebula: true };
     return mesh;
 }
 

@@ -75,8 +75,9 @@ function buildEdgeGroup(
         mid.z += curvature * 2 * sign;
 
         const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
-        const points = curve.getPoints(20);
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        // Use TubeGeometry for subtle connection threads
+        const tubeRadius = 0.04;  // 50% reduction for subtlety
+        const geometry = new THREE.TubeGeometry(curve, 20, tubeRadius, 8, false);
 
         const semanticColor = EDGE_COLORS[edge.reason] || 0x7c3aed;
 
@@ -87,7 +88,7 @@ function buildEdgeGroup(
             ? Math.max(0.2, edge.strength * 0.5 * depthFade)
             : baseOpacity * edge.strength * depthFade;
 
-        const material = new THREE.LineBasicMaterial({
+        const material = new THREE.MeshBasicMaterial({
             color: semanticColor,
             transparent: true,
             opacity,
@@ -95,15 +96,15 @@ function buildEdgeGroup(
             depthWrite: false,
         });
 
-        const line = new THREE.Line(geometry, material);
-        line.userData = {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.userData = {
             fromId: edge.fromId,
             toId: edge.toId,
             reason: edge.reason,
             strength: edge.strength,
             baseOpacity: opacity,
         };
-        group.add(line);
+        group.add(mesh);
     }
 
     return group;
@@ -111,7 +112,7 @@ function buildEdgeGroup(
 
 function disposeEdgeGroup(group: THREE.Group) {
     group.traverse((child) => {
-        if (child instanceof THREE.Line) {
+        if (child instanceof THREE.Mesh) {
             child.geometry.dispose();
             (child.material as THREE.Material).dispose();
         }
@@ -200,8 +201,18 @@ export function GalaxyCanvas({
 
         const orbGroup = new THREE.Group();
         orbGroup.userData = { type: 'orbGroup' };
+        const currentTime = Date.now();
         for (const orb of orbs) {
-            orbGroup.add(createOrbMesh(orb));
+            const mesh = createOrbMesh(orb);
+            // Spiral animation: orbs drift from center to their positions
+            // Delay increases with month (oldest appear first, newest last)
+            const monthDelay = orb.month * 150; // 150ms per month
+            mesh.userData.spiralAnimStart = currentTime + monthDelay;
+            mesh.userData.spiralAnimDuration = 1200; // 1.2s drift
+            mesh.userData.targetPos = { x: orb.x, y: orb.y, z: orb.z };
+            // Start at center (will be animated in render loop)
+            mesh.position.set(0, 0, orb.z * 0.3);
+            orbGroup.add(mesh);
         }
         scene.add(orbGroup);
         orbGroupRef.current = orbGroup;
@@ -214,45 +225,24 @@ export function GalaxyCanvas({
             scene.remove(clusterGroupRef.current);
         }
 
+        // Nebula fog disabled - orbs now scatter within nebula radius instead
         const clusterGroup = new THREE.Group();
         clusterGroup.userData = { type: 'clusterGroup' };
-        for (const cluster of clusters) {
-            if (cluster.orbs.length === 0) continue;
-            const colorCounts: Record<string, number> = {};
-            for (const o of cluster.orbs) colorCounts[o.colorFrom] = (colorCounts[o.colorFrom] || 0) + 1;
-            const topColor = Object.entries(colorCounts).sort((a, b) => b[1] - a[1])[0][0];
-            clusterGroup.add(createClusterCloud(cluster.anchorX, cluster.anchorY, cluster.anchorZ, topColor, cluster.orbs.length));
-        }
         scene.add(clusterGroup);
         clusterGroupRef.current = clusterGroup;
     }, [orbs, clusters, sceneReady]);
 
-    // ── Rebuild ambient edges ────────────────────────────────────────────
+    // ── Update shimmer layer with edge data (no static lines rendered) ────
     useEffect(() => {
-        const scene = sceneRef.current;
-        if (!scene) return;
-
-        if (ambientEdgeGroupRef.current) {
-            disposeEdgeGroup(ambientEdgeGroupRef.current);
-            scene.remove(ambientEdgeGroupRef.current);
-            ambientEdgeGroupRef.current = null;
-        }
-
+        if (!shimmerLayerRef.current) return;
         if (!ambientEdges || ambientEdges.length === 0) return;
 
-        const group = buildEdgeGroup(ambientEdges, posMapRef.current, 0.08, false);
-        group.userData = { type: 'ambientEdges' };
-        scene.add(group);
-        ambientEdgeGroupRef.current = group;
-
-        // Update shimmer layer with new edges
-        if (shimmerLayerRef.current) {
-            shimmerLayerRef.current.setEdges(
-                ambientEdges,
-                posMapRef.current,
-                orbClusterMapRef.current,
-            );
-        }
+        // Pass edge data to shimmer layer for shooting star animation
+        shimmerLayerRef.current.setEdges(
+            ambientEdges,
+            posMapRef.current,
+            orbClusterMapRef.current,
+        );
     }, [ambientEdges, orbs, sceneReady]);
 
     // ── Rebuild focused edges (selection) ─────────────────────────────────
@@ -268,7 +258,7 @@ export function GalaxyCanvas({
 
         if (!focusedEdges || focusedEdges.length === 0) return;
 
-        const group = buildEdgeGroup(focusedEdges, posMapRef.current, 0.4, true);
+        const group = buildEdgeGroup(focusedEdges, posMapRef.current, 0.2, true);  // 50% opacity reduction
         group.userData = { type: 'focusedEdges' };
         scene.add(group);
         focusedEdgeGroupRef.current = group;
@@ -368,7 +358,8 @@ export function GalaxyCanvas({
 
             const showClusters = camZ > LOD_THRESHOLD;
             if (orbGroupRef.current) orbGroupRef.current.visible = !showClusters;
-            if (clusterGroupRef.current) clusterGroupRef.current.visible = showClusters;
+            // Nebula fog always visible (as background atmosphere for orb clusters)
+            if (clusterGroupRef.current) clusterGroupRef.current.visible = true;
             if (ambientEdgeGroupRef.current) ambientEdgeGroupRef.current.visible = !showClusters;
             if (focusedEdgeGroupRef.current) focusedEdgeGroupRef.current.visible = !showClusters;
 
@@ -396,6 +387,32 @@ export function GalaxyCanvas({
                     const isSelected = selIds.has(orbId);
                     const isHighlighted = hlIds.has(orbId);
                     const isAiHighlighted = aiHlIds.has(orbId);
+
+                    // ── Spiral animation (first load) ────────────────────────
+                    if (child.userData.spiralAnimStart && child.userData.targetPos) {
+                        const now = Date.now();
+                        const start = child.userData.spiralAnimStart;
+                        const duration = child.userData.spiralAnimDuration;
+                        const target = child.userData.targetPos;
+
+                        if (now < start) {
+                            // Not started yet — stay at center
+                            // (already positioned there on creation)
+                        } else if (now < start + duration) {
+                            // Animating — lerp from center to target
+                            const progress = (now - start) / duration;
+                            const ease = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+                            child.position.x = target.x * ease;
+                            child.position.y = target.y * ease;
+                            child.position.z = target.z * 0.3 + (target.z - target.z * 0.3) * ease;
+                        } else {
+                            // Animation complete — snap to target and clear animation data
+                            child.position.set(target.x, target.y, target.z);
+                            delete child.userData.spiralAnimStart;
+                            delete child.userData.spiralAnimDuration;
+                            delete child.userData.targetPos;
+                        }
+                    }
 
                     const baseZ = child.userData.baseZ ?? child.position.z;
                     if (child.userData.baseZ === undefined) child.userData.baseZ = child.position.z;
@@ -466,30 +483,7 @@ export function GalaxyCanvas({
                 }
             }
 
-            // ── Dim ambient edges when selection or AI highlight active ──
-            if (ambientEdgeGroupRef.current) {
-                const hasSelection = selectedIdsRef.current.size > 0;
-                const hasAiHl = aiHighlightRef.current.size > 0;
-                for (const child of ambientEdgeGroupRef.current.children) {
-                    if (child instanceof THREE.Line) {
-                        const mat = child.material as THREE.LineBasicMaterial;
-                        if (hasAiHl) {
-                            // Check if this edge connects AI-highlighted orbs
-                            const fromHl = aiHighlightRef.current.has(child.userData.fromId);
-                            const toHl = aiHighlightRef.current.has(child.userData.toId);
-                            if (fromHl && toHl) {
-                                mat.opacity = (child.userData.baseOpacity || 0.08) * 3;
-                            } else {
-                                mat.opacity = (child.userData.baseOpacity || 0.08) * 0.15;
-                            }
-                        } else if (hasSelection) {
-                            mat.opacity = (child.userData.baseOpacity || 0.08) * 0.2;
-                        } else {
-                            mat.opacity = child.userData.baseOpacity || 0.08;
-                        }
-                    }
-                }
-            }
+            // Ambient edges removed — only shimmer and focused selection edges remain
 
             // ── Cluster cloud pulse ─────────────────────────────────────
             if (showClusters && clusterGroupRef.current) {
@@ -534,8 +528,7 @@ export function GalaxyCanvas({
                 });
             }
 
-            // Dispose edges
-            if (ambientEdgeGroupRef.current) disposeEdgeGroup(ambientEdgeGroupRef.current);
+            // Dispose edges (ambient removed, only focused selection edges remain)
             if (focusedEdgeGroupRef.current) disposeEdgeGroup(focusedEdgeGroupRef.current);
 
             // Dispose shimmer

@@ -5,12 +5,13 @@ import { MoodGradient, PresetMood } from './types';
  * Handcrafted 2-stop gradients for all 40 system moods.
  *
  * Design principles:
- * - Each gradient spans ~20-40 hue degrees between stops for visual richness
+ * - Each gradient requires ~40+ hue degrees separation for proper marble contrast
+ * - Colors must be visually distinct hues when blended (not just lighter/darker versions)
  * - Low moods spread across the full cool spectrum (teal → blue → purple)
  *   instead of clustering in the same blue-gray lane
  * - No two moods in the same tone band share similar avg hue + lightness
  * - Overall palette stays "Obsy calm": muted saturation, no neon (except manic/hyped)
- * - `from` is the lighter/brighter stop, `to` is the deeper/darker stop
+ * - `from` is the primary/emotionally resonant color, `to` is the undertone/shadow emotion
  */
 export const MOOD_GRADIENT_MAP: Record<MoodId, MoodGradient> = {
     // ── Low Energy (13) ─────────────────────────────────────────────────
@@ -19,20 +20,20 @@ export const MOOD_GRADIENT_MAP: Record<MoodId, MoodGradient> = {
     relaxed:     { from: '#6BCBAB', to: '#4DA69D' },   // seafoam → deep teal
     peaceful:    { from: '#88E0E0', to: '#60C4D4' },   // cyan → aqua
     tired:       { from: '#9896C8', to: '#706AA0' },   // periwinkle → muted indigo
-    drained:     { from: '#7A8CA4', to: '#5A6B84' },   // steel → slate blue
-    bored:       { from: '#B0A8C4', to: '#8E8EA6' },   // lavender → ash gray
+    drained:     { from: '#6A9CB8', to: '#4A6B98' },   // steel blue → deep purple-blue
+    bored:       { from: '#A8B0C4', to: '#7A88A6' },   // cool lavender → steel-purple
     reflective:  { from: '#B4A8E4', to: '#9488D0' },   // soft purple → lilac
     melancholy:  { from: '#9A7ED0', to: '#7660B8' },   // orchid → deep violet
     nostalgic:   { from: '#D0A8E0', to: '#B488C8' },   // orchid pink → mauve
-    lonely:      { from: '#6A88B8', to: '#4A6898' },   // steel blue → navy
-    depressed:   { from: '#605A90', to: '#3E3870' },   // dusk indigo → ink
-    numb:        { from: '#9CAAB4', to: '#7A8894' },   // cool gray → slate
+    lonely:      { from: '#6A88B8', to: '#5A6B98' },   // steel blue → deep indigo
+    depressed:   { from: '#605A90', to: '#484860' },   // dusk indigo → dark gray-purple
+    numb:        { from: '#98B0B8', to: '#708890' },   // cool teal-gray → slate-blue
     safe:        { from: '#A0CCC8', to: '#80B4A8' },   // warm teal → sage
 
     // ── Medium Energy (10) ──────────────────────────────────────────────
     // Neutral + warm/cool mix for transitions and anchors
     neutral:     { from: '#B4B0AC', to: '#949498' },   // warm gray → cool gray
-    focused:     { from: '#8AA4BE', to: '#6A88A4' },   // steel → denim
+    focused:     { from: '#88A4C0', to: '#6888A8' },   // cool steel → warm denim
     grateful:    { from: '#B0C496', to: '#8EA878' },   // sage → olive green
     hopeful:     { from: '#8CD4F0', to: '#64BCE0' },   // sky → clear cyan
     curious:     { from: '#C8A0E0', to: '#A880D0' },   // bright orchid → purple
@@ -44,7 +45,7 @@ export const MOOD_GRADIENT_MAP: Record<MoodId, MoodGradient> = {
 
     // ── High Energy (17) ────────────────────────────────────────────────
     // Warm, vibrant, full spectrum — high visual energy
-    productive:  { from: '#20B8F0', to: '#0890D0' },   // electric blue → deep sky
+    productive:  { from: '#20B8F0', to: '#1090C8' },   // electric blue → teal-blue
     creative:    { from: '#FCC832', to: '#E8A820' },   // amber → gold
     inspired:    { from: '#F8AE18', to: '#E89008' },   // golden → deep orange
     confident:   { from: '#FCA048', to: '#E88028' },   // sunset → tangerine
@@ -52,13 +53,13 @@ export const MOOD_GRADIENT_MAP: Record<MoodId, MoodGradient> = {
     social:      { from: '#FC8090', to: '#E46078' },   // watermelon → rose
     busy:        { from: '#FF7878', to: '#E05858' },   // coral → warm red
     restless:    { from: '#FF8868', to: '#E06848' },   // orange-red → burnt
-    stressed:    { from: '#E83838', to: '#C01818' },   // scarlet → crimson
-    overwhelmed: { from: '#A82848', to: '#881030' },   // burgundy → dark wine
+    stressed:    { from: '#F03838', to: '#C82848' },   // scarlet → burgundy
+    overwhelmed: { from: '#B82850', to: '#901848' },   // crimson → deep burgundy-purple
     anxious:     { from: '#E050B0', to: '#C83898' },   // magenta → deep pink
-    angry:       { from: '#A82020', to: '#881010' },   // dark red → deep crimson
+    angry:       { from: '#C82020', to: '#982828' },   // bright red → dark red-brown
     pressured:   { from: '#F46858', to: '#D84838' },   // tomato → brick
     enthusiastic:{ from: '#FCC068', to: '#E8A048' },   // peach → warm amber
-    hyped:       { from: '#FFE020', to: '#E8C400' },   // bright gold → deep gold
+    hyped:       { from: '#FFD820', to: '#F0A820' },   // bright gold → orange-gold
     manic:       { from: '#FF20FF', to: '#D800E0' },   // electric magenta → neon purple
     playful:     { from: '#FC8828', to: '#E07010' },   // bright orange → deep amber
 };
