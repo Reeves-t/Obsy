@@ -13,6 +13,8 @@ interface GalaxyCanvasProps {
     clusters: GalaxyCluster[];
     cameraZRef: React.MutableRefObject<number>;
     cameraOffsetRef: React.MutableRefObject<{ x: number; y: number }>;
+    /** Camera orbit angles (radians) — theta = Y-axis rotation, phi = X-axis tilt */
+    orbitAnglesRef?: React.MutableRefObject<{ theta: number; phi: number }>;
     isPaused?: boolean;
     selectedIds?: Set<string>;
     highlightedIds?: Set<string>;
@@ -126,6 +128,7 @@ export function GalaxyCanvas({
     clusters,
     cameraZRef,
     cameraOffsetRef,
+    orbitAnglesRef,
     isPaused = false,
     selectedIds,
     highlightedIds,
@@ -156,6 +159,8 @@ export function GalaxyCanvas({
     const aiHighlightRef = useRef<Set<string>>(new Set());
     // Smooth camera offset for lerp
     const smoothCamOffset = useRef({ x: 0, y: 0 });
+    // Smooth orbit angles for lerp
+    const smoothOrbitAngles = useRef({ theta: 0, phi: Math.PI / 2 });
 
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
     useEffect(() => { selectedIdsRef.current = selectedIds ?? new Set(); }, [selectedIds]);
@@ -351,10 +356,33 @@ export function GalaxyCanvas({
                 smoothCamOffset.current.y += (0 - smoothCamOffset.current.y) * CAMERA_LERP_SPEED;
             }
 
-            const camX = gestureOffset.x + smoothCamOffset.current.x;
-            const camY = gestureOffset.y + smoothCamOffset.current.y;
-            camera.position.set(camX, camY, camZ);
-            camera.lookAt(camX, camY, 0);
+            // ── Camera positioning: orbit mode (spherical) or pan mode (cartesian) ──
+            const orbitAngles = orbitAnglesRef?.current;
+            if (orbitAngles) {
+                // Orbit mode: camera rotates around origin (0,0,0) at fixed distance
+                // Smooth lerp to target angles (0.1 = responsive but smooth)
+                const ORBIT_LERP = 0.1;
+                smoothOrbitAngles.current.theta += (orbitAngles.theta - smoothOrbitAngles.current.theta) * ORBIT_LERP;
+                smoothOrbitAngles.current.phi += (orbitAngles.phi - smoothOrbitAngles.current.phi) * ORBIT_LERP;
+
+                const theta = smoothOrbitAngles.current.theta; // Y-axis rotation
+                const phi = smoothOrbitAngles.current.phi;     // X-axis tilt (0 = horizon, π/2 = top-down)
+                const radius = camZ; // Current zoom distance from origin
+
+                // Spherical to Cartesian conversion
+                const x = radius * Math.sin(phi) * Math.cos(theta);
+                const y = radius * Math.sin(phi) * Math.sin(theta);
+                const z = radius * Math.cos(phi);
+
+                camera.position.set(x, y, z);
+                camera.lookAt(0, 0, 0); // Always look at galaxy center
+            } else {
+                // Pan mode: camera moves in X/Y plane, looks straight down
+                const camX = gestureOffset.x + smoothCamOffset.current.x;
+                const camY = gestureOffset.y + smoothCamOffset.current.y;
+                camera.position.set(camX, camY, camZ);
+                camera.lookAt(camX, camY, 0);
+            }
 
             const showClusters = camZ > LOD_THRESHOLD;
             if (orbGroupRef.current) orbGroupRef.current.visible = !showClusters;

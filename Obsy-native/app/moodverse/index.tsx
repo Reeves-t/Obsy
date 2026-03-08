@@ -15,6 +15,7 @@ import { BottomSheetMetadata } from '@/components/moodverse/BottomSheetMetadata'
 import { TimeNavigator } from '@/components/moodverse/TimeNavigator';
 import { SearchOverlay } from '@/components/moodverse/SearchOverlay';
 import { SelectionTrail } from '@/components/moodverse/SelectionTrail';
+import { CameraOrbitDial } from '@/components/moodverse/CameraOrbitDial';
 import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 import { computeEdgesForOrb, computeAmbientMesh } from '@/components/moodverse/edgeCompute';
 
@@ -47,6 +48,7 @@ export default function MoodversePage() {
     // Camera state via refs (read by render loop, updated by gestures)
     const cameraZRef = useRef(DEFAULT_CAMERA_Z);
     const cameraOffsetRef = useRef({ x: 0, y: 0 });
+    const orbitAnglesRef = useRef({ theta: 0, phi: Math.PI / 2 }); // Default: top-down view
     const baseZoomRef = useRef(DEFAULT_CAMERA_Z);
     const cameraTargetRef = useRef<{ x: number; y: number } | null>(null);
     const persistentCamRef = useRef({ x: 0, y: 0 });
@@ -240,6 +242,7 @@ export default function MoodversePage() {
                                 clusters={clusters}
                                 cameraZRef={cameraZRef}
                                 cameraOffsetRef={cameraOffsetRef}
+                                orbitAnglesRef={orbitAnglesRef}
                                 isPaused={!isFocused}
                                 selectedIds={selectedIdsSet}
                                 highlightedIds={highlightedIdsSet}
@@ -303,6 +306,15 @@ export default function MoodversePage() {
                     onClose={() => setShowSearch(false)}
                     orbs={orbs}
                 />
+
+                {/* Camera orbit dial — bottom-left corner */}
+                {orbs.length > 0 && (
+                    <CameraOrbitDial
+                        orbitAnglesRef={orbitAnglesRef}
+                        onOrbitChange={markInteracting}
+                        bottomInset={insets.bottom}
+                    />
+                )}
             </View>
 
             {/* Bottom sheet for selected orb/cluster metadata */}
