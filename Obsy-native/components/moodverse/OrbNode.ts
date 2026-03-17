@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { GalaxyOrb } from './galaxyTypes';
 
 // Shared geometries — reused across all instances (unit spheres, scaled per orb)
-const SHARED_SPHERE = new THREE.SphereGeometry(1, 16, 16);
+const SHARED_SPHERE = new THREE.SphereGeometry(1, 64, 64); // High-res for smooth appearance at close range
 const SHARED_GLOW_SPHERE = new THREE.SphereGeometry(1, 12, 12);
 const SHARED_CLUSTER_SPHERE = new THREE.SphereGeometry(1, 12, 12);
 

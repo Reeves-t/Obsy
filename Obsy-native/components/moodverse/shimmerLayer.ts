@@ -11,13 +11,13 @@
 import * as THREE from 'three';
 import type { GalaxyEdge } from './galaxyTypes';
 
-const MAX_PARTICLES = 6;
-const MIN_TRAVEL_MS = 2800;
-const MAX_TRAVEL_MS = 5000;
-const MIN_DELAY_MS = 400;
-const MAX_DELAY_MS = 1800;
-const PARTICLE_RADIUS = 0.06;
-const PEAK_OPACITY = 0.45;
+const MAX_PARTICLES = 3;
+const MIN_TRAVEL_MS = 1800;
+const MAX_TRAVEL_MS = 3500;
+const MIN_DELAY_MS = 300;
+const MAX_DELAY_MS = 1200;
+const PARTICLE_RADIUS = 0.15;
+const PEAK_OPACITY = 0.7;
 
 // Shared geometry — reused across all shimmer dots
 const SHARED_SPHERE = new THREE.SphereGeometry(1, 8, 8);
@@ -197,10 +197,6 @@ export function createShimmerLayer(): ShimmerLayer {
         interClusterEdges = [];
 
         for (const edge of edges) {
-            const fromCluster = orbClusterMap.get(edge.fromId);
-            const toCluster = orbClusterMap.get(edge.toId);
-            if (!fromCluster || !toCluster || fromCluster === toCluster) continue;
-
             const from = posMap.get(edge.fromId);
             const to = posMap.get(edge.toId);
             if (!from || !to) continue;
@@ -210,8 +206,6 @@ export function createShimmerLayer(): ShimmerLayer {
                 curve: buildCurve(from, to, edge.fromId, edge.toId),
             });
         }
-
-        console.log(`[Shimmer] setEdges: ${edges.length} total → ${interClusterEdges.length} inter-cluster`);
 
         // Stagger initial particles with offsets so they don't all start together
         const nowMs = elapsed_fallback();

@@ -69,6 +69,20 @@ const SPIRAL_TIGHTNESS = 0.18;      // Radians per orb (controls arm openness)
 const SPIRAL_START_RADIUS = 1.0;    // Starting radius at center
 const SPIRAL_GROWTH = 0.08;         // Radius growth per orb (arm expansion rate)
 
+// Collision detection constants
+const MAX_ORB_DIAMETER = 0.88;      // 2x RADIUS_MAX from OrbNode.ts
+const MIN_ORB_DISTANCE = MAX_ORB_DIAMETER * 2; // 2x max diameter in 3D space
+const COLLISION_CHECK_STEP = 0.02;  // Radians to advance spiral when collision detected
+const MAX_COLLISION_ATTEMPTS = 200; // Safety limit for collision resolution
+
+/** Calculate 3D Euclidean distance between two points */
+function distance3D(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): number {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dz = z2 - z1;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 export interface LayoutResult {
     orbs: GalaxyOrb[];
     clusters: GalaxyCluster[];
@@ -130,10 +144,6 @@ export function computeGalaxyLayout(
         const label = capture.mood_name_snapshot || getMoodLabel(capture.mood_id);
         const date = new Date(capture.created_at);
 
-        // Base spiral position
-        const angle = i * SPIRAL_TIGHTNESS;
-        const radius = SPIRAL_START_RADIUS + (i * SPIRAL_GROWTH);
-
         // ── Step 4: Radial offset based on mood frequency ──
         const moodRank = moodsSortedByFreq.indexOf(capture.mood_id);
         let offsetMagnitude: number;
@@ -152,15 +162,83 @@ export function computeGalaxyLayout(
         // Alternate offset direction (both sides of spiral arm)
         const offsetSign = (i % 2 === 0) ? 1 : -1;
 
-        // Calculate perpendicular offset (perpendicular to radial direction)
-        const perpendicularAngle = angle + Math.PI / 2;
-        const offsetX = Math.cos(perpendicularAngle) * offsetMagnitude * offsetSign;
-        const offsetY = Math.sin(perpendicularAngle) * offsetMagnitude * offsetSign;
+        // ── Z-axis variation for genuine 3D spacing ──────────────────────────
+        // All orbs get z-variation to prevent overlap from tilted camera angles
+        let zVariation: number;
+        if (moodRank < topThirdThreshold) {
+            // Common moods - subtle z-alternation above/below spine
+            zVariation = offsetSign * 0.25;
+        } else if (moodRank < middleThirdThreshold) {
+            // Medium frequency moods - moderate z-spread
+            zVariation = offsetSign * rng.range(0.4, 0.6);
+        } else {
+            // Rare/one-off moods - larger z-spread matching XY offset
+            zVariation = offsetSign * rng.range(0.7, 1.0);
+        }
 
-        // Final position (flat, no z variation)
-        const x = Math.cos(angle) * radius + offsetX;
-        const y = Math.sin(angle) * radius + offsetY;
-        const z = 0;
+        // ── Step 5: Collision-aware placement (advance-and-check) ────────────
+        // Find first clear position on spiral that maintains minimum distance from all placed orbs
+        let finalX = 0;
+        let finalY = 0;
+        let finalZ = 0;
+        let spiralAngle = i * SPIRAL_TIGHTNESS;
+        let attempts = 0;
+        let positionFound = false;
+
+        while (attempts < MAX_COLLISION_ATTEMPTS && !positionFound) {
+            const radius = SPIRAL_START_RADIUS + (spiralAngle / SPIRAL_TIGHTNESS) * SPIRAL_GROWTH;
+
+            // Calculate perpendicular offset (perpendicular to radial direction)
+            const perpendicularAngle = spiralAngle + Math.PI / 2;
+            const offsetX = Math.cos(perpendicularAngle) * offsetMagnitude * offsetSign;
+            const offsetY = Math.sin(perpendicularAngle) * offsetMagnitude * offsetSign;
+
+            // Candidate position (3D spiral with z-depth)
+            const candidateX = Math.cos(spiralAngle) * radius + offsetX;
+            const candidateY = Math.sin(spiralAngle) * radius + offsetY;
+            const candidateZ = zVariation;
+
+            // Check distance against all previously placed orbs
+            let hasCollision = false;
+            for (const placedOrb of allOrbs) {
+                const dist = distance3D(
+                    candidateX, candidateY, candidateZ,
+                    placedOrb.x, placedOrb.y, placedOrb.z
+                );
+                if (dist < MIN_ORB_DISTANCE) {
+                    hasCollision = true;
+                    break;
+                }
+            }
+
+            if (!hasCollision) {
+                // Clear position found
+                finalX = candidateX;
+                finalY = candidateY;
+                finalZ = candidateZ;
+                positionFound = true;
+            } else {
+                // Collision detected — advance spiral angle and try again
+                spiralAngle += COLLISION_CHECK_STEP;
+                attempts++;
+            }
+        }
+
+        // Fallback: if no clear position found after max attempts, use last candidate
+        // (This should rarely happen with proper constants, but ensures termination)
+        if (!positionFound) {
+            const radius = SPIRAL_START_RADIUS + (spiralAngle / SPIRAL_TIGHTNESS) * SPIRAL_GROWTH;
+            const perpendicularAngle = spiralAngle + Math.PI / 2;
+            const offsetX = Math.cos(perpendicularAngle) * offsetMagnitude * offsetSign;
+            const offsetY = Math.sin(perpendicularAngle) * offsetMagnitude * offsetSign;
+            finalX = Math.cos(spiralAngle) * radius + offsetX;
+            finalY = Math.sin(spiralAngle) * radius + offsetY;
+            finalZ = zVariation;
+        }
+
+        const x = finalX;
+        const y = finalY;
+        const z = finalZ;
 
         // Calculate orb metadata
         const freq = moodFreq[capture.mood_id] || 1;

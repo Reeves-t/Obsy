@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { createOrbMesh, createClusterCloud, disposeOrbMesh } from './OrbNode';
 import { EDGE_COLORS } from './edgeCompute';
 import { createShimmerLayer, ShimmerLayer } from './shimmerLayer';
+import { createNebulaRing, NebulaRingLayer } from './cosmicFog';
 import type { GalaxyOrb, GalaxyCluster, GalaxyEdge } from './galaxyTypes';
 
 interface GalaxyCanvasProps {
@@ -147,6 +148,7 @@ export function GalaxyCanvas({
     const ambientEdgeGroupRef = useRef<THREE.Group | null>(null);
     const focusedEdgeGroupRef = useRef<THREE.Group | null>(null);
     const shimmerLayerRef = useRef<ShimmerLayer | null>(null);
+    const cosmicFogRef = useRef<NebulaRingLayer | null>(null);
     const rafIdRef = useRef<number>(0);
     const isPausedRef = useRef(isPaused);
     const glRef = useRef<ExpoWebGLRenderingContext | null>(null);
@@ -236,6 +238,15 @@ export function GalaxyCanvas({
         scene.add(clusterGroup);
         clusterGroupRef.current = clusterGroup;
     }, [orbs, clusters, sceneReady]);
+
+    // ── Update nebula ring colors when orbs change ─────────────────────
+    useEffect(() => {
+        if (!sceneRef.current || orbs.length === 0) return;
+
+        if (cosmicFogRef.current) {
+            cosmicFogRef.current.setMoodColors(orbs);
+        }
+    }, [orbs, sceneReady]);
 
     // ── Update shimmer layer with edge data (no static lines rendered) ────
     useEffect(() => {
@@ -336,6 +347,11 @@ export function GalaxyCanvas({
         scene.add(shimmer.group);
         shimmerLayerRef.current = shimmer;
 
+        // Initialize nebula ring
+        const nebulaRing = createNebulaRing();
+        scene.add(nebulaRing.group);
+        cosmicFogRef.current = nebulaRing;
+
         const clock = new THREE.Clock();
 
         const animate = () => {
@@ -399,6 +415,14 @@ export function GalaxyCanvas({
                 }
             }
 
+            // Nebula ring: visible at orb level, hidden at cluster zoom
+            if (cosmicFogRef.current) {
+                cosmicFogRef.current.group.visible = !showClusters;
+                if (!showClusters) {
+                    cosmicFogRef.current.update(elapsed, camera.quaternion);
+                }
+            }
+
             // ── Animate orbs ─────────────────────────────────────────────
             if (!showClusters && orbGroupRef.current) {
                 const selIds = selectedIdsRef.current;
@@ -406,6 +430,26 @@ export function GalaxyCanvas({
                 const aiHlIds = aiHighlightRef.current;
                 const hasSelection = selIds.size > 0;
                 const hasAiHighlight = aiHlIds.size > 0;
+
+                // ── Update fog tint from selected orb color ──────────────
+                if (cosmicFogRef.current) {
+                    if (hasSelection) {
+                        let foundTint = false;
+                        for (const child of orbGroupRef.current.children) {
+                            if (child instanceof THREE.Group && selIds.has(child.userData.orbId)) {
+                                const origCenter = child.userData.origCenter as THREE.Color;
+                                if (origCenter) {
+                                    cosmicFogRef.current.setTintColor(origCenter);
+                                    foundTint = true;
+                                }
+                                break;
+                            }
+                        }
+                        if (!foundTint) cosmicFogRef.current.setTintColor(null);
+                    } else {
+                        cosmicFogRef.current.setTintColor(null);
+                    }
+                }
 
                 for (const child of orbGroupRef.current.children) {
                     if (!(child instanceof THREE.Group)) continue;
@@ -563,6 +607,12 @@ export function GalaxyCanvas({
             if (shimmerLayerRef.current) {
                 shimmerLayerRef.current.dispose();
                 shimmerLayerRef.current = null;
+            }
+
+            // Dispose nebula ring
+            if (cosmicFogRef.current) {
+                cosmicFogRef.current.dispose();
+                cosmicFogRef.current = null;
             }
 
             // Dispose renderer

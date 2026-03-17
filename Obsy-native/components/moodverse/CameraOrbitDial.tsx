@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -18,45 +18,79 @@ interface CameraOrbitDialProps {
 
 const DIAL_SIZE = 80;
 const INDICATOR_SIZE = 12;
-const DRAG_SENSITIVITY = 0.006; // radians per pixel
-const PHI_MIN = -Math.PI / 3; // -60 degrees (looking up from below)
-const PHI_MAX = Math.PI / 2.2; // ~80 degrees (nearly top-down)
+const MAX_VELOCITY = 0.04; // Maximum radians per frame at dial edge
 const SPRING_CONFIG = { damping: 18, stiffness: 120 };
 
 /**
- * Camera orbit dial — bottom-left joystick for rotating camera around galaxy origin.
+ * Camera orbit dial — velocity-based joystick for rotating camera around galaxy origin.
  *
- * - Drag left/right: rotate camera on Y axis (theta)
- * - Drag up/down: tilt camera on X axis (phi)
+ * - Hold finger offset from center: continuous rotation at velocity proportional to distance
+ * - Further from center = faster rotation speed
+ * - Full 360° rotation with no limits — can flip over top/bottom to view from any angle
  * - Tap center: reset to default top-down view
  */
 export function CameraOrbitDial({ orbitAnglesRef, onOrbitChange, bottomInset = 0 }: CameraOrbitDialProps) {
     const indicatorX = useSharedValue(0);
     const indicatorY = useSharedValue(0);
-    const startAngles = useRef({ theta: 0, phi: 0 });
+    const velocityRef = useRef({ x: 0, y: 0 });
+    const isActiveRef = useRef(false);
+    const rafIdRef = useRef<number>(0);
+
+    // Continuous rotation loop — runs while finger is held
+    useEffect(() => {
+        const animate = () => {
+            if (!isActiveRef.current) return;
+
+            // Apply velocity to camera angles
+            orbitAnglesRef.current.theta += velocityRef.current.x;
+            orbitAnglesRef.current.phi += velocityRef.current.y;
+            // No clamping — allow full 360° rotation in all directions
+
+            onOrbitChange?.();
+            rafIdRef.current = requestAnimationFrame(animate);
+        };
+
+        return () => {
+            if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+        };
+    }, [orbitAnglesRef, onOrbitChange]);
 
     const panGesture = Gesture.Pan()
         .onBegin(() => {
-            startAngles.current = { ...orbitAnglesRef.current };
+            isActiveRef.current = true;
+            // Start continuous rotation loop
+            rafIdRef.current = requestAnimationFrame(function animate() {
+                if (!isActiveRef.current) return;
+                orbitAnglesRef.current.theta += velocityRef.current.x;
+                orbitAnglesRef.current.phi += velocityRef.current.y;
+                onOrbitChange?.();
+                rafIdRef.current = requestAnimationFrame(animate);
+            });
         })
         .onUpdate((e) => {
-            // Horizontal drag → theta (Y-axis rotation)
-            const deltaTheta = e.translationX * DRAG_SENSITIVITY;
-            orbitAnglesRef.current.theta = startAngles.current.theta + deltaTheta;
+            // Calculate velocity from finger offset (distance from dial center)
+            const maxRadius = DIAL_SIZE / 2;
+            const offsetX = e.translationX;
+            const offsetY = -e.translationY; // Invert Y for intuitive control
 
-            // Vertical drag → phi (X-axis tilt) — invert Y for intuitive control
-            const deltaPhi = -e.translationY * DRAG_SENSITIVITY;
-            const newPhi = startAngles.current.phi + deltaPhi;
-            orbitAnglesRef.current.phi = Math.max(PHI_MIN, Math.min(PHI_MAX, newPhi));
+            // Normalize to 0-1 range and apply to max velocity
+            const normalizedX = Math.max(-1, Math.min(1, offsetX / maxRadius));
+            const normalizedY = Math.max(-1, Math.min(1, offsetY / maxRadius));
 
-            // Update indicator position (normalized to dial radius)
-            const maxRadius = (DIAL_SIZE - INDICATOR_SIZE) / 2;
-            indicatorX.value = Math.max(-maxRadius, Math.min(maxRadius, e.translationX * 0.3));
-            indicatorY.value = Math.max(-maxRadius, Math.min(maxRadius, e.translationY * 0.3));
+            velocityRef.current.x = normalizedX * MAX_VELOCITY;
+            velocityRef.current.y = normalizedY * MAX_VELOCITY;
 
-            onOrbitChange?.();
+            // Update indicator position (clamped to dial boundary)
+            const indicatorRadius = (DIAL_SIZE - INDICATOR_SIZE) / 2;
+            indicatorX.value = Math.max(-indicatorRadius, Math.min(indicatorRadius, offsetX));
+            indicatorY.value = Math.max(-indicatorRadius, Math.min(indicatorRadius, -offsetY));
         })
         .onEnd(() => {
+            // Stop rotation immediately
+            isActiveRef.current = false;
+            velocityRef.current = { x: 0, y: 0 };
+            if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+
             // Reset indicator to center with spring animation
             indicatorX.value = withSpring(0, SPRING_CONFIG);
             indicatorY.value = withSpring(0, SPRING_CONFIG);
@@ -65,6 +99,11 @@ export function CameraOrbitDial({ orbitAnglesRef, onOrbitChange, bottomInset = 0
 
     const tapGesture = Gesture.Tap()
         .onEnd(() => {
+            // Stop any active rotation
+            isActiveRef.current = false;
+            velocityRef.current = { x: 0, y: 0 };
+            if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+
             // Reset to default top-down view
             orbitAnglesRef.current.theta = 0;
             orbitAnglesRef.current.phi = Math.PI / 2; // Top-down (90 degrees)
