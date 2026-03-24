@@ -2,11 +2,10 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import {
     StyleSheet,
     View,
-    TextInput,
     TouchableOpacity,
-    FlatList,
     Keyboard,
 } from 'react-native';
+import { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Send } from 'lucide-react-native';
 import { useMoodverseStore, ChatMessage } from '@/lib/moodverseStore';
@@ -64,7 +63,7 @@ const eclipseStyles = StyleSheet.create({
         width: 16,
         height: 16,
         borderRadius: 8,
-        backgroundColor: 'rgba(168, 85, 247, 0.15)',
+        backgroundColor: 'rgba(139, 34, 82, 0.15)',
         left: 8,
         top: 8,
     },
@@ -73,7 +72,7 @@ const eclipseStyles = StyleSheet.create({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: 'rgba(168, 85, 247, 0.6)',
+        backgroundColor: 'rgba(139, 34, 82, 0.7)',
     },
 });
 
@@ -126,7 +125,7 @@ const bubbleStyles = StyleSheet.create({
         paddingVertical: 10,
     },
     userBubble: {
-        backgroundColor: 'rgba(168, 85, 247, 0.2)',
+        backgroundColor: 'rgba(139, 34, 82, 0.22)',
         borderBottomRightRadius: 4,
     },
     assistantBubble: {
@@ -335,7 +334,7 @@ export function MoodverseExplainChat({
     } = useMoodverseStore();
 
     const [inputText, setInputText] = React.useState('');
-    const flatListRef = useRef<FlatList>(null);
+    const flatListRef = useRef<any>(null);
     const hasInitialized = useRef(false);
 
     // Build selected capture context
@@ -398,7 +397,7 @@ export function MoodverseExplainChat({
                 addChatMessage({
                     id: `err-${Date.now()}`,
                     role: 'assistant',
-                    text: 'The stars are quiet right now. Try again in a moment.',
+                    text: "Something went quiet on my end. Try again in a moment.",
                 });
             }
         } catch (err) {
@@ -406,7 +405,7 @@ export function MoodverseExplainChat({
             addChatMessage({
                 id: `err-${Date.now()}`,
                 role: 'assistant',
-                text: 'A signal was lost between constellations. Try again.',
+                text: "Lost the connection for a second. Try again.",
             });
         } finally {
             setAiLoading(false);
@@ -453,7 +452,7 @@ export function MoodverseExplainChat({
 
     return (
         <View style={styles.container}>
-            <FlatList
+            <BottomSheetFlatList
                 ref={flatListRef}
                 data={chatMessages}
                 renderItem={renderItem}
@@ -462,18 +461,19 @@ export function MoodverseExplainChat({
                 contentContainerStyle={styles.messageListContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
                 ListFooterComponent={isAiLoading ? <EclipseLoader /> : null}
             />
 
             <View style={styles.inputBar}>
-                <TextInput
+                <BottomSheetTextInput
                     style={styles.textInput}
                     value={inputText}
                     onChangeText={setInputText}
-                    placeholder="Ask about these moods..."
+                    placeholder="Say something..."
                     placeholderTextColor="rgba(255,255,255,0.25)"
                     multiline
-                    maxLength={500}
+                    maxLength={1200}
                     editable={!isAiLoading}
                     onSubmitEditing={handleSend}
                     blurOnSubmit
@@ -490,7 +490,7 @@ export function MoodverseExplainChat({
                         size={16}
                         color={
                             inputText.trim() && !isAiLoading
-                                ? '#a855f7'
+                                ? '#8B2252'
                                 : 'rgba(255,255,255,0.15)'
                         }
                     />
@@ -503,19 +503,20 @@ export function MoodverseExplainChat({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        minHeight: 200,
     },
     messageList: {
         flex: 1,
     },
     messageListContent: {
-        paddingVertical: 8,
+        paddingTop: 8,
+        paddingBottom: 16,
     },
     inputBar: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
-        gap: 8,
-        paddingTop: 8,
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        paddingBottom: 12,
         borderTopWidth: 1,
         borderTopColor: 'rgba(255,255,255,0.06)',
     },
@@ -529,12 +530,13 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         color: '#fff',
         fontSize: 14,
+        marginRight: 8,
     },
     sendBtn: {
         width: 38,
         height: 38,
         borderRadius: 19,
-        backgroundColor: 'rgba(168, 85, 247, 0.15)',
+        backgroundColor: 'rgba(139, 34, 82, 0.15)',
         alignItems: 'center',
         justifyContent: 'center',
     },

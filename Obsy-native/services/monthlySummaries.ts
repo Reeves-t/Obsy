@@ -259,7 +259,7 @@ export async function upsertMonthlySummary(
             user_id: userId,
             month_key: monthKey,
             mood_totals: moodTotals,
-            ai_summary: aiSummary,
+            ai_summary: aiSummary ?? '',
             updated_at: new Date().toISOString(),
         };
 

@@ -32,15 +32,20 @@ export function BottomSheetMetadata({ orbs, clusters }: BottomSheetMetadataProps
 
     const { tier } = useSubscription();
     const [showPaywall, setShowPaywall] = useState(false);
+    const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
 
     const isPro = tier === 'founder' || tier === 'subscriber';
     const hasSelection = selectedOrbId !== null || selectedOrbIds.length > 0;
 
-    // Larger snap when explain is open
+    // When chat is open, lowest snap is a tiny peek bar — can't swipe to close
     const snapPoints = useMemo(
-        () => (isExplainOpen ? ['55%', '85%'] : ['28%', '55%']),
+        () => (isExplainOpen ? ['9%', '55%', '85%'] : ['28%', '55%']),
         [isExplainOpen],
     );
+
+    const handleSheetChange = useCallback((index: number) => {
+        setSheetSnapIndex(index);
+    }, []);
 
     const selectedOrb = useMemo(() => {
         if (!selectedOrbId) return null;
@@ -67,6 +72,14 @@ export function BottomSheetMetadata({ orbs, clusters }: BottomSheetMetadataProps
         return [];
     }, [selectionMode, selectedOrb, selectedOrbs]);
 
+    // Label shown on the mini peek bar
+    const chatResumeLabel = useMemo(() => {
+        if (selectionMode === 'single' && selectedOrb) return selectedOrb.moodLabel;
+        if (selectionMode === 'multi') return `${selectedOrbIds.length} captures`;
+        if (selectionMode === 'cluster' && selectedCluster) return selectedCluster.label;
+        return 'Chat';
+    }, [selectionMode, selectedOrb, selectedOrbIds, selectedCluster]);
+
     const handleClose = useCallback(() => {
         clearSelection();
     }, [clearSelection]);
@@ -80,7 +93,7 @@ export function BottomSheetMetadata({ orbs, clusters }: BottomSheetMetadataProps
             closeExplain();
         } else {
             openExplain();
-            // Expand sheet to larger snap
+            // Snap to the middle point (55%) — index 1 in both old and new snap arrays
             sheetRef.current?.snapToIndex(1);
         }
     }, [isPro, isExplainOpen, openExplain, closeExplain]);
@@ -93,27 +106,37 @@ export function BottomSheetMetadata({ orbs, clusters }: BottomSheetMetadataProps
                 ref={sheetRef}
                 index={0}
                 snapPoints={snapPoints}
-                enablePanDownToClose
+                enablePanDownToClose={!isExplainOpen}
                 onClose={handleClose}
+                onChange={handleSheetChange}
                 backgroundStyle={styles.sheetBg}
                 handleIndicatorStyle={styles.handle}
                 keyboardBehavior="interactive"
                 keyboardBlurBehavior="restore"
+                android_keyboardInputMode="adjustResize"
             >
                 <BottomSheetView style={styles.content}>
-                    {/* Close button */}
+                    {/* Close button — always visible */}
                     <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
                         <X size={18} color="rgba(255,255,255,0.4)" />
                     </TouchableOpacity>
 
                     {isExplainOpen ? (
-                        // ── Mode B: Explain Chat ────────────────────────────
-                        <MoodverseExplainChat
-                            selectedOrbs={explainOrbs}
-                            allOrbs={orbs}
-                            clusters={clusters}
-                            selectionMode={selectionMode}
-                        />
+                        sheetSnapIndex === 0 ? (
+                            // ── Mode B-mini: Peek bar while chat is minimized ──
+                            <MiniChatBar
+                                label={chatResumeLabel}
+                                onTap={() => sheetRef.current?.snapToIndex(1)}
+                            />
+                        ) : (
+                            // ── Mode B: Full chat ───────────────────────────────
+                            <MoodverseExplainChat
+                                selectedOrbs={explainOrbs}
+                                allOrbs={orbs}
+                                clusters={clusters}
+                                selectionMode={selectionMode}
+                            />
+                        )
                     ) : (
                         // ── Mode A: Default Metadata ────────────────────────
                         <>
@@ -158,13 +181,54 @@ export function BottomSheetMetadata({ orbs, clusters }: BottomSheetMetadataProps
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Mini Chat Bar (peek state when chat is minimized)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function MiniChatBar({ label, onTap }: { label: string; onTap: () => void }) {
+    return (
+        <TouchableOpacity style={miniBarStyles.container} onPress={onTap} activeOpacity={0.7}>
+            <View style={miniBarStyles.dot} />
+            <ThemedText style={miniBarStyles.label}>{label}</ThemedText>
+            <ThemedText style={miniBarStyles.hint}>tap to resume</ThemedText>
+            <Sparkles size={12} color="#8B2252" />
+        </TouchableOpacity>
+    );
+}
+
+const miniBarStyles = StyleSheet.create({
+    container: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 4,
+    },
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#8B2252',
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: 'rgba(255,255,255,0.8)',
+        flex: 1,
+    },
+    hint: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.3)',
+    },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Explain Button (shared)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ExplainButton({
     onPress,
     isPro,
-    label = 'Explain',
+    label = 'Talk About It',
 }: {
     onPress: () => void;
     isPro: boolean;
@@ -176,7 +240,7 @@ function ExplainButton({
             onPress={onPress}
         >
             {isPro ? (
-                <Sparkles size={14} color="#a855f7" />
+                <Sparkles size={14} color="#8B2252" />
             ) : (
                 <Lock size={14} color="rgba(255,255,255,0.3)" />
             )}
@@ -327,7 +391,7 @@ function MultiSelectionView({
                 <ExplainButton
                     onPress={onExplain}
                     isPro={isPro}
-                    label="Explain Selection"
+                    label="Talk About Selection"
                 />
             </View>
         </View>
@@ -509,8 +573,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(168, 85, 247, 0.08)',
     },
     actionBtnExplain: {
-        borderColor: 'rgba(168, 85, 247, 0.25)',
-        backgroundColor: 'rgba(168, 85, 247, 0.06)',
+        borderColor: 'rgba(139, 34, 82, 0.25)',
+        backgroundColor: 'rgba(139, 34, 82, 0.06)',
     },
     actionText: {
         fontSize: 12,
@@ -521,7 +585,7 @@ const styles = StyleSheet.create({
     },
     actionTextExplain: {
         fontSize: 12,
-        color: '#a855f7',
+        color: '#8B2252',
     },
     actionTextDisabled: {
         fontSize: 12,

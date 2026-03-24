@@ -31,6 +31,9 @@ interface MoodverseState {
     chatMessages: ChatMessage[];
     isAiLoading: boolean;
 
+    // ── Camera / orbit ──────────────────────────────────────────────────────
+    orbitModeActive: boolean;
+
     // ── Idle / interaction tracking ─────────────────────────────────────────
     isIdle: boolean;
     isInteracting: boolean;
@@ -60,6 +63,10 @@ interface MoodverseState {
     setAiLoading: (loading: boolean) => void;
     setAiHighlightedOrbIds: (ids: string[]) => void;
 
+    // Camera / orbit actions
+    toggleOrbitMode: () => void;
+    setOrbitModeActive: (active: boolean) => void;
+
     // Idle actions
     setIdle: (idle: boolean) => void;
     setInteracting: (interacting: boolean) => void;
@@ -83,6 +90,7 @@ const initialState = {
     isExplainOpen: false,
     chatMessages: [] as ChatMessage[],
     isAiLoading: false,
+    orbitModeActive: false,
     isIdle: true,
     isInteracting: false,
     aiHighlightedOrbIds: [] as string[],
@@ -148,6 +156,17 @@ export const useMoodverseStore = create<MoodverseState>()((set) => ({
     })),
     setAiLoading: (loading) => set({ isAiLoading: loading }),
     setAiHighlightedOrbIds: (ids) => set({ aiHighlightedOrbIds: ids }),
+
+    // Camera / orbit
+    toggleOrbitMode: () => set((s) => ({
+        orbitModeActive: !s.orbitModeActive,
+        // Turning orbit on disables brush-select (they conflict on pan gesture)
+        selectModeActive: !s.orbitModeActive ? false : s.selectModeActive,
+    })),
+    setOrbitModeActive: (active) => set((s) => ({
+        orbitModeActive: active,
+        selectModeActive: active ? false : s.selectModeActive,
+    })),
 
     // Idle tracking
     setIdle: (idle) => set({ isIdle: idle }),

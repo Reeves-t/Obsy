@@ -433,10 +433,16 @@ function extractText(raw: string, requestId: string): string {
           `[EXTRACT_TEXT_WARNING] requestId: ${requestId} | JSON parsed but no narrative text found. Keys: ${Object.keys(insight).join(', ')}`
         );
       } catch {
-        // Not valid JSON — treat as plain text
+        // Not valid JSON — try regex extraction before falling back to raw string
         console.log(
-          `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not valid JSON, treating as plain text`
+          `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not valid JSON, attempting regex extraction`
         );
+        // Handle nested {"narrative":{"text":"..."}} where special chars broke JSON.parse
+        const nestedMatch = cleaned.match(/"text"\s*:\s*"((?:[^"\\]|\\[\s\S])*)"/);
+        if (nestedMatch?.[1]) {
+          console.log(`[EXTRACT_TEXT_REGEX] requestId: ${requestId} | extracted via nested text regex`);
+          return nestedMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+        }
       }
 
       // cleaned is either plain text or unparseable JSON — use it if it looks like prose

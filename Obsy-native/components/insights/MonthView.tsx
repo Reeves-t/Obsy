@@ -247,7 +247,6 @@ function MonthSummaryCard({
                 ) : (
                     <View style={styles.lockedContainer}>
                         <ThemedText style={[styles.lockedText, colors && { color: colors.cardTextSecondary }]}>Unlocks after week one</ThemedText>
-                        <ThemedText style={[styles.progressText, colors && { color: colors.cardTextSecondary }]}>{capturedDays}/7 days captured</ThemedText>
                     </View>
                 )}
             </View>

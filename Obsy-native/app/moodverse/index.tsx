@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, Search, Crosshair } from 'lucide-react-native';
+import { ChevronLeft, Search, Crosshair, RotateCcw } from 'lucide-react-native';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +15,6 @@ import { BottomSheetMetadata } from '@/components/moodverse/BottomSheetMetadata'
 import { TimeNavigator } from '@/components/moodverse/TimeNavigator';
 import { SearchOverlay } from '@/components/moodverse/SearchOverlay';
 import { SelectionTrail } from '@/components/moodverse/SelectionTrail';
-import { CameraOrbitDial } from '@/components/moodverse/CameraOrbitDial';
 import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 import { computeEdgesForOrb, computeAmbientMesh } from '@/components/moodverse/edgeCompute';
 
@@ -26,6 +25,15 @@ const PAN_LIMIT = 20;
 const PAN_SENSITIVITY = 0.018;
 const IDLE_RESUME_DELAY = 1200;
 
+// Orbit constants
+const ORBIT_SENSITIVITY = 0.004;  // rad/px
+const ORBIT_VEL_SCALE = 0.000067; // px/s → rad/frame momentum seed
+const ORBIT_DECAY = 0.88;         // momentum friction per frame (~300ms coast)
+const ORBIT_DEAD_ZONE = 4;        // px before orbit registers
+const MIN_PHI = 0;                // top-down (looking straight down at spiral)
+const MAX_PHI = Math.PI / 3;      // 60° tilt max — keeps view useful, never edge-on
+const RECENTER_DURATION = 400;    // ms
+
 export default function MoodversePage() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -35,11 +43,12 @@ export default function MoodversePage() {
     const [showSearch, setShowSearch] = useState(false);
     const [trailPoints, setTrailPoints] = useState<Array<{ x: number; y: number }>>([]);
 
-    // Store subscriptions (individual selectors for minimal re-renders)
+    // Store subscriptions
     const selectedYear = useMoodverseStore((s) => s.selectedYear);
     const selectedOrbId = useMoodverseStore((s) => s.selectedOrbId);
     const selectedOrbIds = useMoodverseStore((s) => s.selectedOrbIds);
     const selectModeActive = useMoodverseStore((s) => s.selectModeActive);
+    const orbitModeActive = useMoodverseStore((s) => s.orbitModeActive);
     const searchResultIds = useMoodverseStore((s) => s.searchResultIds);
     const isExplainOpen = useMoodverseStore((s) => s.isExplainOpen);
     const isIdle = useMoodverseStore((s) => s.isIdle);
@@ -48,14 +57,21 @@ export default function MoodversePage() {
     // Camera state via refs (read by render loop, updated by gestures)
     const cameraZRef = useRef(DEFAULT_CAMERA_Z);
     const cameraOffsetRef = useRef({ x: 0, y: 0 });
-    const orbitAnglesRef = useRef({ theta: 0, phi: Math.PI / 2 }); // Default: top-down view
+    const orbitAnglesRef = useRef({ theta: 0, phi: 0 }); // phi=0 = top-down
     const baseZoomRef = useRef(DEFAULT_CAMERA_Z);
     const cameraTargetRef = useRef<{ x: number; y: number } | null>(null);
     const persistentCamRef = useRef({ x: 0, y: 0 });
 
-    // Sync selectModeActive to ref for gesture callbacks
+    // Refs for gesture callbacks
     const selectModeActiveRef = useRef(selectModeActive);
+    const orbitModeActiveRef = useRef(orbitModeActive);
     useEffect(() => { selectModeActiveRef.current = selectModeActive; }, [selectModeActive]);
+    useEffect(() => { orbitModeActiveRef.current = orbitModeActive; }, [orbitModeActive]);
+
+    // Orbit / momentum refs
+    const lastPanTranslationRef = useRef({ x: 0, y: 0 });
+    const orbitVelocityRef = useRef({ theta: 0, phi: 0 });
+    const momentumRafRef = useRef<number | null>(null);
 
     // ── Idle tracking ────────────────────────────────────────────────────
     const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,7 +84,6 @@ export default function MoodversePage() {
         }, IDLE_RESUME_DELAY);
     }, []);
 
-    // Selection / explain changes break idle
     useEffect(() => {
         if (selectedOrbId || selectedOrbIds.length > 0 || isExplainOpen) {
             useMoodverseStore.getState().setIdle(false);
@@ -80,7 +95,6 @@ export default function MoodversePage() {
         }
     }, [selectedOrbId, selectedOrbIds, isExplainOpen]);
 
-    // Pause rendering when screen loses focus
     useFocusEffect(
         useCallback(() => {
             setIsFocused(true);
@@ -88,15 +102,15 @@ export default function MoodversePage() {
         }, [])
     );
 
-    // Reset moodverse store + clear idle timer on unmount
     useEffect(() => {
         return () => {
             useMoodverseStore.getState().reset();
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            if (momentumRafRef.current) cancelAnimationFrame(momentumRafRef.current);
         };
     }, []);
 
-    // ── Data: fall back to mock captures when none exist ─────────────────
+    // ── Data ─────────────────────────────────────────────────────────────
     const effectiveCaptures = useMemo(() => {
         if (captures.length > 0) return captures;
         if (!user?.id) return [];
@@ -104,13 +118,11 @@ export default function MoodversePage() {
     }, [captures, user?.id, selectedYear]);
 
     const { orbs, clusters } = useMemo(() => {
-        if (!user?.id || effectiveCaptures.length === 0) {
-            return { orbs: [], clusters: [] };
-        }
+        if (!user?.id || effectiveCaptures.length === 0) return { orbs: [], clusters: [] };
         return computeGalaxyLayout(effectiveCaptures, user.id, selectedYear);
     }, [effectiveCaptures, user?.id, selectedYear]);
 
-    // ── Derived props for GalaxyCanvas ───────────────────────────────────
+    // ── Derived canvas props ─────────────────────────────────────────────
     const selectedIdsSet = useMemo(() => {
         const set = new Set<string>();
         if (selectedOrbId) set.add(selectedOrbId);
@@ -132,13 +144,42 @@ export default function MoodversePage() {
         return computeEdgesForOrb(orb, orbs);
     }, [selectedOrbId, orbs]);
 
-    // Camera target: disabled to prevent camera movement on selection
     useEffect(() => {
-        // Keep camera target null to disable auto-focus on selected orbs
         cameraTargetRef.current = null;
     }, [selectedOrbId, orbs]);
 
+    // ── Recenter ─────────────────────────────────────────────────────────
+    const recenterCamera = useCallback(() => {
+        // Cancel any active momentum
+        if (momentumRafRef.current) {
+            cancelAnimationFrame(momentumRafRef.current);
+            momentumRafRef.current = null;
+        }
+        const startTime = Date.now();
+        const startTheta = orbitAnglesRef.current.theta;
+        const startPhi = orbitAnglesRef.current.phi;
+        const startZ = cameraZRef.current;
+        const startOffX = cameraOffsetRef.current.x;
+        const startOffY = cameraOffsetRef.current.y;
+
+        const tick = () => {
+            const t = Math.min(1, (Date.now() - startTime) / RECENTER_DURATION);
+            const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+            orbitAnglesRef.current.theta = startTheta * (1 - ease);
+            orbitAnglesRef.current.phi = startPhi * (1 - ease);
+            cameraZRef.current = startZ + (DEFAULT_CAMERA_Z - startZ) * ease;
+            cameraOffsetRef.current = {
+                x: startOffX * (1 - ease),
+                y: startOffY * (1 - ease),
+            };
+            persistentCamRef.current = { ...cameraOffsetRef.current };
+            if (t < 1) momentumRafRef.current = requestAnimationFrame(tick);
+        };
+        momentumRafRef.current = requestAnimationFrame(tick);
+    }, []);
+
     // ── Gestures ─────────────────────────────────────────────────────────
+
     const tapGesture = Gesture.Tap()
         .onEnd((e) => {
             const raycast = GalaxyCanvas._raycast?.current;
@@ -146,6 +187,10 @@ export default function MoodversePage() {
             const orbId = raycast(e.x, e.y);
             if (orbId) {
                 useMoodverseStore.getState().selectOrb(orbId);
+                // Orb tap auto-disables orbit mode (spec requirement)
+                if (orbitModeActiveRef.current) {
+                    useMoodverseStore.getState().setOrbitModeActive(false);
+                }
             } else {
                 useMoodverseStore.getState().clearSelection();
             }
@@ -169,12 +214,40 @@ export default function MoodversePage() {
     const panGesture = Gesture.Pan()
         .onBegin((e) => {
             markInteracting();
-            if (selectModeActiveRef.current) {
+            // Reset orbit tracking state
+            lastPanTranslationRef.current = { x: 0, y: 0 };
+            orbitVelocityRef.current = { theta: 0, phi: 0 };
+            // Cancel any active momentum before a new drag
+            if (momentumRafRef.current) {
+                cancelAnimationFrame(momentumRafRef.current);
+                momentumRafRef.current = null;
+            }
+            if (!orbitModeActiveRef.current && selectModeActiveRef.current) {
                 setTrailPoints([{ x: e.x, y: e.y }]);
             }
         })
         .onUpdate((e) => {
-            if (selectModeActiveRef.current) {
+            if (orbitModeActiveRef.current) {
+                // ── Orbit mode: rotate camera around spiral center ──────────
+                const dx = e.translationX - lastPanTranslationRef.current.x;
+                const dy = e.translationY - lastPanTranslationRef.current.y;
+                lastPanTranslationRef.current = { x: e.translationX, y: e.translationY };
+
+                const totalDist = Math.sqrt(e.translationX ** 2 + e.translationY ** 2);
+                if (totalDist > ORBIT_DEAD_ZONE) {
+                    orbitAnglesRef.current.theta += dx * ORBIT_SENSITIVITY;
+                    orbitAnglesRef.current.phi = Math.max(MIN_PHI, Math.min(MAX_PHI,
+                        orbitAnglesRef.current.phi + dy * ORBIT_SENSITIVITY,
+                    ));
+                    // Track velocity for momentum after release
+                    orbitVelocityRef.current = {
+                        theta: e.velocityX * ORBIT_VEL_SCALE,
+                        phi: e.velocityY * ORBIT_VEL_SCALE,
+                    };
+                    markInteracting();
+                }
+            } else if (selectModeActiveRef.current) {
+                // ── Brush select mode ───────────────────────────────────────
                 setTrailPoints((prev) => {
                     const next = [...prev, { x: e.x, y: e.y }];
                     return next.length > 60 ? next.slice(-60) : next;
@@ -185,6 +258,7 @@ export default function MoodversePage() {
                     if (orbId) useMoodverseStore.getState().addToSelection(orbId);
                 }
             } else {
+                // ── Normal pan: move camera in XY ───────────────────────────
                 cameraOffsetRef.current = {
                     x: Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, persistentCamRef.current.x - e.translationX * PAN_SENSITIVITY)),
                     y: Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, persistentCamRef.current.y + e.translationY * PAN_SENSITIVITY)),
@@ -192,11 +266,33 @@ export default function MoodversePage() {
             }
         })
         .onEnd(() => {
-            markInteracting();
-            if (selectModeActiveRef.current) {
-                setTrailPoints([]);
+            if (orbitModeActiveRef.current) {
+                // ── Coast to stop with momentum ease-out ───────────────────
+                let vTheta = orbitVelocityRef.current.theta;
+                let vPhi = orbitVelocityRef.current.phi;
+
+                const applyMomentum = () => {
+                    vTheta *= ORBIT_DECAY;
+                    vPhi *= ORBIT_DECAY;
+                    orbitAnglesRef.current.theta += vTheta;
+                    orbitAnglesRef.current.phi = Math.max(MIN_PHI, Math.min(MAX_PHI,
+                        orbitAnglesRef.current.phi + vPhi,
+                    ));
+                    if (Math.abs(vTheta) > 0.00015 || Math.abs(vPhi) > 0.00015) {
+                        momentumRafRef.current = requestAnimationFrame(applyMomentum);
+                    }
+                };
+
+                if (Math.abs(vTheta) > 0.00015 || Math.abs(vPhi) > 0.00015) {
+                    momentumRafRef.current = requestAnimationFrame(applyMomentum);
+                }
             } else {
-                persistentCamRef.current = { ...cameraOffsetRef.current };
+                markInteracting();
+                if (selectModeActiveRef.current) {
+                    setTrailPoints([]);
+                } else {
+                    persistentCamRef.current = { ...cameraOffsetRef.current };
+                }
             }
         })
         .runOnJS(true);
@@ -209,7 +305,7 @@ export default function MoodversePage() {
     return (
         <GestureHandlerRootView style={styles.root}>
             <View style={[styles.container, { paddingTop: insets.top }]}>
-                {/* Nebula background — subtle purple/pink radial glow */}
+                {/* Nebula background */}
                 <View style={StyleSheet.absoluteFill} pointerEvents="none">
                     <LinearGradient
                         colors={[
@@ -233,7 +329,7 @@ export default function MoodversePage() {
                     />
                 </View>
 
-                {/* Galaxy Canvas with gesture detection */}
+                {/* Galaxy Canvas */}
                 <GestureDetector gesture={composedGesture}>
                     <View style={styles.canvasWrapper}>
                         {orbs.length > 0 ? (
@@ -270,54 +366,68 @@ export default function MoodversePage() {
                     <SelectionTrail points={trailPoints} />
                 )}
 
-                {/* Time navigator — below header */}
+                {/* Time navigator */}
                 <View style={[styles.timeNavWrapper, { top: insets.top + 52 }]}>
                     <TimeNavigator />
                 </View>
 
-                {/* Header — absolute on top */}
+                {/* Header */}
                 <View style={[styles.header, { top: insets.top }]}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <ChevronLeft size={24} color="#e4e4ed" />
                     </TouchableOpacity>
                     <ThemedText style={styles.headerTitle}>Moodverse</ThemedText>
                     <View style={styles.headerActions}>
+                        {/* Crosshair: recenter when orbit active, multi-select toggle otherwise */}
                         <TouchableOpacity
-                            onPress={() => useMoodverseStore.getState().toggleSelectMode()}
-                            style={[styles.headerBtn, selectModeActive && styles.headerBtnActive]}
+                            onPress={() => {
+                                if (orbitModeActive) {
+                                    recenterCamera();
+                                } else {
+                                    useMoodverseStore.getState().toggleSelectMode();
+                                }
+                            }}
+                            style={[
+                                styles.headerBtn,
+                                !orbitModeActive && selectModeActive && styles.headerBtnActive,
+                            ]}
                         >
                             <Crosshair
                                 size={18}
-                                color={selectModeActive ? '#a855f7' : 'rgba(228,228,237,0.5)'}
+                                color={!orbitModeActive && selectModeActive ? '#a855f7' : 'rgba(228,228,237,0.5)'}
                             />
                         </TouchableOpacity>
+
+                        {/* Search */}
                         <TouchableOpacity
                             onPress={() => setShowSearch(true)}
                             style={styles.headerBtn}
                         >
                             <Search size={18} color="rgba(228,228,237,0.5)" />
                         </TouchableOpacity>
+
+                        {/* Orbit mode toggle */}
+                        <TouchableOpacity
+                            onPress={() => useMoodverseStore.getState().toggleOrbitMode()}
+                            style={[styles.headerBtn, orbitModeActive && styles.headerBtnActiveOrbit]}
+                        >
+                            <RotateCcw
+                                size={18}
+                                color={orbitModeActive ? '#8B2252' : 'rgba(228,228,237,0.5)'}
+                            />
+                        </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Search overlay (modal) */}
+                {/* Search overlay */}
                 <SearchOverlay
                     visible={showSearch}
                     onClose={() => setShowSearch(false)}
                     orbs={orbs}
                 />
-
-                {/* Camera orbit dial — bottom-left corner */}
-                {orbs.length > 0 && (
-                    <CameraOrbitDial
-                        orbitAnglesRef={orbitAnglesRef}
-                        onOrbitChange={markInteracting}
-                        bottomInset={insets.bottom}
-                    />
-                )}
             </View>
 
-            {/* Bottom sheet for selected orb/cluster metadata */}
+            {/* Bottom sheet */}
             {orbs.length > 0 && (
                 <BottomSheetMetadata orbs={orbs} clusters={clusters} />
             )}
@@ -363,6 +473,9 @@ const styles = StyleSheet.create({
     },
     headerBtnActive: {
         backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    },
+    headerBtnActiveOrbit: {
+        backgroundColor: 'rgba(139, 34, 82, 0.15)',
     },
     timeNavWrapper: {
         position: 'absolute',

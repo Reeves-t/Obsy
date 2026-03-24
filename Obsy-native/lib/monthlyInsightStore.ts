@@ -1,4 +1,35 @@
 import { create } from 'zustand';
+
+/** Handles stored content that may be raw JSON (from old buggy writes) or plain text. */
+function parseMonthlyContent(content: string | null | undefined): string | null {
+    if (!content) return null;
+    if (!content.startsWith('{')) return content;
+
+    // Try JSON.parse first
+    try {
+        const parsed = JSON.parse(content);
+        const text = parsed?.narrative?.text
+            ?? (typeof parsed?.narrative === 'string' ? parsed.narrative : null)
+            ?? parsed?.text;
+        if (text) return text;
+    } catch {
+        // JSON.parse failed — likely literal newlines or unescaped chars in stored content
+    }
+
+    // Regex fallback: extract "text":"..." from nested {"narrative":{"text":"..."}}
+    const nestedMatch = content.match(/"text"\s*:\s*"((?:[^"\\]|\\[\s\S])*)"/);
+    if (nestedMatch?.[1]) {
+        return nestedMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+
+    // Regex fallback: extract flat {"narrative":"..."}
+    const flatMatch = content.match(/"narrative"\s*:\s*"((?:[^"\\]|\\[\s\S])*)"/);
+    if (flatMatch?.[1]) {
+        return flatMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+
+    return content;
+}
 import { Capture } from '@/types/capture';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { callMonthly } from '@/services/monthlyInsightClient';
@@ -71,7 +102,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
             const thisMonth = await fetchInsightHistory(userId, 'monthly', ms, me);
             if (thisMonth) {
                 set({
-                    text: thisMonth.content,
+                    text: parseMonthlyContent(thisMonth.content),
                     status: 'success',
                     currentMonth: ms,
                     hasLoadedSnapshot: true,
@@ -84,7 +115,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
             const recent = await fetchMostRecentMonthlyInsight(userId);
             if (recent) {
                 set({
-                    text: recent.content,
+                    text: parseMonthlyContent(recent.content),
                     status: 'success',
                     currentMonth: new Date(recent.start_date),
                     hasLoadedSnapshot: true,
@@ -122,7 +153,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
                 throughDate.toISOString()
             );
 
-            const eligible = dayOfMonth >= 7 && signals.activeDays >= 7;
+            const eligible = dayOfMonth >= 8;
             if (!eligible && !force) {
                 set({
                     status: 'idle',
@@ -150,9 +181,10 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
             const response = await callMonthly(monthLabel, signals, tone, customTonePrompt, monthStart.toISOString());
 
             if (response.ok && response.text) {
+                const narrativeText = parseMonthlyContent(response.text) ?? response.text;
                 set({
                     status: 'success',
-                    text: response.text,
+                    text: narrativeText,
                     requestId: response.requestId || null,
                     lastUpdated: new Date(),
                     currentMonth: targetMonth,
@@ -164,7 +196,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
                 try {
                     await upsertInsightHistory(
                         userId, 'monthly', monthStart, monthEnd,
-                        response.text, undefined,
+                        narrativeText, undefined,
                         monthCaptures.map(c => c.id)
                     );
                 } catch (e) {

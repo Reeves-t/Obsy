@@ -162,7 +162,7 @@ export function GalaxyCanvas({
     // Smooth camera offset for lerp
     const smoothCamOffset = useRef({ x: 0, y: 0 });
     // Smooth orbit angles for lerp
-    const smoothOrbitAngles = useRef({ theta: 0, phi: Math.PI / 2 });
+    const smoothOrbitAngles = useRef({ theta: 0, phi: 0 });
 
     useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
     useEffect(() => { selectedIdsRef.current = selectedIds ?? new Set(); }, [selectedIds]);
@@ -382,7 +382,7 @@ export function GalaxyCanvas({
                 smoothOrbitAngles.current.phi += (orbitAngles.phi - smoothOrbitAngles.current.phi) * ORBIT_LERP;
 
                 const theta = smoothOrbitAngles.current.theta; // Y-axis rotation
-                const phi = smoothOrbitAngles.current.phi;     // X-axis tilt (0 = horizon, π/2 = top-down)
+                const phi = smoothOrbitAngles.current.phi;     // polar angle from Z-axis (0 = top-down, π/2 = horizon)
                 const radius = camZ; // Current zoom distance from origin
 
                 // Spherical to Cartesian conversion

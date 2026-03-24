@@ -22,6 +22,7 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "adjustResize",
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.Obsynative"
     },

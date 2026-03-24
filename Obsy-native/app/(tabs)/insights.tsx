@@ -400,7 +400,7 @@ export default function InsightsScreen() {
             const signals = getMonthSignals(monthCaptures, monthKey, throughDate.toISOString());
 
             // 2. Set gating states
-            const isEligible = throughDate.getDate() >= 7 && signals.activeDays >= 7;
+            const isEligible = throughDate.getDate() >= 8;
             setIsEligibleForInsight(isEligible);
             setCapturedDaysCount(signals.activeDays);
 

@@ -16,6 +16,7 @@ import { useCaptureStore } from '@/lib/captureStore';
 import { useTodayInsight } from '@/lib/todayInsightStore';
 import { useWeeklyInsight } from '@/lib/weeklyInsightStore';
 import { useMonthlyInsight } from '@/lib/monthlyInsightStore';
+import { useYearInPixelsStore } from '@/lib/yearInPixelsStore';
 
 const queryClient = new QueryClient();
 
@@ -145,6 +146,7 @@ function SnapshotLoader({ onDataReady }: { onDataReady: () => void }) {
           useTodayInsight.getState().loadSnapshot(user.id),
           useWeeklyInsight.getState().loadSnapshot(user.id),
           useMonthlyInsight.getState().loadSnapshot(user.id),
+          useYearInPixelsStore.getState().loadFromSupabase(user),
         ]);
       } catch (err) {
         console.error('[SnapshotLoader] Error during startup load:', err);

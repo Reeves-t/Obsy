@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 export interface StrokeData {
     path: string;           // SVG path string
@@ -34,6 +36,11 @@ interface YearInPixelsState {
     activeColorId: string | null;
     photoMode: boolean;
 
+    // Sync
+    currentUserId: string | null;
+    loadFromSupabase: (user: User) => Promise<void>;
+    syncToSupabase: () => Promise<void>;
+
     // Actions
     setYear: (year: number) => void;
     setActiveColorId: (id: string | null) => void;
@@ -55,6 +62,15 @@ interface YearInPixelsState {
     reorderLegend: (items: LegendItem[]) => void;
 }
 
+// Debounce timer for sync — batches rapid mutations (e.g. brush strokes)
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSyncAfterMutation() {
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+        useYearInPixelsStore.getState().syncToSupabase();
+    }, 1500);
+}
+
 export const useYearInPixelsStore = create<YearInPixelsState>()(
     persist(
         (set, get) => ({
@@ -63,6 +79,50 @@ export const useYearInPixelsStore = create<YearInPixelsState>()(
             legend: [],
             activeColorId: null,
             photoMode: false,
+            currentUserId: null,
+
+            loadFromSupabase: async (user: User) => {
+                const year = get().year;
+                set({ currentUserId: user.id });
+
+                const { data, error } = await supabase
+                    .from('year_in_pixels')
+                    .select('pixels, legend')
+                    .eq('user_id', user.id)
+                    .eq('year', year)
+                    .single();
+
+                if (error) {
+                    // PGRST116 = no rows found — that's fine for a new user
+                    if (error.code !== 'PGRST116') {
+                        console.error('[YearInPixels] Load error:', error.message);
+                    }
+                    return;
+                }
+
+                if (data) {
+                    set({
+                        pixels: data.pixels ?? {},
+                        legend: data.legend ?? [],
+                    });
+                }
+            },
+
+            syncToSupabase: async () => {
+                const { currentUserId, year, pixels, legend } = get();
+                if (!currentUserId) return;
+
+                const { error } = await supabase
+                    .from('year_in_pixels')
+                    .upsert(
+                        { user_id: currentUserId, year, pixels, legend, updated_at: new Date().toISOString() },
+                        { onConflict: 'user_id,year' }
+                    );
+
+                if (error) {
+                    console.error('[YearInPixels] Sync error:', error.message);
+                }
+            },
 
             setYear: (year) => set({ year }),
 
@@ -70,108 +130,149 @@ export const useYearInPixelsStore = create<YearInPixelsState>()(
 
             togglePhotoMode: () => set((state) => ({ photoMode: !state.photoMode })),
 
-            setPixelColor: (date, color) => set((state) => ({
-                pixels: {
-                    ...state.pixels,
-                    [date]: {
-                        ...(state.pixels[date] || { date, strokes: [] }),
-                        color,
-                    },
-                }
-            })),
-
-            addStroke: (date, stroke) => set((state) => ({
-                pixels: {
-                    ...state.pixels,
-                    [date]: {
-                        ...(state.pixels[date] || { date, color: null, strokes: [] }),
-                        strokes: [...(state.pixels[date]?.strokes || []), stroke],
-                    },
-                }
-            })),
-
-            setStrokes: (date, strokes) => set((state) => ({
-                pixels: {
-                    ...state.pixels,
-                    [date]: {
-                        ...(state.pixels[date] || { date, color: null }),
-                        strokes,
-                    },
-                }
-            })),
-
-            setPixelPhoto: (date, photoUri) => set((state) => ({
-                pixels: {
-                    ...state.pixels,
-                    [date]: {
-                        ...(state.pixels[date] || { date, color: null, strokes: [] }),
-                        photoUri,
-                    },
-                }
-            })),
-
-            clearPixel: (date) => set((state) => {
-                const newPixels = { ...state.pixels };
-                delete newPixels[date];
-                return { pixels: newPixels };
-            }),
-
-            setGridCell: (date, cellKey, color) => set((state) => {
-                const existing = state.pixels[date] || { date, color: null, strokes: [] };
-                const gridCells = { ...(existing.gridCells || {}) };
-                if (color) {
-                    gridCells[cellKey] = color;
-                } else {
-                    delete gridCells[cellKey];
-                }
-                // Update the day's primary color to the painted color so Year in Pixels grid reflects it
-                const dayColor = color ?? existing.color;
-                return {
+            setPixelColor: (date, color) => {
+                set((state) => ({
                     pixels: {
                         ...state.pixels,
-                        [date]: { ...existing, gridCells, color: dayColor },
-                    },
-                };
-            }),
+                        [date]: {
+                            ...(state.pixels[date] || { date, strokes: [] }),
+                            color,
+                        },
+                    }
+                }));
+                scheduleSyncAfterMutation();
+            },
 
-            clearGrid: (date) => set((state) => {
-                const existing = state.pixels[date];
-                if (!existing) return state;
-                return {
+            addStroke: (date, stroke) => {
+                set((state) => ({
                     pixels: {
                         ...state.pixels,
-                        [date]: { ...existing, gridCells: {} },
-                    },
-                };
-            }),
+                        [date]: {
+                            ...(state.pixels[date] || { date, color: null, strokes: [] }),
+                            strokes: [...(state.pixels[date]?.strokes || []), stroke],
+                        },
+                    }
+                }));
+                scheduleSyncAfterMutation();
+            },
 
-            addLegendItem: (item) => set((state) => {
-                const newId = Math.random().toString(36).substring(7);
-                return {
-                    legend: [
-                        ...state.legend,
-                        { ...item, id: newId }
-                    ],
-                    activeColorId: newId
-                };
-            }),
+            setStrokes: (date, strokes) => {
+                set((state) => ({
+                    pixels: {
+                        ...state.pixels,
+                        [date]: {
+                            ...(state.pixels[date] || { date, color: null }),
+                            strokes,
+                        },
+                    }
+                }));
+                scheduleSyncAfterMutation();
+            },
 
-            updateLegendItem: (id, updates) => set((state) => ({
-                legend: state.legend.map((item) =>
-                    item.id === id ? { ...item, ...updates } : item
-                ),
-            })),
+            setPixelPhoto: (date, photoUri) => {
+                set((state) => ({
+                    pixels: {
+                        ...state.pixels,
+                        [date]: {
+                            ...(state.pixels[date] || { date, color: null, strokes: [] }),
+                            photoUri,
+                        },
+                    }
+                }));
+                scheduleSyncAfterMutation();
+            },
 
-            removeLegendItem: (id) => set((state) => ({
-                legend: state.legend.filter((item) => item.id !== id),
-                activeColorId: state.activeColorId === id ? null : state.activeColorId,
-            })),
+            clearPixel: (date) => {
+                set((state) => {
+                    const newPixels = { ...state.pixels };
+                    delete newPixels[date];
+                    return { pixels: newPixels };
+                });
+                scheduleSyncAfterMutation();
+            },
 
-            reorderLegend: (items) => set({ legend: items }),
+            setGridCell: (date, cellKey, color) => {
+                set((state) => {
+                    const existing = state.pixels[date] || { date, color: null, strokes: [] };
+                    const gridCells = { ...(existing.gridCells || {}) };
+                    if (color) {
+                        gridCells[cellKey] = color;
+                    } else {
+                        delete gridCells[cellKey];
+                    }
+                    // Update the day's primary color to the painted color so Year in Pixels grid reflects it
+                    const dayColor = color ?? existing.color;
+                    return {
+                        pixels: {
+                            ...state.pixels,
+                            [date]: { ...existing, gridCells, color: dayColor },
+                        },
+                    };
+                });
+                scheduleSyncAfterMutation();
+            },
+
+            clearGrid: (date) => {
+                set((state) => {
+                    const existing = state.pixels[date];
+                    if (!existing) return state;
+                    return {
+                        pixels: {
+                            ...state.pixels,
+                            [date]: { ...existing, gridCells: {} },
+                        },
+                    };
+                });
+                scheduleSyncAfterMutation();
+            },
+
+            addLegendItem: (item) => {
+                set((state) => {
+                    const newId = Math.random().toString(36).substring(7);
+                    return {
+                        legend: [
+                            ...state.legend,
+                            { ...item, id: newId }
+                        ],
+                        activeColorId: newId
+                    };
+                });
+                scheduleSyncAfterMutation();
+            },
+
+            updateLegendItem: (id, updates) => {
+                set((state) => ({
+                    legend: state.legend.map((item) =>
+                        item.id === id ? { ...item, ...updates } : item
+                    ),
+                }));
+                scheduleSyncAfterMutation();
+            },
+
+            removeLegendItem: (id) => {
+                set((state) => ({
+                    legend: state.legend.filter((item) => item.id !== id),
+                    activeColorId: state.activeColorId === id ? null : state.activeColorId,
+                }));
+                scheduleSyncAfterMutation();
+            },
+
+            reorderLegend: (items) => {
+                set({ legend: items });
+                scheduleSyncAfterMutation();
+            },
         }),
         {
             name: 'obsy-year-in-pixels',
             storage: createJSONStorage(() => AsyncStorage),
+            // Don't persist currentUserId — always set fresh from auth on load
+            partialize: (state) => ({
+                year: state.year,
+                pixels: state.pixels,
+                legend: state.legend,
+                activeColorId: state.activeColorId,
+                photoMode: state.photoMode,
+            }),
         }
     )
 );
