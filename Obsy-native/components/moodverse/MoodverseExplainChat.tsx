@@ -1,8 +1,9 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
     StyleSheet,
     View,
     TouchableOpacity,
+    TextInput,
 } from 'react-native';
 import { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -334,7 +335,25 @@ export function MoodverseExplainChat({
 
     const [inputText, setInputText] = React.useState('');
     const flatListRef = useRef<any>(null);
+    const inputRef = useRef<TextInput>(null);
     const hasInitialized = useRef(false);
+    const [inputBarReady, setInputBarReady] = useState(false);
+
+    // Focus the input once the input bar has laid out and the sheet has settled.
+    // This fixes the race condition where the keyboard fails to open because
+    // the BottomSheetTextInput isn't ready yet during the sheet animation.
+    const handleInputBarLayout = useCallback(() => {
+        if (!inputBarReady) setInputBarReady(true);
+    }, [inputBarReady]);
+
+    useEffect(() => {
+        if (inputBarReady) {
+            const timer = setTimeout(() => {
+                inputRef.current?.focus();
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [inputBarReady]);
 
     // Build selected capture context
     const captureContexts: CaptureContext[] = React.useMemo(() => {
@@ -463,8 +482,9 @@ export function MoodverseExplainChat({
                 ListFooterComponent={isAiLoading ? <EclipseLoader /> : null}
             />
 
-            <View style={styles.inputBar}>
+            <View style={styles.inputBar} onLayout={handleInputBarLayout}>
                 <BottomSheetTextInput
+                    ref={inputRef}
                     style={styles.textInput}
                     value={inputText}
                     onChangeText={setInputText}
