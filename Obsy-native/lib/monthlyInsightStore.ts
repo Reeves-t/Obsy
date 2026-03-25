@@ -50,6 +50,10 @@ interface MonthlyInsightState {
     requestId: string | null;
     currentMonth: Date;
     hasLoadedSnapshot: boolean;
+    /** AI-generated month phrase from edge function (e.g. "Restless Clarity") */
+    aiMonthPhrase: string | null;
+    /** AI-generated reasoning for the month phrase */
+    aiMonthReasoning: string | null;
 
     // Actions
     setMonthlyInsight: (text: string | null, month: Date) => void;
@@ -75,6 +79,8 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
     requestId: null,
     currentMonth: new Date(),
     hasLoadedSnapshot: false,
+    aiMonthPhrase: null,
+    aiMonthReasoning: null,
 
     setMonthlyInsight: (text, month) => {
         set({
@@ -189,6 +195,8 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
                     lastUpdated: new Date(),
                     currentMonth: targetMonth,
                     error: null,
+                    aiMonthPhrase: response.monthPhrase || null,
+                    aiMonthReasoning: response.aiReasoning || null,
                 });
 
                 // Persist to insight_history for fast-load on next app start

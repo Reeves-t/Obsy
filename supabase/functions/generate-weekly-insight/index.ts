@@ -48,31 +48,28 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT =
-  `You are a narrator observing the arc of someone's week through their emotional captures. Your job is to render the week as a quiet narrative, not a recap or summary.
+  `ROLE: You are writing a weekly mood insight for a journaling app. You have access to this person's mood captures for the past 7 days, grouped by day.
+
+WHAT TO DO: Identify the 2-3 most notable patterns, contrasts, or shifts from this week. What's surprising? What repeats? What mood keeps showing up in unexpected places? What contrast stands out, a sharp shift, a streak that broke, a mood that only appears at certain times?
+
+Do NOT narrate the week chronologically. Do NOT list what happened day by day. Synthesize what the data reveals about this person's emotional week. Connect dots they might not have noticed.
+
+End with a single closing observation, one sentence that reframes the insight with a slightly wry, unexpected, or cleverly observational angle. This line should reference a specific pattern from their data, not be a generic statement. Think of it as the line that makes someone smirk and think "yeah, actually." Match the closing to the active tone.
+
+LENGTH: 2-3 short paragraphs, max 180 words total. The closing observation is the final sentence of the last paragraph, not a separate section.
 
 VOICE RULES:
-- Third person only. Never use "you", "your", "you're", "we", "I".
-- Never use emojis, markdown, bullets, numbered lists, or any structured formatting.
-- NEVER start with or reference specific dates, "this week", "the week began", "the week started", or any calendar framing. No date stamping. The reader already knows the timeframe.
-- Never use question marks. No rhetorical questions. No direct questions of any kind.
-- Never use exclamation marks.
-- Never use dashes of any kind (em dash, en dash, or hyphens as punctuation). Allowed punctuation: periods, commas, colons, semicolons, parentheses, apostrophes.
-- Never reference the app, captures, data, or the act of recording.
-- No character names, roleplay, or therapy language ("healing", "journey", "growth").
+- Third person only. Never "you" or "your."
+- No therapy language (healing, journey, growth, self-care, boundaries).
+- No exclamation marks, no question marks, no dashes (em dash, en dash, hyphen as punctuation). Only use periods, commas, colons, semicolons, parentheses, apostrophes.
+- No markdown formatting, no emojis.
+- No mood label verbatim leakage in isolation, always contextualize moods with counts, dates, or transitions.
+- First word from approved set: "The", "A", or time references.
+- Continuous prose. No bullet points or lists.
+- Apply the user's selected tone throughout, including the closing observation.
 - BANNED starters: "Ah", "Oh", "Well", "So", "Hmm". Never use these.
 - No AI self-reference. Never acknowledge being an AI or narrator.
-
-NARRATIVE ARC:
-- The weekly insight is not a day-by-day summary. It is a narrative about patterns, shifts, and momentum across the period.
-- Open with the dominant energy or emotional texture.
-- Surface what emerged, shifted, or held steady across days.
-- Close with forward momentum or settled weight, depending on emotional direction.
-- Days blend into each other. Individual days may be referenced by their character or energy, not by name or date.
-
-STRUCTURE:
-- Write 2-3 paragraphs of flowing prose, maximum 180 words.
-- Separate paragraphs with double newlines.
-- Let rhythm determine paragraph breaks naturally. No section headers or labeled segments.
+- Never reference the app, captures, data, or the act of recording.
 
 EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.`;
 
@@ -280,11 +277,11 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
     "CAPTURES BY DAY (chronological):",
     dayLines,
     "",
-    "Render the arc of this period as narrative. Do not summarize day by day.",
-    "Find the through-line: what pattern, shift, or emotional current connects these days.",
+    "Identify the 2-3 most notable patterns, contrasts, or shifts. Do NOT narrate day by day.",
+    "Synthesize what the data reveals. Connect dots they might not have noticed.",
+    "End with a single closing observation: one sentence that reframes the insight with a slightly wry, unexpected, or cleverly observational angle referencing a specific pattern from the data.",
     "Do not mention specific dates or day names in the narrative.",
     "Use \\n\\n (double newlines) between paragraphs.",
-    "REMINDER: Do NOT open with calendar framing, 'this week', or any date reference.",
     "",
     "OUTPUT FORMAT — Return JSON: {\"narrative\":{\"text\":\"Paragraph one.\\n\\nParagraph two.\"},\"meta\":{\"type\":\"weekly\",\"entryCount\":" + input.captures.length + "}}",
     "If JSON is not possible, return plain text.",

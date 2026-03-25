@@ -130,6 +130,8 @@ export default function InsightsScreen() {
         currentMonth,
         setCurrentMonth,
         refreshMonthlyInsight,
+        aiMonthPhrase,
+        aiMonthReasoning,
     } = useMonthlyInsight();
 
     const [pastInsights, setPastInsights] = useState<DailyInsightSnapshot[]>([]);
@@ -341,9 +343,33 @@ export default function InsightsScreen() {
                 force
             );
 
-            // Also reload the lightweight summary and reasoning (respecting force param)
-            const monthCaptures = captures.filter(c => formatMonthKey(new Date(c.created_at)) === formatMonthKey(currentMonth));
-            await loadAiMonthlySummary(monthCaptures, force);
+            // Use AI-generated phrase/reasoning from edge function if available
+            const storeState = useMonthlyInsight.getState();
+            if (storeState.aiMonthPhrase) {
+                setMonthPhrase(storeState.aiMonthPhrase);
+                if (storeState.aiMonthReasoning) {
+                    setAiReasoning(storeState.aiMonthReasoning);
+                }
+                // Persist to monthly summary cache
+                const monthCaptures = captures.filter(c => formatMonthKey(new Date(c.created_at)) === formatMonthKey(currentMonth));
+                const monthKey = formatMonthKey(currentMonth);
+                const now = new Date();
+                const isCurrentMonth = currentMonth.getMonth() === now.getMonth() && currentMonth.getFullYear() === now.getFullYear();
+                const throughDate = isCurrentMonth ? now : new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+                const signals = getMonthSignals(monthCaptures, monthKey, throughDate.toISOString());
+                setIsEligibleForInsight(throughDate.getDate() >= 8);
+                setCapturedDaysCount(signals.activeDays);
+                const moodTotals = computeMonthMoodTotals(monthCaptures);
+                await upsertMonthlySummary(
+                    config.profile.id, monthKey, moodTotals, null,
+                    storeState.aiMonthPhrase, storeState.aiMonthReasoning,
+                    null, throughDate.toISOString(), signals
+                );
+            } else {
+                // Fallback: regenerate locally
+                const monthCaptures = captures.filter(c => formatMonthKey(new Date(c.created_at)) === formatMonthKey(currentMonth));
+                await loadAiMonthlySummary(monthCaptures, force);
+            }
         } catch (error) {
             console.error("Error loading monthly insight:", error);
         }
