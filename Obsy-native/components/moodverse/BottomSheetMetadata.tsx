@@ -9,13 +9,15 @@ import { X, Link2, Sparkles, Filter, Lock } from 'lucide-react-native';
 import { format } from 'date-fns';
 import { MoodverseExplainChat } from './MoodverseExplainChat';
 import type { GalaxyOrb, GalaxyCluster } from './galaxyTypes';
+import type { TransitionData } from './transitionCompute';
 
 interface BottomSheetMetadataProps {
     orbs: GalaxyOrb[];
     clusters: GalaxyCluster[];
+    transitions?: TransitionData | null;
 }
 
-export function BottomSheetMetadata({ orbs, clusters }: BottomSheetMetadataProps) {
+export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheetMetadataProps) {
     const sheetRef = useRef<BottomSheet>(null);
     const {
         selectedOrbId,
@@ -147,6 +149,7 @@ export function BottomSheetMetadata({ orbs, clusters }: BottomSheetMetadataProps
                                     onToggleLinks={() => setShowLinks(!showLinks)}
                                     onExplain={handleExplainPress}
                                     isPro={isPro}
+                                    transitions={transitions}
                                 />
                             )}
 
@@ -257,20 +260,35 @@ function ExplainButton({
 // Single Orb View
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Aura dot colors matching 3D aura colors
+const AURA_DOT_COLORS = {
+    after1: '#FFD700',   // gold
+    after2: '#C0C0C0',   // silver
+    before1: '#4A9EDE',  // blue
+    before2: '#2AAA8A',  // teal
+    none: 'rgba(255,255,255,0.15)', // hollow/no aura
+};
+
 function SingleOrbView({
     orb,
     showLinks,
     onToggleLinks,
     onExplain,
     isPro,
+    transitions,
 }: {
     orb: GalaxyOrb;
     showLinks: boolean;
     onToggleLinks: () => void;
     onExplain: () => void;
     isPro: boolean;
+    transitions?: TransitionData | null;
 }) {
     const date = new Date(orb.timestamp);
+
+    const hasBefore = transitions && transitions.before.length > 0;
+    const hasAfter = transitions && transitions.after.length > 0;
+    const hasTransitions = hasBefore || hasAfter;
 
     return (
         <View style={styles.viewContainer}>
@@ -312,9 +330,131 @@ function SingleOrbView({
 
                 <ExplainButton onPress={onExplain} isPro={isPro} />
             </View>
+
+            {/* ── Before/After Transition Cards ───────────────────────── */}
+            {hasTransitions && (
+                <View style={transitionStyles.container}>
+                    <View style={transitionStyles.divider} />
+
+                    {hasBefore && (
+                        <View style={transitionStyles.section}>
+                            <ThemedText style={transitionStyles.heading}>
+                                Usually comes before {orb.moodLabel}:
+                            </ThemedText>
+                            {transitions.before.map((t, i) => {
+                                const dotColor = i === 0
+                                    ? AURA_DOT_COLORS.before1
+                                    : i === 1
+                                        ? AURA_DOT_COLORS.before2
+                                        : AURA_DOT_COLORS.none;
+                                return (
+                                    <View key={t.moodId} style={transitionStyles.row}>
+                                        <View style={[
+                                            transitionStyles.dot,
+                                            { backgroundColor: dotColor },
+                                            i >= 2 && transitionStyles.dotHollow,
+                                        ]} />
+                                        <ThemedText style={transitionStyles.moodName}>
+                                            {t.moodLabel}
+                                        </ThemedText>
+                                        <ThemedText style={transitionStyles.count}>
+                                            ({t.count}x)
+                                        </ThemedText>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {hasAfter && (
+                        <View style={transitionStyles.section}>
+                            <ThemedText style={transitionStyles.heading}>
+                                Often followed by:
+                            </ThemedText>
+                            {transitions.after.map((t, i) => {
+                                const dotColor = i === 0
+                                    ? AURA_DOT_COLORS.after1
+                                    : i === 1
+                                        ? AURA_DOT_COLORS.after2
+                                        : AURA_DOT_COLORS.none;
+                                return (
+                                    <View key={t.moodId} style={transitionStyles.row}>
+                                        <View style={[
+                                            transitionStyles.dot,
+                                            { backgroundColor: dotColor },
+                                            i >= 2 && transitionStyles.dotHollow,
+                                        ]} />
+                                        <ThemedText style={transitionStyles.moodName}>
+                                            {t.moodLabel}
+                                        </ThemedText>
+                                        <ThemedText style={transitionStyles.count}>
+                                            ({t.count}x)
+                                        </ThemedText>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {!hasBefore && !hasAfter && (
+                        <ThemedText style={transitionStyles.empty}>
+                            Not enough data yet
+                        </ThemedText>
+                    )}
+                </View>
+            )}
         </View>
     );
 }
+
+const transitionStyles = StyleSheet.create({
+    container: {
+        marginTop: 4,
+    },
+    divider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        marginBottom: 12,
+    },
+    section: {
+        marginBottom: 10,
+    },
+    heading: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.35)',
+        marginBottom: 6,
+    },
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 2,
+    },
+    dot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    dotHollow: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+    },
+    moodName: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.65)',
+    },
+    count: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.3)',
+    },
+    empty: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.25)',
+        fontStyle: 'italic',
+        marginTop: 4,
+    },
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Multi Selection View

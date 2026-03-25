@@ -17,6 +17,7 @@ import { SearchOverlay } from '@/components/moodverse/SearchOverlay';
 import { SelectionTrail } from '@/components/moodverse/SelectionTrail';
 import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 import { computeEdgesForOrb, computeAmbientMesh } from '@/components/moodverse/edgeCompute';
+import { computeTransitions, computeTransitionAuras, TransitionData, TransitionAura } from '@/components/moodverse/transitionCompute';
 
 const DEFAULT_CAMERA_Z = 35;
 const CAMERA_Z_MIN = 5;
@@ -50,6 +51,7 @@ export default function MoodversePage() {
     const selectModeActive = useMoodverseStore((s) => s.selectModeActive);
     const orbitModeActive = useMoodverseStore((s) => s.orbitModeActive);
     const searchResultIds = useMoodverseStore((s) => s.searchResultIds);
+    const showLinks = useMoodverseStore((s) => s.showLinks);
     const isExplainOpen = useMoodverseStore((s) => s.isExplainOpen);
     const isIdle = useMoodverseStore((s) => s.isIdle);
     const aiHighlightedOrbIds = useMoodverseStore((s) => s.aiHighlightedOrbIds);
@@ -137,12 +139,31 @@ export default function MoodversePage() {
         return computeAmbientMesh(orbs);
     }, [orbs]);
 
-    const focusedEdges = useMemo(() => {
+    const allFocusedEdges = useMemo(() => {
         if (!selectedOrbId) return undefined;
         const orb = orbs.find((o) => o.id === selectedOrbId);
         if (!orb) return undefined;
         return computeEdgesForOrb(orb, orbs);
     }, [selectedOrbId, orbs]);
+
+    // Gate edges on showLinks toggle
+    const focusedEdges = showLinks ? allFocusedEdges : undefined;
+
+    // ── Transition data (before/after mood patterns) ──────────────────
+    const selectedOrb = useMemo(() => {
+        if (!selectedOrbId) return null;
+        return orbs.find((o) => o.id === selectedOrbId) ?? null;
+    }, [selectedOrbId, orbs]);
+
+    const transitions: TransitionData | null = useMemo(() => {
+        if (!selectedOrb) return null;
+        return computeTransitions(selectedOrb.moodId, orbs);
+    }, [selectedOrb?.moodId, orbs]);
+
+    const transitionAuras: TransitionAura[] = useMemo(() => {
+        if (!transitions || !selectedOrb || !showLinks) return [];
+        return computeTransitionAuras(transitions, selectedOrb.moodId);
+    }, [transitions, selectedOrb?.moodId, showLinks]);
 
     useEffect(() => {
         cameraTargetRef.current = null;
@@ -344,6 +365,7 @@ export default function MoodversePage() {
                                 highlightedIds={highlightedIdsSet}
                                 ambientEdges={ambientEdges}
                                 focusedEdges={focusedEdges}
+                                transitionAuras={transitionAuras}
                                 cameraTargetRef={cameraTargetRef}
                                 isIdle={isIdle}
                                 aiHighlightedOrbIds={aiHighlightedOrbIds}
@@ -429,7 +451,7 @@ export default function MoodversePage() {
 
             {/* Bottom sheet */}
             {orbs.length > 0 && (
-                <BottomSheetMetadata orbs={orbs} clusters={clusters} />
+                <BottomSheetMetadata orbs={orbs} clusters={clusters} transitions={transitions} />
             )}
         </GestureHandlerRootView>
     );
