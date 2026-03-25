@@ -5,6 +5,8 @@ export interface MonthlyInsightResponse {
   ok: boolean;
   text?: string;
   requestId?: string;
+  monthPhrase?: string;
+  aiReasoning?: string;
   error?: {
     stage: string;
     message: string;

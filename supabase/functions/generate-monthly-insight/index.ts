@@ -27,6 +27,8 @@ interface SuccessResponse {
   ok: true;
   text: string;
   requestId: string;
+  monthPhrase?: string;
+  aiReasoning?: string;
 }
 
 interface ErrorEnvelope {
@@ -55,52 +57,130 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT =
-  `You are a third-person narrator generating a monthly emotional overview.
+  `ROLE: You are writing a monthly mood insight for a journaling app. You have access to this person's full month of mood captures, pre-computed signals (dominant mood, runner-up mood, volatility score, active days, last 7 days shift), and day-by-day summaries.
 
-ABSOLUTE RULES:
-- Third person ONLY. Never use "you", "your", "you're", "we", "I".
-- Never use emojis, markdown, or bullets.
+WHAT TO DO: Identify the 2-3 most revealing patterns from this month. Look for:
+- Moods that cluster together (do certain moods always appear near each other?)
+- Transitions that repeat (does one mood consistently lead to another?)
+- Time-based patterns (weekday vs weekend, beginning vs end of month)
+- The relationship between the dominant mood and the runner-up, do they complement or contradict?
+- Gaps in logging, what do the silences suggest?
+- Shifts in the last week vs the rest of the month
+
+Do NOT narrate the month chronologically. Do NOT walk through week by week or day by day. Synthesize what the full month reveals as a whole. Connect patterns across the entire period.
+
+End with a single closing observation, one sentence that reframes the insight with a slightly wry, unexpected, or cleverly observational angle. This line must reference a specific pattern from their data. Think of it as the line that makes someone think "huh, I never noticed that." Match the closing to the active tone.
+
+VOICE RULES:
+- Third person only. Never "you" or "your."
+- No therapy language (healing, journey, growth, self-care, boundaries).
+- No exclamation marks, no question marks, no dashes (em dash, en dash, hyphen as punctuation). Only use periods, commas, colons, semicolons, parentheses, apostrophes.
+- No markdown formatting, no emojis.
+- No mood label verbatim leakage in isolation, always contextualize moods with counts, dates, or transitions.
+- First word from approved set: "The", "A", or time references.
+- Continuous prose. No bullet points or lists.
+- Apply the user's selected tone throughout, including the closing observation.
 - BANNED starters: "Ah", "Oh", "Well", "So", "Hmm". Never use these.
-- BANNED punctuation: exclamation marks (!), question marks (?), dashes of ANY kind (em dash \u2014, en dash \u2013, hyphen as punctuation). Only use periods, commas, colons, semicolons, parentheses, apostrophes.
-- No character names, roleplay, or therapy language.
-- First word must be "The", "A", or a time reference ("The month opened...").
-- Focus on patterns, shifts, and the emotional arc over the month. Write cohesive prose.
-- NEVER mention numbers, percentages, or statistics. Paint an emotional picture.
-- EMBODY THE TONE. The tone style is the most important stylistic rule.`;
+- No character names, roleplay, or AI self-reference.
+- Never reference the app, captures, data, or the act of recording.
+- NEVER mention raw numbers, percentages, or statistics. Paint an emotional picture.
+
+EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.`;
 
 const TONE_STYLES: Record<string, string> = {
-  neutral: "Use a plain, observant, and balanced tone. Avoid emotional push or strong interpretations. Act as a clear mirror of the month. Keep sentences straightforward and descriptive.",
-  stoic_calm: "Use a restrained, grounded, and steady tone. Use short sentences and avoid unnecessary commentary. Focus on acceptance and calm observation.",
-  dry_humor: "Use a dry, understated, and subtly witty tone. Avoid sarcasm or meanness. Humor should be quiet and clever, not loud.",
-  mystery_noir: "Use a moody, atmospheric, and metaphor-heavy tone. Channel a 1940s detective narrator. Describe the month like scenes from a noir film.",
-  cinematic: "Describe the month like scenes or sequences in a film. Focus on a sense of motion or stillness. Use visual framing and narrative flow.",
-  dreamlike: "Use a soft, abstract, and fluid tone. Focus on gentle imagery and atmosphere over logic. No sharp conclusions or clinical observations.",
-  romantic: "Use a warm, intimate, and emotionally close tone. You may romanticize heavy moods without trying to fix them. Avoid being cheesy or overly dramatic; keep it tasteful.",
-  gentle_roast: "Use a light, teasing, and affectionate tone. Never be mean or judgmental; the humor is always on the user's side. Keep it playful and warm. Poke fun gently at the month.",
-  inspiring: "Use an uplifting but grounded tone. Avoid cliches, slogans, or toxic positivity. Focus on quiet forward motion and steady resolve.",
+  neutral: `NEUTRAL TONE:
+Vocabulary: Plain, clear, unadorned. Prefer common words over literary ones.
+Rhythm: Even sentence lengths. Steady pacing. No dramatic variation.
+Imagery: Minimal. Only describe what is directly present across the period.
+Emotional weight: Observational distance. Note what happened without interpreting why.
+Closing observation example: "Calm appeared 8 times but never on consecutive days."`,
+
+  stoic_calm: `STOIC / CALM TONE:
+Vocabulary: Sparse, deliberate, measured. Every word must earn its place.
+Rhythm: Short sentences dominate. Occasional longer sentence for grounding. No rushing.
+Imagery: Stripped back. Bare landscape. Only essential details across the arc.
+Emotional weight: Acceptance without commentary. Stillness even in turbulence. No flinching.
+Closing observation example: "The pattern suggests the stillness was chosen, not accidental."`,
+
+  dry_humor: `DRY HUMOR TONE:
+Vocabulary: Understated, slightly wry. Observations that carry a quiet smirk.
+Rhythm: Mix short punchy lines with longer setups. Let the humor land through timing, not emphasis.
+Imagery: Everyday patterns noticed with a slightly tilted perspective. The mundane made gently absurd.
+Emotional weight: Light touch even on heavy stretches. Never dismissive, just gently irreverent.
+Closing observation example: "Annoyed took weekends off, which is more than can be said for most people."`,
+
+  mystery_noir: `MYSTERY / NOIR TONE:
+Vocabulary: Shadowed, atmospheric, weighted. Words should feel like they carry smoke and low light.
+Rhythm: Varied. Short fragments for tension. Longer sentences for atmosphere. Pauses matter.
+Imagery: Rich. Shadows, light contrasts, textures, silence. The arc has mood lighting.
+Emotional weight: Everything carries slightly more gravity than expected. Subtle tension underneath.
+Closing observation example: "The gap in the middle of the month left no evidence, only a shift that followed."`,
+
+  cinematic: `CINEMATIC TONE:
+Vocabulary: Visual, spatial, sensory. Write in frames and sequences.
+Rhythm: Flowing. Sentences that track movement or stillness like a slow camera pan across days.
+Imagery: High density. Describe the arc as if editing a film sequence. Light, space, composition.
+Emotional weight: Present but understated. Let the visuals carry emotion, not the words.
+Closing observation example: "The final act belonged to Focused, arriving late but commanding every remaining scene."`,
+
+  dreamlike: `DREAMLIKE TONE:
+Vocabulary: Soft, fluid, slightly abstract. Words should blur at the edges.
+Rhythm: Gentle, unhurried. Sentences that drift rather than march. No sharp stops or hard landings.
+Imagery: Impressionistic. Colors bleed, edges soften, time stretches across the period.
+Emotional weight: Emotions are felt rather than named. Everything floats slightly above the concrete.
+Closing observation example: "Tender drifted through the weeks like fog, never quite lifting, never quite settling."`,
+
+  romantic: `ROMANTIC TONE:
+Vocabulary: Warm, textured, intimate. Words chosen with care and tenderness.
+Rhythm: Flowing but grounded. Sentences that lean into moments rather than rush past them.
+Imagery: Sensory and close. Warmth, texture, proximity. The arc noticed with tenderness.
+Emotional weight: Everything is felt fully. Heavy stretches are held gently, not fixed. Light moments glow.
+Closing observation example: "The most consistent presence was Peaceful, always arriving after the house went quiet."`,
+
+  gentle_roast: `GENTLE ROAST TONE:
+Vocabulary: Casual, affectionate, slightly teasing. The humor of knowing someone well.
+Rhythm: Conversational. Quick observations followed by dry asides. Keep it moving, keep it light.
+Imagery: Everyday patterns. Find the comedy in recurring themes without reaching for it.
+Emotional weight: Always warm underneath. The teasing is closeness, never distance. Never punch down.
+Closing observation example: "Motivated showed up exactly twice, both times on the last possible day, a procrastinator's signature."`,
+
+  inspiring: `INSPIRING TONE:
+Vocabulary: Grounded, forward-leaning, resolute. No slogans, no motivational posters, no cliches.
+Rhythm: Building momentum. Sentences that gather strength without becoming grandiose.
+Imagery: Movement, light, steady progress. Small patterns framed as genuinely meaningful.
+Emotional weight: Quiet conviction. Belief without preaching. Momentum without hype.
+Closing observation example: "The shift from Restless to Focused took 11 days, but it held once it landed."`,
+
   // Legacy fallbacks
-  reflective: "Gentle, introspective pacing with quiet observations.",
-  analytical: "Clear, pattern-focused, minimal flourish.",
-  warm: "Soft warmth, subtle encouragement without hype.",
-  gentle: "Be warm, supportive, and encouraging. Validate feelings without toxic positivity.",
-  snarky: "Be witty and a bit sardonic. Poke fun gently but never be mean.",
-  cosmic: "Speak as if viewing life from a vast cosmic perspective. Make the mundane feel epic.",
+  reflective: "Gentle, introspective pacing with quiet observations. Let the arc breathe.",
+  analytical: "Clear, pattern-focused, minimal flourish. Precision over poetry.",
+  warm: "Soft warmth, subtle encouragement without hype. Kindness in every sentence.",
+  gentle: "Warm, supportive, encouraging. Validate feelings without toxic positivity.",
+  snarky: "Witty and sardonic. Poke fun gently but never be mean. Humor over hostility.",
+  cosmic: "View life from a vast cosmic perspective. Make the mundane feel epic without losing it.",
   film_noir: "Channel a 1940s detective narrator. Moody, atmospheric, metaphor-heavy.",
-  nature: "Draw parallels to natural phenomena. Seasons, weather, ecosystems.",
+  nature: "Draw parallels to natural phenomena. Seasons, weather, ecosystems as emotional mirrors.",
 };
 
 /**
  * Wraps a custom tone prompt with minimal guardrails to preserve creative freedom.
  */
 function wrapCustomTone(customPrompt: string): string {
-  return `CUSTOM TONE: ${customPrompt}
+  return `CUSTOM TONE — FULL COMMITMENT: ${customPrompt}
 
-Core requirements (maintain these while being creative):
-- Write in third person (avoid "you", "your")
-- No markdown formatting or emojis
-- Return plain text (not JSON)
+This tone must dominate the voice completely. Shape everything through it:
+- Word choices must reflect this tone
+- Sentence rhythm must embody this tone
+- Imagery density must serve this tone
+- Emotional temperature must match this tone
+- The closing observation must also match this tone
 
-Be creative and embody the tone fully. Use distinctive voice, varied punctuation, and stylistic choices that match the tone.`;
+Core constraints (maintain while fully inhabiting the tone):
+- Write in third person (never "you", "your")
+- No markdown, emojis, or list formatting
+- No questions of any kind
+
+Do not dilute the tone. Lean into it fully. The reader chose this voice for a reason.`;
 }
 
 serve(async (req) => {
@@ -199,10 +279,14 @@ serve(async (req) => {
     console.log(`[MONTHLY_INSIGHT_PARAMS] requestId: ${requestId} | captures: ${captureRows.length} | daysWithData: ${Object.keys(dayContext).length} | tone: ${tone}`);
 
     let sanitized = "";
+    let monthPhrase: string | undefined;
+    let aiReasoning: string | undefined;
     try {
       const rawText = await callGemini(prompt, requestId);
-      const extracted = extractText(rawText, requestId);
-      sanitized = sanitizeText(extracted);
+      const result = extractStructuredResponse(rawText, requestId);
+      sanitized = sanitizeText(result.text);
+      monthPhrase = result.monthPhrase ? sanitizeText(result.monthPhrase) : undefined;
+      aiReasoning = result.aiReasoning ? sanitizeText(result.aiReasoning) : undefined;
     } catch (error: any) {
       console.error(`[MONTHLY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"}`);
       return errorResponse(502, "gemini_api", error?.message || "Gemini call failed", requestId);
@@ -215,8 +299,8 @@ serve(async (req) => {
       return errorResponse(500, "response_validation", "AI generated empty or invalid response", requestId);
     }
 
-    console.log(`[MONTHLY_INSIGHT_SUCCESS] requestId: ${requestId} | textLength: ${sanitized.length}`);
-    return okResponse(sanitized, requestId);
+    console.log(`[MONTHLY_INSIGHT_SUCCESS] requestId: ${requestId} | textLength: ${sanitized.length} | monthPhrase: ${monthPhrase ?? "n/a"}`);
+    return okResponse(sanitized, requestId, monthPhrase, aiReasoning);
   } catch (error: any) {
     console.error(`[MONTHLY_INSIGHT_ERROR] requestId: ${requestId} | message: ${error?.message ?? "Unknown error"} | stack: ${error?.stack ?? "n/a"}`);
     return errorResponse(500, "unknown", error?.message ?? "Internal server error", requestId);
@@ -333,14 +417,19 @@ function buildMonthlyPrompt(input: {
     dayLines || "(no capture data available)",
     "",
     "INSTRUCTIONS:",
-    "- Weave the aggregate signals AND the day-by-day context into a cohesive month-level narrative.",
-    "- Reference specific days or clusters when they reveal patterns (e.g. a mid-month shift, a weekend rhythm).",
-    "- 2-3 short paragraphs, max 180 words. Prose only, no markdown or bullets.",
-    "- Do NOT list raw numbers or data points. Paint a picture of how the month felt and evolved.",
+    "- Identify the 2-3 most revealing patterns from the signals and day-by-day context.",
+    "- Do NOT narrate chronologically. Synthesize what the full month reveals as a whole.",
+    "- Reference specific days or clusters only when they reveal patterns (e.g. a mid-month shift, a weekend rhythm).",
+    `- Length scales with data: ${input.totalCaptures < 15 ? "2 paragraphs, ~120 words" : input.totalCaptures < 40 ? "3 paragraphs, ~160 words" : "3-4 paragraphs, max ~200 words"}. Prose only, no markdown or bullets.`,
+    "- End with a single closing observation: one sentence that reframes the insight with a slightly wry, unexpected, or cleverly observational angle referencing a specific pattern from the data. This is the final sentence of the last paragraph, not a separate section.",
+    "- Do NOT list raw numbers, percentages, or statistics. Paint a picture.",
     "",
     "CRITICAL OUTPUT FORMAT:",
     "Return ONLY this JSON structure (NO markdown fences, NO extra text):",
-    "{\"narrative\":{\"text\":\"Your narrative text here\"}}",
+    "{\"narrative\":{\"text\":\"Your narrative text here\"},\"month_phrase\":\"Two to Three Words\",\"ai_reasoning\":\"1-2 sentences explaining why this phrase was chosen.\"}",
+    "",
+    "month_phrase: A 2-3 word evocative label for the month (e.g. 'Restless Clarity', 'Quiet Combustion', 'Tender Static'). Not generic. Should reflect the specific tension or character of THIS month's data.",
+    "ai_reasoning: 1-2 sentences explaining why this phrase was chosen, referencing specific mood data.",
     "",
     "IMPORTANT: The narrative.text field must contain PLAIN TEXT ONLY (no JSON, no markdown, no formatting).",
     "The text should be a flowing narrative, not JSON data.",
@@ -397,6 +486,52 @@ function findDeepestString(obj: unknown, minLength = 40): string | null {
     }
   }
   return null;
+}
+
+interface StructuredResult {
+  text: string;
+  monthPhrase?: string;
+  aiReasoning?: string;
+}
+
+/**
+ * Extract narrative text, month_phrase, and ai_reasoning from the Gemini response.
+ * Falls back to extractText() for the narrative if structured parsing fails.
+ */
+function extractStructuredResponse(raw: string, requestId: string): StructuredResult {
+  try {
+    const parsed = JSON.parse(raw);
+    const candidate = parsed?.candidates?.[0];
+    const contentParts = candidate?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
+    const partsText = contentParts.map((p: any) => p?.text).filter(Boolean).join(" ");
+
+    if (partsText) {
+      const cleaned = partsText
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?```\s*$/i, "")
+        .trim();
+
+      try {
+        const insight = JSON.parse(cleaned);
+        const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
+        if (narrativeText && typeof narrativeText === "string") {
+          console.log(`[EXTRACT_STRUCTURED_SUCCESS] requestId: ${requestId} | has month_phrase: ${!!insight?.month_phrase}`);
+          return {
+            text: narrativeText,
+            monthPhrase: typeof insight?.month_phrase === "string" ? insight.month_phrase : undefined,
+            aiReasoning: typeof insight?.ai_reasoning === "string" ? insight.ai_reasoning : undefined,
+          };
+        }
+      } catch {
+        // Not valid JSON, fall through to legacy extractText
+      }
+    }
+  } catch {
+    // Fall through
+  }
+
+  // Fallback: use legacy text-only extraction
+  return { text: extractText(raw, requestId) };
 }
 
 function extractText(raw: string, requestId: string): string {
@@ -497,8 +632,10 @@ function validateGeminiResponse(text: string): boolean {
   return true;
 }
 
-function okResponse(text: string, requestId: string): Response {
+function okResponse(text: string, requestId: string, monthPhrase?: string, aiReasoning?: string): Response {
   const body: SuccessResponse = { ok: true, text, requestId };
+  if (monthPhrase) body.monthPhrase = monthPhrase;
+  if (aiReasoning) body.aiReasoning = aiReasoning;
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
