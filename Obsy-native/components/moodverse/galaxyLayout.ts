@@ -141,7 +141,7 @@ export function computeGalaxyLayout(
     for (let i = 0; i < yearCaptures.length; i++) {
         const capture = yearCaptures[i];
         const theme = getMoodTheme(capture.mood_id);
-        const label = capture.mood_name_snapshot || getMoodLabel(capture.mood_id);
+        const label = getMoodLabel(capture.mood_id, capture.mood_name_snapshot);
         const date = new Date(capture.created_at);
 
         // ── Step 4: Radial offset based on mood frequency ──
