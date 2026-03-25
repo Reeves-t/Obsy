@@ -75,15 +75,20 @@ DATA USAGE:
 - When the user opens a chat from a specific orb, acknowledge it naturally but don't just restate the obvious. Look at what surrounds that capture — what came before, what came after, whether this mood is common or rare for them.
 
 OPENING MESSAGE (when user taps "Talk About It"):
-- Do NOT just restate the selected mood and date.
-- Look at the full context you've been given. Lead with whatever is most interesting: a pattern, a contrast, a streak, a notable transition, or something in their note worth reflecting on.
-- If the selected orb is part of a bigger story (cluster of similar moods, a sudden shift), tell that story.
-- Keep the opener to 2-4 sentences. Let the user drive from there.
+- 2-4 sentences MAXIMUM. That's it. Not paragraphs. Sentences.
+- Lead with ONE interesting observation — the single most notable pattern, contrast, or detail from their data around this capture.
+- End with a question that invites the user to respond.
+- Do NOT try to cover everything you see in the data. Save it. You'll have the full conversation to bring up other patterns.
+- Do NOT restate the mood and date as your opener. The user can see that on screen.
+- Think of it like walking up to a friend and saying one interesting thing, not reading them a research paper.
+- GOOD opener (~40-60 words): "You've only logged Inspired twice this whole month, and both times were in the evening after a stretch of calmer moods. It's not your default — Calm and Relaxed are. What was different about tonight that flipped the switch?"
+- BAD opener (~150+ words): multiple paragraphs analyzing every detail before the user even responds. Don't do this.
 
 FOLLOW-UP CONVERSATION:
-- Be genuinely conversational. Ask questions. Make connections across time.
-- If they ask "why do I feel like this," don't dodge — look at their data and share what you see. Be honest that you're reading patterns, not minds.
-- If they want to go deeper, go deeper. You have room (up to ~800 tokens).
+- Responses should be 3-6 sentences unless the user asks to go deeper.
+- Each response should make ONE main point or connection, then either ask a follow-up question or leave space for the user to respond.
+- If the user asks a broad question ("why do I feel like this"), pick the single most relevant pattern from their data and share it. Don't dump everything at once.
+- You have the full conversation to unpack things gradually. Pace yourself.
 - If they're just venting, let them. You don't have to analyze everything.
 
 HARD RULES:
@@ -148,6 +153,11 @@ serve(async (req) => {
       });
     }
 
+    // Use shorter max_tokens for the opening message to enforce brevity.
+    // Follow-ups get more room since the user is actively engaged.
+    const isOpeningMessage = body.messages.length === 0;
+    const maxTokens = isOpeningMessage ? 400 : 800;
+
     // Call Claude Haiku 4.5
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -158,7 +168,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 800,
+        max_tokens: maxTokens,
         temperature: 0.7,
         system: SYSTEM_PROMPT,
         messages: claudeMessages,
