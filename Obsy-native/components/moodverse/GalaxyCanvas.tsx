@@ -8,6 +8,7 @@ import { EDGE_COLORS } from './edgeCompute';
 import { createShimmerLayer, ShimmerLayer } from './shimmerLayer';
 import { createNebulaRing, NebulaRingLayer } from './cosmicFog';
 import type { GalaxyOrb, GalaxyCluster, GalaxyEdge } from './galaxyTypes';
+import type { TransitionAura } from './transitionCompute';
 
 interface GalaxyCanvasProps {
     orbs: GalaxyOrb[];
@@ -23,6 +24,8 @@ interface GalaxyCanvasProps {
     ambientEdges?: GalaxyEdge[];
     /** On-selection focused edges */
     focusedEdges?: GalaxyEdge[];
+    /** Transition auras: glow halos on before/after mood orbs */
+    transitionAuras?: TransitionAura[];
     /** Camera target for lerp animation (selected orb position) */
     cameraTargetRef?: React.MutableRefObject<{ x: number; y: number } | null>;
     /** Whether the scene is idle (no interaction) — drives shimmer */
@@ -135,6 +138,7 @@ export function GalaxyCanvas({
     highlightedIds,
     ambientEdges,
     focusedEdges,
+    transitionAuras,
     cameraTargetRef,
     isIdle = true,
     aiHighlightedOrbIds,
@@ -147,6 +151,7 @@ export function GalaxyCanvas({
     const clusterGroupRef = useRef<THREE.Group | null>(null);
     const ambientEdgeGroupRef = useRef<THREE.Group | null>(null);
     const focusedEdgeGroupRef = useRef<THREE.Group | null>(null);
+    const auraGroupRef = useRef<THREE.Group | null>(null);
     const shimmerLayerRef = useRef<ShimmerLayer | null>(null);
     const cosmicFogRef = useRef<NebulaRingLayer | null>(null);
     const rafIdRef = useRef<number>(0);
@@ -280,6 +285,87 @@ export function GalaxyCanvas({
         focusedEdgeGroupRef.current = group;
     }, [focusedEdges, orbs, sceneReady]);
 
+    // ── Transition aura map (render loop reads this) ──────────────────────
+    const auraMapRef = useRef(new Map<string, { color: number; opacity: number }>());
+    useEffect(() => {
+        const map = new Map<string, { color: number; opacity: number }>();
+        if (transitionAuras) {
+            for (const a of transitionAuras) {
+                map.set(a.moodId, { color: a.color, opacity: a.opacity });
+            }
+        }
+        auraMapRef.current = map;
+    }, [transitionAuras]);
+
+    // ── Build/dispose aura glow spheres ─────────────────────────────────
+    useEffect(() => {
+        const scene = sceneRef.current;
+        const orbGroup = orbGroupRef.current;
+        if (!scene || !orbGroup) return;
+
+        // Dispose previous auras
+        if (auraGroupRef.current) {
+            auraGroupRef.current.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.geometry.dispose();
+                    (child.material as THREE.Material).dispose();
+                }
+            });
+            scene.remove(auraGroupRef.current);
+            auraGroupRef.current = null;
+        }
+
+        if (!transitionAuras || transitionAuras.length === 0) return;
+
+        // Build a moodId → aura config lookup
+        const auraByMood = new Map<string, { color: number; opacity: number }>();
+        for (const a of transitionAuras) {
+            auraByMood.set(a.moodId, { color: a.color, opacity: a.opacity });
+        }
+
+        const group = new THREE.Group();
+        group.userData = { type: 'transitionAuras' };
+
+        // Create glow spheres behind matching orbs
+        const auraSphereGeo = new THREE.SphereGeometry(1, 16, 16);
+
+        for (const child of orbGroup.children) {
+            if (!(child instanceof THREE.Group)) continue;
+            const orbMoodId = child.userData.moodId;
+            const aura = auraByMood.get(orbMoodId);
+            if (!aura) continue;
+
+            const baseRadius = child.userData.radius ?? 0.35;
+            const auraRadius = baseRadius * 1.4;
+
+            const mat = new THREE.MeshBasicMaterial({
+                color: aura.color,
+                transparent: true,
+                opacity: 0, // Start at 0, fade in via render loop
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            });
+
+            const mesh = new THREE.Mesh(auraSphereGeo, mat);
+            mesh.position.copy(child.position);
+            mesh.scale.setScalar(auraRadius);
+            mesh.userData = {
+                orbId: child.userData.orbId,
+                targetOpacity: aura.opacity,
+                fadeStartTime: Date.now(),
+                fadeDuration: 300,
+            };
+            group.add(mesh);
+        }
+
+        scene.add(group);
+        auraGroupRef.current = group;
+
+        return () => {
+            // Cleanup on dep change (effect re-runs handle dispose at top)
+        };
+    }, [transitionAuras, orbs, sceneReady]);
+
     // ── Raycaster ─────────────────────────────────────────────────────────
     const raycast = useCallback((screenX: number, screenY: number): string | null => {
         const camera = cameraRef.current;
@@ -406,6 +492,7 @@ export function GalaxyCanvas({
             if (clusterGroupRef.current) clusterGroupRef.current.visible = true;
             if (ambientEdgeGroupRef.current) ambientEdgeGroupRef.current.visible = !showClusters;
             if (focusedEdgeGroupRef.current) focusedEdgeGroupRef.current.visible = !showClusters;
+            if (auraGroupRef.current) auraGroupRef.current.visible = !showClusters;
 
             // Shimmer: visible only at orb level, always active
             if (shimmerLayerRef.current) {
@@ -557,6 +644,28 @@ export function GalaxyCanvas({
 
             // Ambient edges removed — only shimmer and focused selection edges remain
 
+            // ── Transition aura fade-in animation ───────────────────────
+            if (!showClusters && auraGroupRef.current) {
+                const now = Date.now();
+                for (const child of auraGroupRef.current.children) {
+                    if (!(child instanceof THREE.Mesh)) continue;
+                    const mat = child.material as THREE.MeshBasicMaterial;
+                    const { targetOpacity, fadeStartTime, fadeDuration } = child.userData;
+                    const progress = Math.min(1, (now - fadeStartTime) / fadeDuration);
+                    const eased = progress * (2 - progress); // ease-out quad
+                    mat.opacity = targetOpacity * eased;
+
+                    // Track matching orb position (orbs may breathe/drift)
+                    const orbId = child.userData.orbId;
+                    const pos = posMapRef.current.get(orbId);
+                    if (pos) {
+                        // Find the actual orb group to sync z-drift
+                        // Aura follows the orb's current position via posMap (static) + small z offset
+                        child.position.set(pos.x, pos.y, pos.z - 0.05);
+                    }
+                }
+            }
+
             // ── Cluster cloud pulse ─────────────────────────────────────
             if (showClusters && clusterGroupRef.current) {
                 let clusterIdx = 0;
@@ -602,6 +711,17 @@ export function GalaxyCanvas({
 
             // Dispose edges (ambient removed, only focused selection edges remain)
             if (focusedEdgeGroupRef.current) disposeEdgeGroup(focusedEdgeGroupRef.current);
+
+            // Dispose auras
+            if (auraGroupRef.current) {
+                auraGroupRef.current.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        child.geometry.dispose();
+                        (child.material as THREE.Material).dispose();
+                    }
+                });
+                auraGroupRef.current = null;
+            }
 
             // Dispose shimmer
             if (shimmerLayerRef.current) {

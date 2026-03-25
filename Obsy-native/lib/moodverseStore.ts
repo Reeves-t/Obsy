@@ -108,7 +108,7 @@ export const useMoodverseStore = create<MoodverseState>()((set) => ({
         selectedOrbId: id,
         selectedOrbIds: id ? [id] : [],
         selectionMode: 'single',
-        showLinks: false,
+        showLinks: true,
     }),
 
     selectMultiple: (ids) => set({
