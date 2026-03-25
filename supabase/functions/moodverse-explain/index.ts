@@ -332,7 +332,7 @@ function formatContextPack(contextJson: string, captures: CaptureContext[], sele
 function formatFallbackContext(captures: CaptureContext[], selectionMode: string): string {
   const captureLines = captures.map((c) => {
     const tags = (c.tags ?? []).join(", ");
-    const note = (c.note ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+    const note = (c.note ?? "").replace(/\s+/g, " ").trim();
     return `${c.date} | mood: ${c.mood}${note ? ` | note: "${note}"` : ""}${tags ? ` | tags: ${tags}` : ""}`;
   });
   return [

@@ -258,6 +258,7 @@ export function computeGalaxyLayout(
             colorTo: theme.gradient.to,
             colorSolid: theme.solid,
             notePreview: capture.note ? capture.note.slice(0, 80) : null,
+            noteFull: capture.note || null,
             tags: capture.tags || [],
             photoUri: capture.image_url || null,
             includeInInsights: capture.includeInInsights,
