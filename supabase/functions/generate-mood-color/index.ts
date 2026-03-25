@@ -107,6 +107,9 @@ serve(async (req: Request) => {
                     contents: [
                         { role: "user", parts: [{ text: prompt }] },
                     ],
+                    generationConfig: {
+                        thinkingConfig: { thinkingBudget: 0 },
+                    },
                 }),
             }
         );
@@ -121,7 +124,9 @@ serve(async (req: Request) => {
         }
 
         const geminiData = await geminiResponse.json();
-        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        // Filter out thinking parts (thought: true) from Gemini 2.5+ models
+        const contentParts = geminiData.candidates?.[0]?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
+        const rawText = contentParts[0]?.text || "";
 
         // 4. Parse the JSON response
         let parsed: { from?: string; to?: string };

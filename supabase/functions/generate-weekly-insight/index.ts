@@ -340,7 +340,10 @@ async function callGemini(prompt: string, requestId: string): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.85 },
+        generationConfig: {
+          temperature: 0.85,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     },
   );
@@ -359,7 +362,9 @@ function extractText(raw: string, requestId: string): string {
   try {
     const parsed = JSON.parse(raw);
     const candidate = parsed?.candidates?.[0];
-    const partsText = candidate?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join(" ");
+    // Filter out thinking parts (thought: true) from Gemini 2.5+ models
+    const contentParts = candidate?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
+    const partsText = contentParts.map((p: any) => p?.text).filter(Boolean).join(" ");
     let parsedFromParts: string | null = null;
 
     if (partsText) {

@@ -1146,6 +1146,9 @@ serve(async (req: Request) => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        thinkingConfig: { thinkingBudget: 0 },
+                    },
                 }),
             }
         );
@@ -1163,7 +1166,9 @@ serve(async (req: Request) => {
             return createErrorResponse('model', 'AI generation failed', 502, requestId);
         }
 
-        const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        // Filter out thinking parts (thought: true) from Gemini 2.5+ models
+        const contentParts = geminiData.candidates?.[0]?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
+        const generatedText = contentParts[0]?.text || "";
 
         // 7. Process and validate response based on insight type
         const processed = processInsightResponse(generatedText, type, requestId);
