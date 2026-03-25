@@ -56,7 +56,13 @@ Do NOT narrate the week chronologically. Do NOT list what happened day by day. S
 
 End with a single closing observation, one sentence that reframes the insight with a slightly wry, unexpected, or cleverly observational angle. This line should reference a specific pattern from their data, not be a generic statement. Think of it as the line that makes someone smirk and think "yeah, actually." Match the closing to the active tone.
 
-LENGTH: 2-3 short paragraphs, max 180 words total. The closing observation is the final sentence of the last paragraph, not a separate section.
+LENGTH — scales strictly with capture count. Do NOT pad sparse data.
+- 1-3 captures: 1 short paragraph, 50-80 words max. Be sharp and direct.
+- 4-7 captures: 2 short paragraphs, 100-130 words max.
+- 8-14 captures: 2-3 paragraphs, 150-180 words max.
+- 15+ captures: 3 paragraphs, 180 words max.
+The closing observation is always the final sentence of the last paragraph regardless of length.
+CRITICAL: If the data is sparse, do not stretch. A week with 2 captures deserves 3-4 punchy sentences, not an essay. Say less, say it well.
 
 VOICE RULES:
 - Third person only. Never "you" or "your."
@@ -165,7 +171,7 @@ Core constraints (maintain while fully inhabiting the tone):
 - No markdown, emojis, or list formatting
 - No questions of any kind
 - No date or calendar references
-- Maximum 180 words
+- Match length to capture count (sparse data = shorter output)
 
 Do not dilute the tone. Lean into it fully. The reader chose this voice for a reason.`;
 }
@@ -273,6 +279,8 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
     "",
     "[METADATA — for context only. Do NOT mention dates, day names, or calendar info in the narrative.]",
     `Reference period: ${input.weekLabel}`,
+    "",
+    `Total captures this week: ${input.captures.length}`,
     "",
     "CAPTURES BY DAY (chronological):",
     dayLines,
