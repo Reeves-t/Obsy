@@ -3,7 +3,6 @@ import {
     StyleSheet,
     View,
     TouchableOpacity,
-    Keyboard,
 } from 'react-native';
 import { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -430,7 +429,6 @@ export function MoodverseExplainChat({
         };
         addChatMessage(userMsg);
         setInputText('');
-        Keyboard.dismiss();
 
         const fullHistory = [...chatMessages, userMsg];
         sendToAI(fullHistory);
@@ -476,7 +474,8 @@ export function MoodverseExplainChat({
                     maxLength={1200}
                     editable={!isAiLoading}
                     onSubmitEditing={handleSend}
-                    blurOnSubmit
+                    blurOnSubmit={false}
+                    returnKeyType="send"
                 />
                 <TouchableOpacity
                     style={[
