@@ -38,13 +38,13 @@ import { useObsyTheme } from '@/contexts/ThemeContext';
 type Step = 'recording' | 'review';
 
 const MAX_DURATION_SECONDS = 180;
-const SVG_HEIGHT = 120;
-const WAVE_AMP = 18; // max displacement in px per line
-
-// centerY for each of the 3 guitar-string lines
-const LINE_CENTERS = [20, 60, 100];
-// each line oscillates at a different frequency to look independent
-const LINE_FREQS = [3.2, 4.8, 6.5];
+const SVG_HEIGHT = 80;
+const WAVE_AMP = 32; // max displacement in px
+const CENTER_Y = 40; // all 3 strings share the same vertical centre
+// Different oscillation frequencies per string — looks independent
+const LINE_FREQS = [3.1, 4.7, 6.3];
+// Different amplitude multipliers — each string has different strength
+const LINE_AMPS = [1.0, 0.72, 0.50];
 
 function buildStringPath(width: number, centerY: number, amplitude: number): string {
     if (amplitude < 0.5) return `M 0 ${centerY} L ${width} ${centerY}`;
@@ -93,11 +93,10 @@ export default function VoiceNoteScreen() {
     const isPausedRef = useRef(false);
     const phaseRef = useRef(0);
 
-    // Wave visualization state
+    // Wave visualization state — all strings share CENTER_Y
+    const flatPath = `M 0 ${CENTER_Y} L ${svgWidth} ${CENTER_Y}`;
     const [wavePaths, setWavePaths] = useState<[string, string, string]>([
-        `M 0 ${LINE_CENTERS[0]} L ${svgWidth} ${LINE_CENTERS[0]}`,
-        `M 0 ${LINE_CENTERS[1]} L ${svgWidth} ${LINE_CENTERS[1]}`,
-        `M 0 ${LINE_CENTERS[2]} L ${svgWidth} ${LINE_CENTERS[2]}`,
+        flatPath, flatPath, flatPath,
     ]);
 
     // Playback
@@ -133,20 +132,19 @@ export default function VoiceNoteScreen() {
     };
 
     const resetWaves = () => {
-        setWavePaths([
-            `M 0 ${LINE_CENTERS[0]} L ${svgWidth} ${LINE_CENTERS[0]}`,
-            `M 0 ${LINE_CENTERS[1]} L ${svgWidth} ${LINE_CENTERS[1]}`,
-            `M 0 ${LINE_CENTERS[2]} L ${svgWidth} ${LINE_CENTERS[2]}`,
-        ]);
+        const flat = `M 0 ${CENTER_Y} L ${svgWidth} ${CENTER_Y}`;
+        setWavePaths([flat, flat, flat]);
     };
 
     const updateWaves = (meteringDb: number) => {
-        const level = Math.max(0, Math.min(1, (meteringDb + 60) / 60));
+        // Square-root gamma gives more response at typical speaking levels
+        const raw = Math.max(0, Math.min(1, (meteringDb + 60) / 60));
+        const level = Math.sqrt(raw);
         phaseRef.current += 0.22;
         const t = phaseRef.current;
-        const p1 = buildStringPath(svgWidth, LINE_CENTERS[0], level * WAVE_AMP * Math.cos(t * LINE_FREQS[0]));
-        const p2 = buildStringPath(svgWidth, LINE_CENTERS[1], level * WAVE_AMP * Math.cos(t * LINE_FREQS[1]));
-        const p3 = buildStringPath(svgWidth, LINE_CENTERS[2], level * WAVE_AMP * Math.cos(t * LINE_FREQS[2]));
+        const p1 = buildStringPath(svgWidth, CENTER_Y, level * WAVE_AMP * LINE_AMPS[0] * Math.cos(t * LINE_FREQS[0]));
+        const p2 = buildStringPath(svgWidth, CENTER_Y, level * WAVE_AMP * LINE_AMPS[1] * Math.cos(t * LINE_FREQS[1]));
+        const p3 = buildStringPath(svgWidth, CENTER_Y, level * WAVE_AMP * LINE_AMPS[2] * Math.cos(t * LINE_FREQS[2]));
         setWavePaths([p1, p2, p3]);
     };
 
@@ -406,7 +404,7 @@ export default function VoiceNoteScreen() {
                         <Svg width={svgWidth} height={SVG_HEIGHT}>
                             <Path d={wavePaths[0]} stroke="rgba(255,255,255,0.9)" strokeWidth={1.5} fill="none" strokeLinecap="round" />
                             <Path d={wavePaths[1]} stroke="#4A90E2" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-                            <Path d={wavePaths[2]} stroke="#8B2252" strokeWidth={1.5} fill="none" strokeLinecap="round" />
+                            <Path d={wavePaths[2]} stroke="#7B1535" strokeWidth={1.5} fill="none" strokeLinecap="round" />
                         </Svg>
                     </View>
 
@@ -551,10 +549,12 @@ const styles = StyleSheet.create({
         gap: 28,
     },
     timerText: {
-        fontSize: 44,
-        fontWeight: '200',
+        fontSize: 40,
+        fontWeight: '300',
         color: 'white',
-        letterSpacing: 4,
+        letterSpacing: 3,
+        lineHeight: 52,
+        includeFontPadding: false,
     },
     remainingText: {
         fontSize: 14,
