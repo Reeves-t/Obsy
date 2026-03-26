@@ -56,7 +56,7 @@ export function PulsingCameraTrigger({ onPress }: PulsingCameraTriggerProps) {
 
                     {/* Camera Icon */}
                     <View style={styles.iconContainer}>
-                        <Ionicons name="camera" size={36} color={isLight ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'} />
+                        <Ionicons name="camera" size={22} color={isLight ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'} />
                     </View>
                 </View>
             </TouchableOpacity>
@@ -70,16 +70,16 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     wrapper: {
-        width: 180,
-        height: 180,
+        width: 80,
+        height: 80,
         justifyContent: 'center',
         alignItems: 'center',
     },
     // Unified glass orb - single container
     orb: {
-        width: 160,
-        height: 160,
-        borderRadius: 80,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         overflow: 'hidden',
         justifyContent: 'center',
         alignItems: 'center',
@@ -88,24 +88,24 @@ const styles = StyleSheet.create({
     // Static subtle border replacing the rotating glow
     borderRing: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: 80,
+        borderRadius: 32,
         borderWidth: 1.5,
         borderColor: 'rgba(255,255,255,0.08)',
     },
-    // Glass shine - covers top 1/3 with vertical gradient (matches web glass-card::before)
+    // Glass shine - covers top 1/3 with vertical gradient
     glassShine: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        height: '33%', // h-1/3 from web
-        borderTopLeftRadius: 80,
-        borderTopRightRadius: 80,
+        height: '33%',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
     },
-    // Inner glint border - subtle white ring inside (matches web border-white/10)
+    // Inner glint border
     innerGlint: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: 80,
+        borderRadius: 32,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.10)',
     },

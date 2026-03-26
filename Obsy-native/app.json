@@ -14,7 +14,10 @@
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Obsy uses your microphone to record voice mood notes."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -34,7 +37,8 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-av"
     ],
     "experiments": {
       "typedRoutes": true

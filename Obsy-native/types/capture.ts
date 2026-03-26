@@ -57,6 +57,12 @@ export type Capture = {
 
     /** Whether to use the photo for AI insight generation */
     usePhotoForInsight: boolean;
+
+    /** How the entry was created: photo capture, journal-only, or voice note */
+    source_type?: 'capture' | 'journal' | 'voice';
+
+    /** Supabase Storage URL of the voice recording (voice entries only) */
+    audio_url?: string | null;
 };
 
 /**

@@ -193,6 +193,8 @@ const JournalEntryCard = memo(function JournalEntryCard({
     isLight,
 }: JournalEntryCardProps) {
     const date = new Date(capture.created_at);
+    const isVoice = capture.source_type === 'voice';
+    const isJournal = capture.source_type === 'journal';
 
     const handlePress = useCallback(() => {
         onPress(capture.id);
@@ -209,6 +211,19 @@ const JournalEntryCard = memo(function JournalEntryCard({
         >
             <View style={styles.journalCardContent}>
                 <View style={styles.journalCardTextArea}>
+                    {/* Source type indicator */}
+                    {(isVoice || isJournal) && (
+                        <View style={styles.sourceTypeRow}>
+                            <Ionicons
+                                name={isVoice ? 'mic' : 'pencil'}
+                                size={11}
+                                color={textTertiary}
+                            />
+                            <ThemedText style={[styles.sourceTypeLabel, { color: textTertiary }]}>
+                                {isVoice ? 'Voice' : 'Journal'}
+                            </ThemedText>
+                        </View>
+                    )}
                     <ThemedText numberOfLines={3} style={[styles.journalCardNote, { color: textColor }]}>
                         {capture.note}
                     </ThemedText>
@@ -216,7 +231,7 @@ const JournalEntryCard = memo(function JournalEntryCard({
                         {format(date, 'h:mm a')} · {format(date, 'MMM d, yyyy')}
                     </ThemedText>
                 </View>
-                {capture.image_url && (
+                {capture.image_url && capture.source_type !== 'journal' && capture.source_type !== 'voice' && (
                     <View style={styles.journalCardThumbnailContainer}>
                         <Image
                             source={{ uri: capture.image_url }}
@@ -249,10 +264,15 @@ export default function GalleryScreen() {
         fetchCaptures(user);
     }, [user]);
 
+    // Photos-only captures (exclude journal/voice entries that have no photo)
+    const photoCaptures = useMemo(() => {
+        return captures.filter(c => c.source_type !== 'journal' && c.source_type !== 'voice' && c.image_url);
+    }, [captures]);
+
     // Group captures by date for timeline view
     const capturesByDate = useMemo(() => {
         const groups: Record<string, Capture[]> = {};
-        captures.forEach(capture => {
+        photoCaptures.forEach(capture => {
             const date = format(new Date(capture.created_at), 'yyyy-MM-dd');
             if (!groups[date]) {
                 groups[date] = [];
@@ -260,7 +280,7 @@ export default function GalleryScreen() {
             groups[date].push(capture);
         });
         return groups;
-    }, [captures]);
+    }, [photoCaptures]);
 
     // Sorted dates descending
     const sortedDates = useMemo(() => {
@@ -268,6 +288,9 @@ export default function GalleryScreen() {
             new Date(b).getTime() - new Date(a).getTime()
         );
     }, [capturesByDate]);
+
+    // Grid also uses photo-only captures
+    const gridCaptures = photoCaptures;
 
     // Build timeline data with headers and rows of 2 captures each
     const timelineData = useMemo(() => {
@@ -516,7 +539,7 @@ export default function GalleryScreen() {
                 ) : (
                     <FlatList
                         key="grid"
-                        data={captures}
+                        data={gridCaptures}
                         renderItem={renderGridItem}
                         keyExtractor={(item) => item.id}
                         numColumns={3}
@@ -708,6 +731,19 @@ const styles = StyleSheet.create({
     contentToggleText: {
         fontSize: 13,
         fontWeight: '500',
+    },
+    // Source type indicator row
+    sourceTypeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginBottom: 2,
+    },
+    sourceTypeLabel: {
+        fontSize: 11,
+        fontWeight: '500',
+        opacity: 0.6,
+        letterSpacing: 0.5,
     },
     // Journal card styles
     journalCard: {

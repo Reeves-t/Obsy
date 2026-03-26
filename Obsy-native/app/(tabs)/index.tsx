@@ -17,6 +17,7 @@ import { TodayCollectionStack } from '@/components/home/TodayCollectionStack';
 import { YearInPixelsSection } from '@/components/home/YearInPixelsSection';
 import { DailyMonthlyPixelsSection } from '@/components/home/DailyMonthlyPixelsSection';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTimeFormatStore, getFormattedTime } from '@/lib/timeFormatStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -202,12 +203,56 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
 
-          {/* Camera Ring - absolute positioned dead center */}
+          {/* Button cluster — voice (top-left), journal (bottom-left), capture (right) */}
           <View style={styles.centerContainer}>
             <ThemedText style={[styles.dynamicGreeting, { color: onBgTextTertiary }]}>
               {getDynamicGreeting(currentTime)}
             </ThemedText>
-            <PulsingCameraTrigger />
+            <View style={styles.buttonCluster}>
+              {/* Voice button — top-left */}
+              <View style={styles.voiceButtonWrap}>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => router.push('/voice')}
+                  style={styles.voiceButton}
+                >
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.05)', 'rgba(0,0,0,0.2)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.clusterButtonGlint} />
+                  <Ionicons name="mic" size={15} color="rgba(255,255,255,0.7)" />
+                </TouchableOpacity>
+                <ThemedText style={[styles.clusterLabel, { color: onBgTextTertiary }]}>Voice</ThemedText>
+              </View>
+
+              {/* Journal button — bottom-left */}
+              <View style={styles.journalButtonWrap}>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => router.push('/journal')}
+                  style={styles.journalButton}
+                >
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.05)', 'rgba(0,0,0,0.2)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.clusterButtonGlint} />
+                  <Ionicons name="pencil" size={18} color="rgba(255,255,255,0.7)" />
+                </TouchableOpacity>
+                <ThemedText style={[styles.clusterLabel, { color: onBgTextTertiary }]}>Journal</ThemedText>
+              </View>
+
+              {/* Capture button — right, primary */}
+              <View style={styles.captureButtonWrap}>
+                <PulsingCameraTrigger />
+                <ThemedText style={[styles.clusterLabel, { color: onBgTextTertiary }]}>Capture</ThemedText>
+              </View>
+            </View>
           </View>
 
           {/* Albums Pill - absolute positioned below camera ring */}
@@ -320,14 +365,78 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     marginTop: 12,
   },
-  // Center container - absolute dead center
+  // Center container - anchored to upper-center of screen
   centerContainer: {
     position: 'absolute',
     top: '50%',
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -120 }],
+    transform: [{ translateY: -80 }],
+  },
+  // Outer cluster — fixed size, absolute-positioned children form the triangle
+  buttonCluster: {
+    width: 172,  // left column (44px) + 16px gap + 64px capture + 16px capture wrapper margin = ~148, give extra room
+    height: 96,  // 36px voice + 12px gap + 44px journal; capture (64px) centered at top:16
+    position: 'relative',
+  },
+  // Voice button (36px) — top-left
+  voiceButtonWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 4,  // slight centering over journal
+    alignItems: 'center',
+    gap: 4,
+  },
+  voiceButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#0D0D0D',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Journal button (44px) — bottom-left
+  journalButtonWrap: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    gap: 4,
+  },
+  journalButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#0D0D0D',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Shared inner glint ring for small buttons
+  clusterButtonGlint: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  // Capture button (64px via PulsingCameraTrigger) — right, vertically centered
+  captureButtonWrap: {
+    position: 'absolute',
+    top: 8,   // (96 - 80px wrapper) / 2
+    right: 0,
+    alignItems: 'center',
+  },
+  // Small label below each button
+  clusterLabel: {
+    fontSize: 10,
+    opacity: 0.4,
+    letterSpacing: 0.3,
   },
   // Dynamic greeting - above the ring
   dynamicGreeting: {
@@ -337,14 +446,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  // Albums container - positioned below center
+  // Albums container - positioned below cluster
   albumsContainer: {
     position: 'absolute',
     top: '50%',
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: 140 }],
+    transform: [{ translateY: 60 }],
   },
   // Albums link pill
   albumsLink: {
