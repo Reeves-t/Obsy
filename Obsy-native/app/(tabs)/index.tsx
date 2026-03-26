@@ -250,7 +250,6 @@ export default function HomeScreen() {
               {/* Capture button — right, primary */}
               <View style={styles.captureButtonWrap}>
                 <PulsingCameraTrigger />
-                <ThemedText style={[styles.clusterLabel, { color: onBgTextTertiary }]}>Capture</ThemedText>
               </View>
             </View>
           </View>
@@ -365,28 +364,37 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     marginTop: 12,
   },
-  // Center container - anchored to upper-center of screen
+  // Center container - absolute dead center (same as original)
   centerContainer: {
     position: 'absolute',
     top: '50%',
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -80 }],
+    transform: [{ translateY: -120 }],
   },
-  // Outer cluster — fixed size, absolute-positioned children form the triangle
+  // Cluster container — capture (180px) anchored right, voice+journal float left
+  // Width: left overhang (60px) + capture wrapper (180px) = 240px
+  // Height: capture wrapper (180px) + label (20px) = 200px
   buttonCluster: {
-    width: 172,  // left column (44px) + 16px gap + 64px capture + 16px capture wrapper margin = ~148, give extra room
-    height: 96,  // 36px voice + 12px gap + 44px journal; capture (64px) centered at top:16
+    width: 240,
+    height: 200,
     position: 'relative',
   },
-  // Voice button (36px) — top-left
+  // Capture (180px wrapper) — anchored to right, top:10 to center vertically
+  captureButtonWrap: {
+    position: 'absolute',
+    right: 0,
+    top: 10,
+    alignItems: 'center',
+  },
+  // Voice (36px) — top-left of capture, pushed further out (left:16)
   voiceButtonWrap: {
     position: 'absolute',
-    top: 0,
-    left: 4,  // slight centering over journal
+    top: 16,
+    left: 16,
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   voiceButton: {
     width: 36,
@@ -399,13 +407,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Journal button (44px) — bottom-left
+  // Journal (44px) — bottom-left of capture, slightly less far out (left:28)
   journalButtonWrap: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
+    bottom: 16,
+    left: 28,
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   journalButton: {
     width: 44,
@@ -418,21 +426,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Shared inner glint ring for small buttons
+  // Shared inner glint for small buttons
   clusterButtonGlint: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
   },
-  // Capture button (64px via PulsingCameraTrigger) — right, vertically centered
-  captureButtonWrap: {
-    position: 'absolute',
-    top: 8,   // (96 - 80px wrapper) / 2
-    right: 0,
-    alignItems: 'center',
-  },
-  // Small label below each button
+  // Small muted label below Voice and Journal buttons
   clusterLabel: {
     fontSize: 10,
     opacity: 0.4,
@@ -446,14 +447,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  // Albums container - positioned below cluster
+  // Albums container — below the cluster (greeting ~56px + cluster 200px + padding)
   albumsContainer: {
     position: 'absolute',
     top: '50%',
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: 60 }],
+    transform: [{ translateY: 160 }],
   },
   // Albums link pill
   albumsLink: {

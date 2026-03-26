@@ -56,7 +56,7 @@ export function PulsingCameraTrigger({ onPress }: PulsingCameraTriggerProps) {
 
                     {/* Camera Icon */}
                     <View style={styles.iconContainer}>
-                        <Ionicons name="camera" size={22} color={isLight ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'} />
+                        <Ionicons name="camera" size={36} color={isLight ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'} />
                     </View>
                 </View>
             </TouchableOpacity>
@@ -70,46 +70,40 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     wrapper: {
-        width: 80,
-        height: 80,
+        width: 180,
+        height: 180,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    // Unified glass orb - single container
     orb: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
+        width: 160,
+        height: 160,
+        borderRadius: 80,
         overflow: 'hidden',
         justifyContent: 'center',
         alignItems: 'center',
-        // backgroundColor set dynamically via inline style (theme-aware)
     },
-    // Static subtle border replacing the rotating glow
     borderRing: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: 32,
+        borderRadius: 80,
         borderWidth: 1.5,
         borderColor: 'rgba(255,255,255,0.08)',
     },
-    // Glass shine - covers top 1/3 with vertical gradient
     glassShine: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         height: '33%',
-        borderTopLeftRadius: 32,
-        borderTopRightRadius: 32,
+        borderTopLeftRadius: 80,
+        borderTopRightRadius: 80,
     },
-    // Inner glint border
     innerGlint: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: 32,
+        borderRadius: 80,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.10)',
     },
-    // Icon container centered in orb
     iconContainer: {
         justifyContent: 'center',
         alignItems: 'center',
