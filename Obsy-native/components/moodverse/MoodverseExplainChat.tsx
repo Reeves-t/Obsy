@@ -232,7 +232,7 @@ function computeMoodverseContext(
         date: fmt(o.timestamp),
         mood: o.moodLabel,
         tags: o.tags,
-        ...(o.notePreview ? { note: o.notePreview } : {}),
+        ...(o.noteFull ? { note: o.noteFull } : {}),
     }));
 
     // ── Patterns ────────────────────────────────────────────────────────
@@ -360,7 +360,7 @@ export function MoodverseExplainChat({
         return selectedOrbs.map((orb) => ({
             id: orb.id,
             mood: orb.moodLabel,
-            note: orb.notePreview ?? undefined,
+            note: orb.noteFull ?? undefined,
             tags: orb.tags,
             date: new Date(orb.timestamp).toISOString(),
             clusterId: orb.clusterId,

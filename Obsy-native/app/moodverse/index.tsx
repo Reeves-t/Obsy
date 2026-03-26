@@ -6,6 +6,9 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronLeft, Search, Crosshair, RotateCcw } from 'lucide-react-native';
+import { useSubscription } from '@/hooks/useSubscription';
+import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
+import { ObsyIcon } from '@/components/moodverse/ObsyIcon';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,7 +45,10 @@ export default function MoodversePage() {
     const { captures } = useCaptureStore();
     const [isFocused, setIsFocused] = useState(true);
     const [showSearch, setShowSearch] = useState(false);
+    const [showPaywall, setShowPaywall] = useState(false);
     const [trailPoints, setTrailPoints] = useState<Array<{ x: number; y: number }>>([]);
+    const { tier } = useSubscription();
+    const isPro = tier === 'founder' || tier === 'subscriber';
 
     // Store subscriptions
     const selectedYear = useMoodverseStore((s) => s.selectedYear);
@@ -453,6 +459,30 @@ export default function MoodversePage() {
             {orbs.length > 0 && (
                 <BottomSheetMetadata orbs={orbs} clusters={clusters} transitions={transitions} />
             )}
+
+            {/* Floating Obsy chat button */}
+            {orbs.length > 0 && !selectedOrbId && selectedOrbIds.length === 0 && (
+                <TouchableOpacity
+                    style={[styles.floatingChatBtn, { bottom: insets.bottom + 24 }]}
+                    onPress={() => {
+                        if (!isPro) {
+                            setShowPaywall(true);
+                            return;
+                        }
+                        useMoodverseStore.getState().openChat([], 'general');
+                        router.push('/moodverse/chat');
+                    }}
+                    activeOpacity={0.8}
+                >
+                    <ObsyIcon size={38} />
+                </TouchableOpacity>
+            )}
+
+            <VanguardPaywall
+                visible={showPaywall}
+                onClose={() => setShowPaywall(false)}
+                featureName="moodverse_explain"
+            />
         </GestureHandlerRootView>
     );
 }
@@ -525,5 +555,23 @@ const styles = StyleSheet.create({
         color: 'rgba(228,228,237,0.2)',
         fontSize: 14,
         textAlign: 'center',
+    },
+    floatingChatBtn: {
+        position: 'absolute',
+        right: 20,
+        zIndex: 20,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        backgroundColor: 'rgba(10, 10, 16, 0.85)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#8B2252',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 14,
+        elevation: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(139, 34, 82, 0.2)',
     },
 });

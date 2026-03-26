@@ -16,6 +16,7 @@ export interface GalaxyOrb {
     colorTo: string;
     colorSolid: string;
     notePreview: string | null;
+    noteFull: string | null;
     tags: string[];
     photoUri: string | null;
     includeInInsights: boolean;

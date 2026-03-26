@@ -7,7 +7,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
 import { X, Link2, Sparkles, Filter, Lock } from 'lucide-react-native';
 import { format } from 'date-fns';
-import { MoodverseExplainChat } from './MoodverseExplainChat';
+import { useRouter } from 'expo-router';
 import type { GalaxyOrb, GalaxyCluster } from './galaxyTypes';
 import type { TransitionData } from './transitionCompute';
 
@@ -19,35 +19,25 @@ interface BottomSheetMetadataProps {
 
 export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheetMetadataProps) {
     const sheetRef = useRef<BottomSheet>(null);
+    const router = useRouter();
     const {
         selectedOrbId,
         selectedOrbIds,
         selectionMode,
         showLinks,
-        isExplainOpen,
         setShowLinks,
         clearSelection,
         setIsolateCluster,
-        openExplain,
-        closeExplain,
+        openChat,
     } = useMoodverseStore();
 
     const { tier } = useSubscription();
     const [showPaywall, setShowPaywall] = useState(false);
-    const [sheetSnapIndex, setSheetSnapIndex] = useState(0);
 
     const isPro = tier === 'founder' || tier === 'subscriber';
     const hasSelection = selectedOrbId !== null || selectedOrbIds.length > 0;
 
-    // When chat is open, lowest snap is a tiny peek bar — can't swipe to close
-    const snapPoints = useMemo(
-        () => (isExplainOpen ? ['9%', '55%', '85%'] : ['28%', '55%']),
-        [isExplainOpen],
-    );
-
-    const handleSheetChange = useCallback((index: number) => {
-        setSheetSnapIndex(index);
-    }, []);
+    const snapPoints = useMemo(() => ['28%', '55%'], []);
 
     const selectedOrb = useMemo(() => {
         if (!selectedOrbId) return null;
@@ -67,21 +57,6 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
         return clusters.find((c) => c.id === first.clusterId) ?? null;
     }, [selectionMode, selectedOrbIds, orbs, clusters]);
 
-    // The orbs that the explain chat should reference
-    const explainOrbs = useMemo(() => {
-        if (selectionMode === 'single' && selectedOrb) return [selectedOrb];
-        if (selectedOrbs.length > 0) return selectedOrbs;
-        return [];
-    }, [selectionMode, selectedOrb, selectedOrbs]);
-
-    // Label shown on the mini peek bar
-    const chatResumeLabel = useMemo(() => {
-        if (selectionMode === 'single' && selectedOrb) return selectedOrb.moodLabel;
-        if (selectionMode === 'multi') return `${selectedOrbIds.length} captures`;
-        if (selectionMode === 'cluster' && selectedCluster) return selectedCluster.label;
-        return 'Chat';
-    }, [selectionMode, selectedOrb, selectedOrbIds, selectedCluster]);
-
     const handleClose = useCallback(() => {
         clearSelection();
     }, [clearSelection]);
@@ -91,14 +66,13 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
             setShowPaywall(true);
             return;
         }
-        if (isExplainOpen) {
-            closeExplain();
-        } else {
-            openExplain();
-            // Snap to the middle point (55%) — index 1 in both old and new snap arrays
-            sheetRef.current?.snapToIndex(1);
-        }
-    }, [isPro, isExplainOpen, openExplain, closeExplain]);
+        // Store context and navigate to full-screen chat
+        const orbIds = selectionMode === 'single' && selectedOrbId
+            ? [selectedOrbId]
+            : selectedOrbIds;
+        openChat(orbIds, selectionMode as 'single' | 'multi' | 'cluster');
+        router.push('/moodverse/chat');
+    }, [isPro, selectionMode, selectedOrbId, selectedOrbIds, openChat, router]);
 
     if (!hasSelection) return null;
 
@@ -108,68 +82,43 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
                 ref={sheetRef}
                 index={0}
                 snapPoints={snapPoints}
-                enablePanDownToClose={!isExplainOpen}
+                enablePanDownToClose
                 onClose={handleClose}
-                onChange={handleSheetChange}
                 backgroundStyle={styles.sheetBg}
                 handleIndicatorStyle={styles.handle}
-                keyboardBehavior="interactive"
-                keyboardBlurBehavior="restore"
-                android_keyboardInputMode="adjustResize"
             >
                 <BottomSheetView style={styles.content}>
-                    {/* Close button — always visible */}
+                    {/* Close button */}
                     <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
                         <X size={18} color="rgba(255,255,255,0.4)" />
                     </TouchableOpacity>
 
-                    {isExplainOpen ? (
-                        sheetSnapIndex === 0 ? (
-                            // ── Mode B-mini: Peek bar while chat is minimized ──
-                            <MiniChatBar
-                                label={chatResumeLabel}
-                                onTap={() => sheetRef.current?.snapToIndex(1)}
-                            />
-                        ) : (
-                            // ── Mode B: Full chat ───────────────────────────────
-                            <MoodverseExplainChat
-                                selectedOrbs={explainOrbs}
-                                allOrbs={orbs}
-                                clusters={clusters}
-                                selectionMode={selectionMode}
-                            />
-                        )
-                    ) : (
-                        // ── Mode A: Default Metadata ────────────────────────
-                        <>
-                            {selectionMode === 'single' && selectedOrb && (
-                                <SingleOrbView
-                                    orb={selectedOrb}
-                                    showLinks={showLinks}
-                                    onToggleLinks={() => setShowLinks(!showLinks)}
-                                    onExplain={handleExplainPress}
-                                    isPro={isPro}
-                                    transitions={transitions}
-                                />
-                            )}
+                    {selectionMode === 'single' && selectedOrb && (
+                        <SingleOrbView
+                            orb={selectedOrb}
+                            showLinks={showLinks}
+                            onToggleLinks={() => setShowLinks(!showLinks)}
+                            onExplain={handleExplainPress}
+                            isPro={isPro}
+                            transitions={transitions}
+                        />
+                    )}
 
-                            {selectionMode === 'multi' && selectedOrbs.length > 0 && (
-                                <MultiSelectionView
-                                    orbs={selectedOrbs}
-                                    onExplain={handleExplainPress}
-                                    isPro={isPro}
-                                />
-                            )}
+                    {selectionMode === 'multi' && selectedOrbs.length > 0 && (
+                        <MultiSelectionView
+                            orbs={selectedOrbs}
+                            onExplain={handleExplainPress}
+                            isPro={isPro}
+                        />
+                    )}
 
-                            {selectionMode === 'cluster' && selectedCluster && (
-                                <ClusterView
-                                    cluster={selectedCluster}
-                                    onIsolate={() => setIsolateCluster(selectedCluster.id)}
-                                    onExplain={handleExplainPress}
-                                    isPro={isPro}
-                                />
-                            )}
-                        </>
+                    {selectionMode === 'cluster' && selectedCluster && (
+                        <ClusterView
+                            cluster={selectedCluster}
+                            onIsolate={() => setIsolateCluster(selectedCluster.id)}
+                            onExplain={handleExplainPress}
+                            isPro={isPro}
+                        />
                     )}
                 </BottomSheetView>
             </BottomSheet>
@@ -182,47 +131,6 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
         </>
     );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Mini Chat Bar (peek state when chat is minimized)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function MiniChatBar({ label, onTap }: { label: string; onTap: () => void }) {
-    return (
-        <TouchableOpacity style={miniBarStyles.container} onPress={onTap} activeOpacity={0.7}>
-            <View style={miniBarStyles.dot} />
-            <ThemedText style={miniBarStyles.label}>{label}</ThemedText>
-            <ThemedText style={miniBarStyles.hint}>tap to resume</ThemedText>
-            <Sparkles size={12} color="#8B2252" />
-        </TouchableOpacity>
-    );
-}
-
-const miniBarStyles = StyleSheet.create({
-    container: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 10,
-        paddingHorizontal: 4,
-    },
-    dot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#8B2252',
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: 'rgba(255,255,255,0.8)',
-        flex: 1,
-    },
-    hint: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.3)',
-    },
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Explain Button (shared)
@@ -260,13 +168,12 @@ function ExplainButton({
 // Single Orb View
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Aura dot colors matching 3D aura colors
 const AURA_DOT_COLORS = {
-    after1: '#FFD700',   // gold
-    after2: '#C0C0C0',   // silver
-    before1: '#4A9EDE',  // blue
-    before2: '#2AAA8A',  // teal
-    none: 'rgba(255,255,255,0.15)', // hollow/no aura
+    after1: '#FFD700',
+    after2: '#C0C0C0',
+    before1: '#4A9EDE',
+    before2: '#2AAA8A',
+    none: 'rgba(255,255,255,0.15)',
 };
 
 function SingleOrbView({
@@ -331,7 +238,7 @@ function SingleOrbView({
                 <ExplainButton onPress={onExplain} isPro={isPro} />
             </View>
 
-            {/* ── Before/After Transition Cards ───────────────────────── */}
+            {/* Before/After Transition Cards */}
             {hasTransitions && (
                 <View style={transitionStyles.container}>
                     <View style={transitionStyles.divider} />
@@ -408,52 +315,16 @@ function SingleOrbView({
 }
 
 const transitionStyles = StyleSheet.create({
-    container: {
-        marginTop: 4,
-    },
-    divider: {
-        height: StyleSheet.hairlineWidth,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        marginBottom: 12,
-    },
-    section: {
-        marginBottom: 10,
-    },
-    heading: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.35)',
-        marginBottom: 6,
-    },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 2,
-    },
-    dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    dotHollow: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-    },
-    moodName: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.65)',
-    },
-    count: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.3)',
-    },
-    empty: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.25)',
-        fontStyle: 'italic',
-        marginTop: 4,
-    },
+    container: { marginTop: 4 },
+    divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.08)', marginBottom: 12 },
+    section: { marginBottom: 10 },
+    heading: { fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 6 },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    dotHollow: { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+    moodName: { fontSize: 13, color: 'rgba(255,255,255,0.65)' },
+    count: { fontSize: 12, color: 'rgba(255,255,255,0.3)' },
+    empty: { fontSize: 12, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic', marginTop: 4 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -483,20 +354,13 @@ function MultiSelectionView({
             if (!counts[o.moodId]) counts[o.moodId] = { label: o.moodLabel, color: o.colorSolid, count: 0 };
             counts[o.moodId].count++;
         }
-        return Object.values(counts)
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 3);
+        return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 3);
     }, [orbs]);
 
     const topTags = useMemo(() => {
         const tagCounts: Record<string, number> = {};
-        for (const o of orbs) {
-            for (const t of o.tags) tagCounts[t] = (tagCounts[t] || 0) + 1;
-        }
-        return Object.entries(tagCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([tag]) => tag);
+        for (const o of orbs) for (const t of o.tags) tagCounts[t] = (tagCounts[t] || 0) + 1;
+        return Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag]) => tag);
     }, [orbs]);
 
     return (
@@ -528,11 +392,7 @@ function MultiSelectionView({
             )}
 
             <View style={styles.actionsRow}>
-                <ExplainButton
-                    onPress={onExplain}
-                    isPro={isPro}
-                    label="Talk About Selection"
-                />
+                <ExplainButton onPress={onExplain} isPro={isPro} label="Talk About Selection" />
             </View>
         </View>
     );
@@ -559,9 +419,7 @@ function ClusterView({
             if (!counts[o.moodId]) counts[o.moodId] = { label: o.moodLabel, color: o.colorSolid, count: 0 };
             counts[o.moodId].count++;
         }
-        return Object.values(counts)
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 4);
+        return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 4);
     }, [cluster.orbs]);
 
     const dateRange = useMemo(() => {

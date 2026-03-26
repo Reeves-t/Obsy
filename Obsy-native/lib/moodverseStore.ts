@@ -31,6 +31,11 @@ interface MoodverseState {
     chatMessages: ChatMessage[];
     isAiLoading: boolean;
 
+    // Context snapshot for the full-screen chat page
+    chatContextOrbIds: string[];       // selected orb IDs when chat was opened
+    chatContextAllOrbIds: string[];    // not stored — read from orbs prop
+    chatContextMode: 'single' | 'multi' | 'cluster' | 'general';
+
     // ── Camera / orbit ──────────────────────────────────────────────────────
     orbitModeActive: boolean;
 
@@ -59,6 +64,7 @@ interface MoodverseState {
     // Explain chat actions
     openExplain: () => void;
     closeExplain: () => void;
+    openChat: (orbIds: string[], mode: 'single' | 'multi' | 'cluster' | 'general') => void;
     addChatMessage: (msg: ChatMessage) => void;
     setAiLoading: (loading: boolean) => void;
     setAiHighlightedOrbIds: (ids: string[]) => void;
@@ -90,6 +96,9 @@ const initialState = {
     isExplainOpen: false,
     chatMessages: [] as ChatMessage[],
     isAiLoading: false,
+    chatContextOrbIds: [] as string[],
+    chatContextAllOrbIds: [] as string[],
+    chatContextMode: 'general' as 'single' | 'multi' | 'cluster' | 'general',
     orbitModeActive: false,
     isIdle: true,
     isInteracting: false,
@@ -150,6 +159,17 @@ export const useMoodverseStore = create<MoodverseState>()((set) => ({
         chatMessages: [],
         isAiLoading: false,
         aiHighlightedOrbIds: [],
+        chatContextOrbIds: [],
+        chatContextAllOrbIds: [],
+        chatContextMode: 'general',
+    }),
+    openChat: (orbIds, mode) => set({
+        isExplainOpen: true,
+        chatMessages: [],
+        isAiLoading: false,
+        aiHighlightedOrbIds: [],
+        chatContextOrbIds: orbIds,
+        chatContextMode: mode,
     }),
     addChatMessage: (msg) => set((s) => ({
         chatMessages: [...s.chatMessages, msg],
