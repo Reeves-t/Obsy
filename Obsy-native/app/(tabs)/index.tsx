@@ -202,12 +202,14 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
 
-          {/* Camera Ring - absolute positioned dead center */}
+          {/* Camera Ring - absolute positioned dead center, shifted right for future cluster layout */}
           <View style={styles.centerContainer}>
             <ThemedText style={[styles.dynamicGreeting, { color: onBgTextTertiary }]}>
               {getDynamicGreeting(currentTime)}
             </ThemedText>
-            <PulsingCameraTrigger />
+            <View style={styles.buttonCluster}>
+              <PulsingCameraTrigger />
+            </View>
           </View>
 
           {/* Albums Pill - absolute positioned below camera ring */}
@@ -328,6 +330,10 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     transform: [{ translateY: -120 }],
+  },
+  // Cluster wrapper — shifts the capture button slightly right to prepare for the three-button layout
+  buttonCluster: {
+    marginLeft: 32,
   },
   // Dynamic greeting - above the ring
   dynamicGreeting: {
