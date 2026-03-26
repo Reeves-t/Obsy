@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: 0,
-    right: 0,
+    right: 20,
     alignItems: 'center',
     transform: [{ translateY: -120 }],
   },
@@ -408,8 +408,8 @@ const styles = StyleSheet.create({
   // Journal (44px) — bottom-left of capture, slightly less far out (left:28)
   journalButtonWrap: {
     position: 'absolute',
-    bottom: 16,
-    left: 28,
+    bottom: 8,
+    left: 14,
     alignItems: 'center',
     gap: 5,
   },
