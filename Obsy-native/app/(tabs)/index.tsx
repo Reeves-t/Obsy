@@ -225,7 +225,6 @@ export default function HomeScreen() {
                   <View style={styles.clusterButtonGlint} />
                   <Ionicons name="mic" size={15} color="rgba(255,255,255,0.7)" />
                 </TouchableOpacity>
-                <ThemedText style={[styles.clusterLabel, { color: onBgTextTertiary }]}>Voice</ThemedText>
               </View>
 
               {/* Journal button — bottom-left */}
@@ -244,7 +243,6 @@ export default function HomeScreen() {
                   <View style={styles.clusterButtonGlint} />
                   <Ionicons name="pencil" size={18} color="rgba(255,255,255,0.7)" />
                 </TouchableOpacity>
-                <ThemedText style={[styles.clusterLabel, { color: onBgTextTertiary }]}>Journal</ThemedText>
               </View>
 
               {/* Capture button — right, primary */}
@@ -432,12 +430,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-  },
-  // Small muted label below Voice and Journal buttons
-  clusterLabel: {
-    fontSize: 10,
-    opacity: 0.4,
-    letterSpacing: 0.3,
   },
   // Dynamic greeting - above the ring
   dynamicGreeting: {
