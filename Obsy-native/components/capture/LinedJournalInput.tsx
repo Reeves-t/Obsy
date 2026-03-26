@@ -51,7 +51,7 @@ export function LinedJournalInput({
     const journalColors = JOURNAL_THEMES[theme];
 
     const [scrollOffset, setScrollOffset] = useState(0);
-    const [containerHeight, setContainerHeight] = useState(0);
+    const [containerHeight, setContainerHeight] = useState(800);
     const [contentHeight, setContentHeight] = useState(0);
 
     const handleLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {

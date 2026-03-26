@@ -6,6 +6,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -86,7 +87,7 @@ export default function JournalEntryScreen() {
                 <View style={[styles.moodBar, { borderTopColor: colors.cardBorder }]}>
                     <TouchableOpacity
                         activeOpacity={0.7}
-                        onPress={() => setMoodModalVisible(true)}
+                        onPress={() => { Keyboard.dismiss(); setMoodModalVisible(true); }}
                         style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
                     >
                         {moodId ? (
