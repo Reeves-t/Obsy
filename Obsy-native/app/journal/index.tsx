@@ -87,7 +87,10 @@ export default function JournalEntryScreen() {
                 <View style={[styles.moodBar, { borderTopColor: colors.cardBorder }]}>
                     <TouchableOpacity
                         activeOpacity={0.7}
-                        onPress={() => { Keyboard.dismiss(); setMoodModalVisible(true); }}
+                        onPress={() => {
+                            Keyboard.dismiss();
+                            setTimeout(() => setMoodModalVisible(true), 300);
+                        }}
                         style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
                     >
                         {moodId ? (
