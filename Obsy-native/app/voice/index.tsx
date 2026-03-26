@@ -29,13 +29,15 @@ import Animated, {
     Easing,
     cancelAnimation,
 } from 'react-native-reanimated';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 
 type Step = 'recording' | 'review';
 
 const MAX_DURATION_SECONDS = 180;
+const BAR_MAX_HEIGHT = 56;
+const BAR_MIN_HEIGHT = 4;
 
 function formatTime(seconds: number) {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -50,20 +52,23 @@ export default function VoiceNoteScreen() {
     const { getMoodById } = useCustomMoodStore();
     const { colors } = useObsyTheme();
 
-    // Mood state — inline, not a separate step
+    // Mood state
     const [moodId, setMoodId] = useState<string | null>(null);
     const [moodName, setMoodName] = useState('');
     const [moodModalVisible, setMoodModalVisible] = useState(false);
 
     const [step, setStep] = useState<Step>('recording');
 
-    // Recording
+    // Recording state
     const [isRecording, setIsRecording] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
     const [elapsed, setElapsed] = useState(0);
     const [audioDuration, setAudioDuration] = useState(0);
     const recordingRef = useRef<Audio.Recording | null>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const meteringTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const elapsedRef = useRef(0);
+    const isPausedRef = useRef(false);
 
     // Playback
     const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -77,14 +82,25 @@ export default function VoiceNoteScreen() {
 
     const [isSaving, setIsSaving] = useState(false);
 
+    // Pulse animation for record button
     const pulseScale = useSharedValue(1);
     const pulseStyle = useAnimatedStyle(() => ({
         transform: [{ scale: pulseScale.value }],
     }));
 
+    // Pitch bar animations
+    const bar1H = useSharedValue(BAR_MIN_HEIGHT);
+    const bar2H = useSharedValue(BAR_MIN_HEIGHT);
+    const bar3H = useSharedValue(BAR_MIN_HEIGHT);
+
+    const bar1Style = useAnimatedStyle(() => ({ height: bar1H.value }));
+    const bar2Style = useAnimatedStyle(() => ({ height: bar2H.value }));
+    const bar3Style = useAnimatedStyle(() => ({ height: bar3H.value }));
+
     useEffect(() => {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
+            if (meteringTimerRef.current) clearInterval(meteringTimerRef.current);
             recordingRef.current?.stopAndUnloadAsync().catch(() => {});
             sound?.unloadAsync().catch(() => {});
         };
@@ -94,7 +110,23 @@ export default function VoiceNoteScreen() {
         const mood = getMoodById(id);
         setMoodId(id);
         setMoodName(mood?.name || MOODS.find(m => m.id === id)?.label || id);
-        // MoodSelectionModal calls onClose automatically after onSelect
+    };
+
+    const updateMeteringBars = (meteringDb: number) => {
+        // Normalize dBFS (-60 to 0) → 0 to 1
+        const level = Math.max(0, Math.min(1, (meteringDb + 60) / 60));
+        const h1 = BAR_MIN_HEIGHT + level * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT);
+        const h2 = BAR_MIN_HEIGHT + level * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT) * 0.85;
+        const h3 = BAR_MIN_HEIGHT + level * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT) * 0.7;
+        bar1H.value = withTiming(h1, { duration: 80 });
+        bar2H.value = withTiming(h2, { duration: 100 });
+        bar3H.value = withTiming(h3, { duration: 60 });
+    };
+
+    const resetBars = () => {
+        bar1H.value = withTiming(BAR_MIN_HEIGHT, { duration: 300 });
+        bar2H.value = withTiming(BAR_MIN_HEIGHT, { duration: 300 });
+        bar3H.value = withTiming(BAR_MIN_HEIGHT, { duration: 300 });
     };
 
     const startRecording = async () => {
@@ -113,12 +145,15 @@ export default function VoiceNoteScreen() {
             playsInSilentModeIOS: true,
         });
 
-        const { recording } = await Audio.Recording.createAsync(
-            Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
+        const { recording } = await Audio.Recording.createAsync({
+            ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+            isMeteringEnabled: true,
+        });
         recordingRef.current = recording;
         elapsedRef.current = 0;
+        isPausedRef.current = false;
         setIsRecording(true);
+        setIsPaused(false);
         setElapsed(0);
 
         pulseScale.value = withRepeat(
@@ -128,12 +163,55 @@ export default function VoiceNoteScreen() {
         );
 
         timerRef.current = setInterval(() => {
-            elapsedRef.current += 1;
-            setElapsed(elapsedRef.current);
-            if (elapsedRef.current >= MAX_DURATION_SECONDS) {
-                stopRecording();
+            if (!isPausedRef.current) {
+                elapsedRef.current += 1;
+                setElapsed(elapsedRef.current);
+                if (elapsedRef.current >= MAX_DURATION_SECONDS) {
+                    stopRecording();
+                }
             }
         }, 1000);
+
+        meteringTimerRef.current = setInterval(async () => {
+            if (recordingRef.current && !isPausedRef.current) {
+                try {
+                    const status = await recordingRef.current.getStatusAsync();
+                    if (status.isRecording && status.metering !== undefined) {
+                        updateMeteringBars(status.metering);
+                    }
+                } catch { /* ignore */ }
+            }
+        }, 100);
+    };
+
+    const pauseRecording = async () => {
+        if (!recordingRef.current || isPaused) return;
+        try {
+            await recordingRef.current.pauseAsync();
+            isPausedRef.current = true;
+            setIsPaused(true);
+            cancelAnimation(pulseScale);
+            pulseScale.value = withTiming(1, { duration: 200 });
+            resetBars();
+        } catch (err) {
+            console.error('[VoiceNote] Pause error:', err);
+        }
+    };
+
+    const resumeRecording = async () => {
+        if (!recordingRef.current || !isPaused) return;
+        try {
+            await recordingRef.current.startAsync();
+            isPausedRef.current = false;
+            setIsPaused(false);
+            pulseScale.value = withRepeat(
+                withTiming(1.12, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+                -1,
+                true
+            );
+        } catch (err) {
+            console.error('[VoiceNote] Resume error:', err);
+        }
     };
 
     const stopRecording = useCallback(async () => {
@@ -141,13 +219,20 @@ export default function VoiceNoteScreen() {
 
         cancelAnimation(pulseScale);
         pulseScale.value = withTiming(1, { duration: 200 });
+        resetBars();
 
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
         }
+        if (meteringTimerRef.current) {
+            clearInterval(meteringTimerRef.current);
+            meteringTimerRef.current = null;
+        }
 
         setIsRecording(false);
+        setIsPaused(false);
+        isPausedRef.current = false;
 
         try {
             await recordingRef.current.stopAndUnloadAsync();
@@ -258,7 +343,6 @@ export default function VoiceNoteScreen() {
     const canSave = !!moodId && !!audioStorageUrl && !isTranscribing && !isSaving;
     const remaining = MAX_DURATION_SECONDS - elapsed;
 
-    // ── Mood trigger (shared between steps) ──────────────────────────
     const MoodTrigger = () => (
         <TouchableOpacity
             activeOpacity={0.7}
@@ -304,6 +388,7 @@ export default function VoiceNoteScreen() {
             {/* Recording step */}
             {step === 'recording' && (
                 <View style={styles.recorderContainer}>
+                    {/* Timer */}
                     <ThemedText style={styles.timerText}>
                         {isRecording ? formatTime(elapsed) : '00:00'}
                     </ThemedText>
@@ -311,6 +396,16 @@ export default function VoiceNoteScreen() {
                         <ThemedText style={styles.remainingText}>{remaining}s remaining</ThemedText>
                     )}
 
+                    {/* Pitch bars — visible only while recording */}
+                    {isRecording && (
+                        <View style={styles.pitchBarsContainer}>
+                            <Animated.View style={[styles.pitchBar, styles.pitchBarWhite, bar1Style]} />
+                            <Animated.View style={[styles.pitchBar, styles.pitchBarBlue, bar2Style]} />
+                            <Animated.View style={[styles.pitchBar, styles.pitchBarBurgundy, bar3Style]} />
+                        </View>
+                    )}
+
+                    {/* Record button */}
                     <Animated.View style={pulseStyle}>
                         <TouchableOpacity
                             activeOpacity={0.8}
@@ -324,11 +419,29 @@ export default function VoiceNoteScreen() {
                         </TouchableOpacity>
                     </Animated.View>
 
+                    {/* Pause button — shown only while recording */}
+                    {isRecording && (
+                        <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={isPaused ? resumeRecording : pauseRecording}
+                            style={styles.pauseButton}
+                        >
+                            <Ionicons
+                                name={isPaused ? 'play' : 'pause'}
+                                size={20}
+                                color="rgba(255,255,255,0.7)"
+                            />
+                            <ThemedText style={styles.pauseButtonText}>
+                                {isPaused ? 'Resume' : 'Pause'}
+                            </ThemedText>
+                        </TouchableOpacity>
+                    )}
+
                     <ThemedText style={styles.recordHint}>
-                        {isRecording ? 'Tap to stop' : 'Tap to record'}
+                        {isPaused ? 'Paused' : isRecording ? 'Tap to stop' : 'Tap to record'}
                     </ThemedText>
 
-                    {/* Mood picker inline at bottom of recording screen */}
+                    {/* Mood picker at bottom */}
                     <View style={[styles.moodBarRecording, { borderTopColor: colors.cardBorder }]}>
                         <MoodTrigger />
                     </View>
@@ -419,6 +532,7 @@ const styles = StyleSheet.create({
         textAlign: 'right',
     },
     doneTextDisabled: { opacity: 0.3 },
+
     // ── Recording ────────────────────────────────────────────────────
     recorderContainer: {
         flex: 1,
@@ -439,24 +553,60 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         marginTop: -16,
     },
+
+    // Pitch bars
+    pitchBarsContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 8,
+        height: BAR_MAX_HEIGHT + 4,
+        marginVertical: -8,
+    },
+    pitchBar: {
+        width: 4,
+        borderRadius: 2,
+    },
+    pitchBarWhite: { backgroundColor: '#FFFFFF' },
+    pitchBarBlue: { backgroundColor: '#4A90E2' },
+    pitchBarBurgundy: { backgroundColor: '#8B2252' },
+
+    // Record button — silver
     recordButton: {
         width: RECORD_BTN_SIZE,
         height: RECORD_BTN_SIZE,
         borderRadius: RECORD_BTN_SIZE / 2,
-        backgroundColor: 'rgba(139,34,82,0.15)',
+        backgroundColor: 'rgba(200,200,200,0.12)',
         borderWidth: 2,
-        borderColor: 'rgba(139,34,82,0.4)',
+        borderColor: 'rgba(200,200,200,0.35)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     recordButtonActive: {
-        backgroundColor: 'rgba(139,34,82,0.25)',
-        borderColor: '#8B2252',
+        backgroundColor: 'rgba(200,200,200,0.22)',
+        borderColor: '#C8C8C8',
     },
     recordDot: { width: 36, height: 36 },
-    recordDotIdle: { borderRadius: 18, backgroundColor: '#8B2252' },
-    recordDotStop: { borderRadius: 6, backgroundColor: '#8B2252', width: 28, height: 28 },
+    recordDotIdle: { borderRadius: 18, backgroundColor: '#C8C8C8' },
+    recordDotStop: { borderRadius: 6, backgroundColor: '#C8C8C8', width: 28, height: 28 },
     recordHint: { fontSize: 16, color: 'rgba(255,255,255,0.5)' },
+
+    // Pause button
+    pauseButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 100,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        marginTop: -8,
+    },
+    pauseButtonText: {
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.7)',
+        fontWeight: '500',
+    },
+
     moodBarRecording: {
         position: 'absolute',
         bottom: 0,
@@ -466,6 +616,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         borderTopWidth: 1,
     },
+
     // ── Review ───────────────────────────────────────────────────────
     reviewContent: {
         padding: 20,
@@ -515,7 +666,8 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderTopWidth: 1,
     },
-    // ── Shared mood trigger ──────────────────────────────────────────
+
+    // ── Mood trigger ─────────────────────────────────────────────────
     moodTrigger: {
         flexDirection: 'row',
         alignItems: 'center',
