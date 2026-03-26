@@ -36,7 +36,24 @@ type CaptureState = {
             challengeId?: string,
             challengeTemplateId?: string,
             obsy_note?: string | null,
+            source_type?: 'capture' | 'journal' | 'voice',
+            audio_url?: string | null,
         }
+    ) => Promise<string | null>;
+    createJournalEntry: (
+        user: User | null,
+        moodId: string,
+        moodName: string,
+        note: string,
+        tags?: string[]
+    ) => Promise<string | null>;
+    createVoiceEntry: (
+        user: User | null,
+        moodId: string,
+        moodName: string,
+        transcript: string,
+        audioUrl: string,
+        tags?: string[]
     ) => Promise<string | null>;
     createCapture: (
         imageUri: string,
@@ -132,6 +149,8 @@ export const useCaptureStore = create<CaptureState>()(
                                 includeInInsights: entry.include_in_insights ?? true,
                                 obsy_note: entry.ai_summary || null,
                                 usePhotoForInsight: entry.use_photo_for_insight ?? false,
+                                source_type: (entry.source_type as 'capture' | 'journal' | 'voice') || 'capture',
+                                audio_url: entry.audio_url || null,
                             };
                         });
                         set({ captures: mappedCaptures });
@@ -192,7 +211,7 @@ export const useCaptureStore = create<CaptureState>()(
                         mood: data.mood_id,
                         mood_name_snapshot: data.mood_name_snapshot,
                         note: data.note,
-                        photo_path: data.image_path,
+                        photo_path: data.image_path || null,
                         user_id: user.id,
                         captured_at: new Date().toISOString(),
                         day_date: getLocalDayKey(),
@@ -200,6 +219,8 @@ export const useCaptureStore = create<CaptureState>()(
                         include_in_insights: includeInInsights,
                         ai_summary: data.obsy_note || null,
                         use_photo_for_insight: usePhotoForInsight,
+                        source_type: data.source_type || 'capture',
+                        audio_url: data.audio_url || null,
                     };
 
                     const { data: inserted, error } = await supabase
@@ -217,7 +238,7 @@ export const useCaptureStore = create<CaptureState>()(
                         mood_id: inserted.mood,
                         mood_name_snapshot: inserted.mood_name_snapshot || data.mood_name_snapshot,
                         note: inserted.note,
-                        image_url: data.image_url,
+                        image_url: data.image_url || '',
                         image_path: inserted.photo_path,
                         tags: inserted.tags || [],
                         includeInInsights: inserted.include_in_insights ?? true,
@@ -225,6 +246,8 @@ export const useCaptureStore = create<CaptureState>()(
                         challengeTemplateId: data.challengeTemplateId,
                         obsy_note: inserted.ai_summary || null,
                         usePhotoForInsight: inserted.use_photo_for_insight ?? false,
+                        source_type: (inserted.source_type as 'capture' | 'journal' | 'voice') || 'capture',
+                        audio_url: inserted.audio_url || null,
                     };
 
                     set((state) => ({ captures: [newCapture, ...state.captures] }));
@@ -439,6 +462,41 @@ export const useCaptureStore = create<CaptureState>()(
                         usePhotoForInsight: usePhotoForInsight,
                     });
                 }
+            },
+
+            createJournalEntry: async (user, moodId, moodName, note, tags = []) => {
+                // Ensure mood cache is fresh
+                if (!moodCache.isInitialized() || moodCache.isStale()) {
+                    await moodCache.fetchAllMoods(user?.id ?? null);
+                }
+                return get().addCapture(user, {
+                    mood_id: moodId,
+                    mood_name_snapshot: moodName,
+                    note: note,
+                    image_url: '',
+                    image_path: null,
+                    tags,
+                    source_type: 'journal',
+                    audio_url: null,
+                    usePhotoForInsight: false,
+                });
+            },
+
+            createVoiceEntry: async (user, moodId, moodName, transcript, audioUrl, tags = []) => {
+                if (!moodCache.isInitialized() || moodCache.isStale()) {
+                    await moodCache.fetchAllMoods(user?.id ?? null);
+                }
+                return get().addCapture(user, {
+                    mood_id: moodId,
+                    mood_name_snapshot: moodName,
+                    note: transcript,
+                    image_url: '',
+                    image_path: null,
+                    tags,
+                    source_type: 'voice',
+                    audio_url: audioUrl,
+                    usePhotoForInsight: false,
+                });
             },
 
             getAllTags: () => {

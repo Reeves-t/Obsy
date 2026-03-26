@@ -173,6 +173,8 @@ function ThemedNavigator() {
         <Stack.Screen name="albums" options={{ headerShown: false }} />
         <Stack.Screen name="invite" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="capture" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="journal" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="voice" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="moodverse" options={{ headerShown: false }} />
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
