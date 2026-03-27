@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     StyleSheet,
     View,
     TouchableOpacity,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
-    Keyboard,
+    TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -28,6 +27,9 @@ export default function JournalEntryScreen() {
     const { getMoodById } = useCustomMoodStore();
     const { colors } = useObsyTheme();
 
+    // Ref lets us call .blur() to dismiss keyboard reliably on iOS
+    const inputRef = useRef<TextInput>(null);
+
     const [moodId, setMoodId] = useState<string | null>(null);
     const [moodName, setMoodName] = useState('');
     const [note, setNote] = useState('');
@@ -38,7 +40,6 @@ export default function JournalEntryScreen() {
         const mood = getMoodById(id);
         setMoodId(id);
         setMoodName(mood?.name || MOODS.find(m => m.id === id)?.label || id);
-        // onClose is already called by MoodSelectionModal — don't call setMoodModalVisible here
     };
 
     const handleSave = async () => {
@@ -54,14 +55,27 @@ export default function JournalEntryScreen() {
         }
     };
 
+    const handleOpenMoodModal = () => {
+        // Blur (remove keyboard focus) before showing the modal.
+        // .blur() is synchronous and reliably dismisses the iOS keyboard,
+        // unlike Keyboard.dismiss() which can be ignored when a TextInput is active.
+        inputRef.current?.blur();
+        setTimeout(() => setMoodModalVisible(true), 80);
+    };
+
     const canSave = !!moodId && !isSaving;
 
     return (
         <ScreenWrapper>
+            {/*
+             * KeyboardAvoidingView keeps the mood bar above the keyboard.
+             * autoFocus is false on LinedJournalInput so the keyboard
+             * does NOT open automatically on page load.
+             */}
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.flex}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                keyboardVerticalOffset={0}
             >
                 {/* Header */}
                 <View style={styles.header}>
@@ -80,17 +94,19 @@ export default function JournalEntryScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Journal input — fills all available space */}
-                <LinedJournalInput value={note} onChangeText={setNote} />
+                {/* Lined journal — ref forwarded so we can blur it */}
+                <LinedJournalInput
+                    ref={inputRef}
+                    value={note}
+                    onChangeText={setNote}
+                    autoFocus={false}
+                />
 
-                {/* Mood selector bar — sits above keyboard */}
+                {/* Mood bar — sticks above keyboard via KeyboardAvoidingView */}
                 <View style={[styles.moodBar, { borderTopColor: colors.cardBorder }]}>
                     <TouchableOpacity
                         activeOpacity={0.7}
-                        onPress={() => {
-                            Keyboard.dismiss();
-                            setTimeout(() => setMoodModalVisible(true), 300);
-                        }}
+                        onPress={handleOpenMoodModal}
                         style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
                     >
                         {moodId ? (
@@ -119,9 +135,7 @@ export default function JournalEntryScreen() {
 }
 
 const styles = StyleSheet.create({
-    flex: {
-        flex: 1,
-    },
+    flex: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -130,24 +144,15 @@ const styles = StyleSheet.create({
         paddingTop: 60,
         paddingBottom: 12,
     },
-    headerButton: {
-        minWidth: 60,
-    },
-    headerTitle: {
-        fontSize: 17,
-        fontWeight: '600',
-        color: 'white',
-    },
+    headerButton: { minWidth: 60 },
+    headerTitle: { fontSize: 17, fontWeight: '600', color: 'white' },
     doneText: {
         color: Colors.obsy.silver,
         fontSize: 17,
         fontWeight: '600',
         textAlign: 'right',
     },
-    doneTextDisabled: {
-        opacity: 0.3,
-    },
-    // Mood bar — sticks above keyboard
+    doneTextDisabled: { opacity: 0.3 },
     moodBar: {
         paddingHorizontal: 20,
         paddingVertical: 12,
@@ -163,16 +168,7 @@ const styles = StyleSheet.create({
         borderRadius: 100,
         backgroundColor: 'rgba(255,255,255,0.1)',
     },
-    moodTriggerSelected: {
-        backgroundColor: '#FFFFFF',
-    },
-    moodTriggerText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#000000',
-    },
-    moodTriggerPlaceholder: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.55)',
-    },
+    moodTriggerSelected: { backgroundColor: '#FFFFFF' },
+    moodTriggerText: { fontSize: 14, fontWeight: '600', color: '#000000' },
+    moodTriggerPlaceholder: { fontSize: 14, color: 'rgba(255,255,255,0.55)' },
 });

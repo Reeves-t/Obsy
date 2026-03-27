@@ -92,6 +92,9 @@ export default function VoiceNoteScreen() {
     const elapsedRef = useRef(0);
     const isPausedRef = useRef(false);
     const phaseRef = useRef(0);
+    // Tracks whether strings were animating last frame so we only call
+    // resetWaves() once when transitioning from sound → silence
+    const wasAnimatingRef = useRef(false);
 
     // Wave visualization state — all strings share CENTER_Y
     const flatPath = `M 0 ${CENTER_Y} L ${svgWidth} ${CENTER_Y}`;
@@ -137,8 +140,22 @@ export default function VoiceNoteScreen() {
     };
 
     const updateWaves = (meteringDb: number) => {
-        // Square-root gamma gives more response at typical speaking levels
+        // Normalize dBFS: map -60..0 → 0..1
         const raw = Math.max(0, Math.min(1, (meteringDb + 60) / 60));
+
+        // Dead zone: below 0.25 raw (~-45 dBFS) treat as silence.
+        // Background noise typically sits at -50 to -55 dBFS (raw ≈ 0.08–0.17),
+        // well below this threshold, so strings stay flat in silence.
+        if (raw < 0.25) {
+            if (wasAnimatingRef.current) {
+                wasAnimatingRef.current = false;
+                resetWaves();
+            }
+            return;
+        }
+
+        // Square-root gamma: boosts mid-level speech response
+        wasAnimatingRef.current = true;
         const level = Math.sqrt(raw);
         phaseRef.current += 0.22;
         const t = phaseRef.current;
@@ -331,10 +348,10 @@ export default function VoiceNoteScreen() {
     };
 
     const handleSave = async () => {
-        if (!moodId || isSaving || !audioStorageUrl) return;
+        if (!moodId || isSaving) return;
         setIsSaving(true);
         try {
-            await createVoiceEntry(user, moodId, moodName, transcript, audioStorageUrl);
+            await createVoiceEntry(user, moodId, moodName, transcript, audioStorageUrl ?? '');
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
         } catch (err) {
@@ -343,7 +360,9 @@ export default function VoiceNoteScreen() {
         }
     };
 
-    const canSave = !!moodId && !!audioStorageUrl && !isTranscribing && !isSaving;
+    // audioStorageUrl is NOT required — if storage upload fails (e.g. RLS),
+    // the user can still save with the manually-typed transcript
+    const canSave = !!moodId && !isTranscribing && !isSaving;
     const remaining = MAX_DURATION_SECONDS - elapsed;
 
     const MoodTrigger = () => (
