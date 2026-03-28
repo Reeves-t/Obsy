@@ -76,7 +76,7 @@ export const LinedJournalInput = forwardRef<TextInput, LinedJournalInputProps>(
             <ScrollView
                 style={styles.scrollView}
                 keyboardDismissMode="interactive"
-                keyboardShouldPersistTaps="always"
+                keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
             >
                 {/*
@@ -121,7 +121,10 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     contentContainer: {
-        height: TOTAL_HEIGHT,
+        // minHeight keeps all 120 lines visible even when the typed text is short.
+        // TextInput is normal flow (not absolute), so the space below the text
+        // is a non-interactive surface: tapping it with "handled" dismisses keyboard.
+        minHeight: TOTAL_HEIGHT,
         position: 'relative',
     },
     line: {
@@ -131,11 +134,8 @@ const styles = StyleSheet.create({
         height: StyleSheet.hairlineWidth,
     },
     textInput: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        // Normal flow — grows with content from the top.
+        // No position:absolute so the area below typed text is not a TextInput.
         padding: PADDING,
         fontSize: 18,
         lineHeight: LINE_HEIGHT,
