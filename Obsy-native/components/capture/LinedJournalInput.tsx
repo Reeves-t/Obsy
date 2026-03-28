@@ -75,7 +75,7 @@ export const LinedJournalInput = forwardRef<TextInput, LinedJournalInputProps>(
         return (
             <ScrollView
                 style={styles.scrollView}
-                keyboardDismissMode="none"
+                keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="always"
                 showsVerticalScrollIndicator={false}
             >
