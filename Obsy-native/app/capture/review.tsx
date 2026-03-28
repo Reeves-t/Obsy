@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Modal, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -43,6 +43,8 @@ export default function CaptureReviewScreen() {
     const { completeChallenge: markChallengeComplete } = useDailyChallenges(user?.id ?? null);
     const { setHasSharedPublicImage } = useMockAlbums();
     const { isDark, colors } = useObsyTheme();
+
+    const journalInputRef = useRef<TextInput>(null);
 
     const [moodId, setMoodId] = useState<string | null>(null);
     const [note, setNote] = useState('');
@@ -448,6 +450,7 @@ export default function CaptureReviewScreen() {
                         </View>
 
                         <LinedJournalInput
+                            ref={journalInputRef}
                             value={note}
                             onChangeText={setNote}
                         />
