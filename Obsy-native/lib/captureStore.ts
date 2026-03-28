@@ -211,7 +211,7 @@ export const useCaptureStore = create<CaptureState>()(
                         mood: data.mood_id,
                         mood_name_snapshot: data.mood_name_snapshot,
                         note: data.note,
-                        photo_path: data.image_path || null,
+                        photo_path: data.image_path ?? '',
                         user_id: user.id,
                         captured_at: new Date().toISOString(),
                         day_date: getLocalDayKey(),
