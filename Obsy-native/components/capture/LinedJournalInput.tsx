@@ -1,16 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { forwardRef } from 'react';
 import {
     View,
     TextInput,
     StyleSheet,
-    NativeSyntheticEvent,
-    NativeScrollEvent,
+    ScrollView,
     Platform,
 } from 'react-native';
 import { useObsyTheme, type ThemeMode } from '@/contexts/ThemeContext';
 
-// ── Journal Theme Config ────────────────────────────────────────────
-// Extensible: add a new entry here for each new ThemeMode
+// ── Theme config ─────────────────────────────────────────────────────────────
+
 interface JournalThemeColors {
     lineColor: string;
     textColor: string;
@@ -30,122 +29,119 @@ const JOURNAL_THEMES: Record<ThemeMode, JournalThemeColors> = {
     },
 };
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const LINE_HEIGHT = 28;
 const PADDING = 20;
 
-// ── Component ───────────────────────────────────────────────────────
+// Pre-render 120 lines (120 × 28 = 3360 px) — enough for any realistic entry.
+// Lines are absolutely positioned at compile-time pixel offsets.
+// No onLayout, no scroll sync, no transforms — renders correctly on frame 1.
+const TOTAL_LINES = 120;
+const TOTAL_HEIGHT = PADDING + TOTAL_LINES * LINE_HEIGHT;
+
+const LINE_TOPS = Array.from(
+    { length: TOTAL_LINES },
+    (_, i) => PADDING + (i + 1) * LINE_HEIGHT
+);
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 interface LinedJournalInputProps {
     value: string;
     onChangeText: (text: string) => void;
     placeholder?: string;
+    /** Default false — caller decides if keyboard should open immediately */
     autoFocus?: boolean;
 }
 
-export function LinedJournalInput({
-    value,
-    onChangeText,
-    placeholder = 'Write anything about this moment...',
-    autoFocus = true,
-}: LinedJournalInputProps) {
-    const { theme } = useObsyTheme();
-    const journalColors = JOURNAL_THEMES[theme];
-
-    const [scrollOffset, setScrollOffset] = useState(0);
-    const [containerHeight, setContainerHeight] = useState(800);
-    const [contentHeight, setContentHeight] = useState(0);
-
-    const handleLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {
-        setContainerHeight(e.nativeEvent.layout.height);
-    }, []);
-
-    const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        setScrollOffset(e.nativeEvent.contentOffset.y);
-    }, []);
-
-    const handleContentSizeChange = useCallback(
-        (_w: number, h: number) => {
-            setContentHeight(h);
+/**
+ * forwardRef so the parent can hold a TextInput ref and call .blur()
+ * to programmatically dismiss the keyboard without Keyboard.dismiss() quirks.
+ */
+export const LinedJournalInput = forwardRef<TextInput, LinedJournalInputProps>(
+    (
+        {
+            value,
+            onChangeText,
+            placeholder = 'Write anything about this moment...',
+            autoFocus = false,
         },
-        []
-    );
+        ref
+    ) => {
+        const { theme } = useObsyTheme();
+        const { lineColor, textColor, placeholderColor } = JOURNAL_THEMES[theme];
 
-    // Use whichever is larger: visible container, text content, or a safe minimum
-    const effectiveHeight = Math.max(containerHeight, contentHeight, 800);
-    const numLines = Math.ceil((effectiveHeight + PADDING * 2) / LINE_HEIGHT) + 10;
-
-    return (
-        <View style={styles.container} onLayout={handleLayout}>
-            {/* Ruled lines layer — behind the text */}
-            <View
-                style={[
-                    styles.linesLayer,
-                    { transform: [{ translateY: -scrollOffset }] },
-                ]}
-                pointerEvents="none"
+        return (
+            <ScrollView
+                style={styles.scrollView}
+                keyboardDismissMode="none"
+                keyboardShouldPersistTaps="always"
+                showsVerticalScrollIndicator={false}
             >
-                {/* Top padding spacer to align with TextInput padding */}
-                <View style={{ height: PADDING }} />
-                {Array.from({ length: numLines }, (_, i) => (
-                    <View
-                        key={i}
-                        style={[
-                            styles.line,
-                            { height: LINE_HEIGHT, borderBottomColor: journalColors.lineColor },
-                        ]}
-                    />
-                ))}
-            </View>
+                {/*
+                 * Single fixed-height container.
+                 * Lines are absolutely positioned — they exist from the first
+                 * render with no measurement required.
+                 * TextInput fills the same container with scrollEnabled=false
+                 * so the outer ScrollView drives all scrolling.
+                 */}
+                <View style={styles.contentContainer}>
+                    {LINE_TOPS.map((top, i) => (
+                        <View
+                            key={i}
+                            pointerEvents="none"
+                            style={[styles.line, { top, backgroundColor: lineColor }]}
+                        />
+                    ))}
 
-            {/* TextInput layer — on top, transparent bg so lines show through */}
-            <TextInput
-                style={[
-                    styles.textInput,
-                    { color: journalColors.textColor },
-                ]}
-                placeholder={placeholder}
-                placeholderTextColor={journalColors.placeholderColor}
-                multiline
-                textAlignVertical="top"
-                value={value}
-                onChangeText={onChangeText}
-                onScroll={handleScroll}
-                onContentSizeChange={handleContentSizeChange}
-                autoFocus={autoFocus}
-                scrollEventThrottle={16}
-                underlineColorAndroid="transparent"
-            />
-        </View>
-    );
-}
+                    <TextInput
+                        ref={ref}
+                        style={[styles.textInput, { color: textColor }]}
+                        placeholder={placeholder}
+                        placeholderTextColor={placeholderColor}
+                        multiline
+                        scrollEnabled={false}
+                        autoFocus={autoFocus}
+                        value={value}
+                        onChangeText={onChangeText}
+                        textAlignVertical="top"
+                        underlineColorAndroid="transparent"
+                    />
+                </View>
+            </ScrollView>
+        );
+    }
+);
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-    container: {
+    scrollView: {
         flex: 1,
-        position: 'relative',
-        overflow: 'visible',
     },
-    linesLayer: {
-        position: 'absolute',
-        top: 0,
-        left: PADDING,
-        right: PADDING,
-        zIndex: 0,
+    contentContainer: {
+        height: TOTAL_HEIGHT,
+        position: 'relative',
     },
     line: {
-        borderBottomWidth: 1,
+        position: 'absolute',
+        left: PADDING,
+        right: PADDING,
+        height: StyleSheet.hairlineWidth,
     },
     textInput: {
-        flex: 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         padding: PADDING,
         fontSize: 18,
         lineHeight: LINE_HEIGHT,
         backgroundColor: 'transparent',
-        zIndex: 1,
-        // Android: remove default underline and background
         ...Platform.select({
-            android: {
-                textAlignVertical: 'top' as const,
-            },
+            android: { textAlignVertical: 'top' as const },
         }),
     },
 });
