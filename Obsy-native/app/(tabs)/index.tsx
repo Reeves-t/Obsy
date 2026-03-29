@@ -1,15 +1,5 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, ScrollView, Dimensions, TouchableOpacity, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, AppState } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-  cancelAnimation
-} from 'react-native-reanimated';
-import { Image } from 'expo-image';
-import { Link } from 'expo-router';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { StyleSheet, View, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -17,19 +7,14 @@ import { TodayCollectionStack } from '@/components/home/TodayCollectionStack';
 import { YearInPixelsSection } from '@/components/home/YearInPixelsSection';
 import { DailyMonthlyPixelsSection } from '@/components/home/DailyMonthlyPixelsSection';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
-import { LinearGradient } from 'expo-linear-gradient';
+import { AnimatedMicButton } from '@/components/home/AnimatedMicButton';
+import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTimeFormatStore, getFormattedTime } from '@/lib/timeFormatStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
-import Colors from '@/constants/Colors';
 import { format, isSameDay } from 'date-fns';
-import { getProfile } from '@/services/profile';
-import { PremiumGate } from '@/components/PremiumGate';
-import { NotificationBadge } from '@/components/ui/NotificationBadge';
 import { useRouter } from 'expo-router';
-import { useMockAlbums } from '@/contexts/MockAlbumContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AmbientMoodField } from '@/components/ambient/AmbientMoodField';
 import { useWeeklyMoodAggregation } from '@/hooks/useWeeklyMoodAggregation';
@@ -53,12 +38,8 @@ export default function HomeScreen() {
   const { captures, fetchCaptures, loading, pendingSaveAnimationUri, setPendingSaveAnimationUri, pendingSaveMoodGradient, setPendingSaveMoodGradient, pendingSaveComplete, setPendingSaveComplete } = useCaptureStore();
   const { timeFormat } = useTimeFormatStore();
   const { colors, isLight } = useObsyTheme();
-  const { getUnseenPhotoCount } = useMockAlbums();
   const pageHeight = Math.max(height - insets.top - insets.bottom, 1);
   const headerTop = Math.max(insets.top, 32) + 80; // ensure clock clears status bar/notch
-
-  // Get unseen photo count for badge - uses actual count from context
-  const unseenCount = getUnseenPhotoCount();
 
   // Live clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -211,38 +192,12 @@ export default function HomeScreen() {
             <View style={styles.buttonCluster}>
               {/* Voice button — top-left */}
               <View style={styles.voiceButtonWrap}>
-                <TouchableOpacity
-                  activeOpacity={0.75}
-                  onPress={() => router.push('/voice')}
-                  style={styles.voiceButton}
-                >
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.05)', 'rgba(0,0,0,0.2)']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <View style={styles.clusterButtonGlint} />
-                  <Ionicons name="mic" size={15} color="rgba(255,255,255,0.7)" />
-                </TouchableOpacity>
+                <AnimatedMicButton />
               </View>
 
               {/* Journal button — bottom-left */}
               <View style={styles.journalButtonWrap}>
-                <TouchableOpacity
-                  activeOpacity={0.75}
-                  onPress={() => router.push('/journal')}
-                  style={styles.journalButton}
-                >
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.05)', 'rgba(0,0,0,0.2)']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <View style={styles.clusterButtonGlint} />
-                  <Ionicons name="pencil" size={18} color="rgba(255,255,255,0.7)" />
-                </TouchableOpacity>
+                <AnimatedJournalButton />
               </View>
 
               {/* Capture button — right, primary */}
@@ -251,30 +206,6 @@ export default function HomeScreen() {
               </View>
             </View>
           </View>
-
-          {/* Albums Pill - absolute positioned below camera ring */}
-          <PremiumGate
-            featureName="albums"
-            guestAction="signup"
-            onAction={() => router.push('/albums')}
-            style={styles.albumsContainer}
-          >
-            <View style={[
-              styles.albumsLink,
-              {
-                backgroundColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)',
-                borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'
-              }
-            ]}>
-              <ThemedText style={[styles.albumsLinkText, { color: onBgTextSecondary }]}>Switch to Albums</ThemedText>
-              <Ionicons name="chevron-forward" size={16} color={onBgTextTertiary} />
-
-              <NotificationBadge
-                count={unseenCount}
-                style={styles.albumsBadge}
-              />
-            </View>
-          </PremiumGate>
 
           {/* Moodverse entry — bottom of hero */}
           <View style={[styles.moodverseContainer, { bottom: insets.bottom + 48 }]}>
@@ -371,65 +302,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     transform: [{ translateY: -120 }],
   },
-  // Cluster container — capture (180px) anchored right, voice+journal float left
-  // Width: left overhang (60px) + capture wrapper (180px) = 240px
-  // Height: capture wrapper (180px) + label (20px) = 200px
+  // Cluster container — capture anchored right, voice+journal float left
   buttonCluster: {
-    width: 240,
-    height: 200,
+    width: 260,
+    height: 210,
     position: 'relative',
   },
-  // Capture (180px wrapper) — anchored to right, top:10 to center vertically
+  // Capture — anchored to right
   captureButtonWrap: {
     position: 'absolute',
     right: 0,
-    top: 10,
+    top: 6,
     alignItems: 'center',
   },
-  // Voice (36px) — top-left of capture, pushed further out (left:16)
+  // Voice — top-left of capture
   voiceButtonWrap: {
     position: 'absolute',
-    top: 16,
-    left: 16,
-    alignItems: 'center',
-    gap: 5,
-  },
-  voiceButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#0D0D0D',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.12)',
-    overflow: 'hidden',
-    justifyContent: 'center',
+    top: 6,
+    left: 0,
     alignItems: 'center',
   },
-  // Journal (44px) — bottom-left of capture, slightly less far out (left:28)
+  // Journal — bottom-left of capture
   journalButtonWrap: {
     position: 'absolute',
-    bottom: 8,
-    left: 14,
+    bottom: 0,
+    left: 0,
     alignItems: 'center',
-    gap: 5,
-  },
-  journalButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#0D0D0D',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.12)',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Shared inner glint for small buttons
-  clusterButtonGlint: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
   // Dynamic greeting - above the ring
   dynamicGreeting: {
@@ -438,35 +336,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     letterSpacing: 1,
     textTransform: 'uppercase',
-  },
-  // Albums container — below the cluster (greeting ~56px + cluster 200px + padding)
-  albumsContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    transform: [{ translateY: 160 }],
-  },
-  // Albums link pill
-  albumsLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  albumsLinkText: {
-    fontSize: 14,
-  },
-  albumsBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
   },
   // Insight card styles removed - now handled by TodayInsightCard
   collectionHeader: {
