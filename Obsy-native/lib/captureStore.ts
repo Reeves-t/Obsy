@@ -12,6 +12,7 @@ import { Capture } from "@/types/capture";
 import { getMoodLabel } from "@/lib/moodUtils";
 import { moodCache } from "@/lib/moodCache";
 import type { MoodGradient } from "@/lib/moods";
+import { generateOrbEffect } from "@/lib/moods/orbEffects";
 import { useTodayInsight } from "./todayInsightStore";
 import { useWeeklyInsight } from "./weeklyInsightStore";
 import { useMonthlyInsight } from "./monthlyInsightStore";
@@ -151,9 +152,46 @@ export const useCaptureStore = create<CaptureState>()(
                                 usePhotoForInsight: entry.use_photo_for_insight ?? false,
                                 source_type: (entry.source_type as 'capture' | 'journal' | 'voice') || 'capture',
                                 audio_url: entry.audio_url || null,
+                                orb_effect: (entry.orb_effect as Capture['orb_effect']) || null,
                             };
                         });
                         set({ captures: mappedCaptures });
+
+                        // Backfill orb_effect for legacy rows in background (non-blocking)
+                        const missingEffects = mappedCaptures.filter((c) => !c.orb_effect && c.user_id);
+                        if (missingEffects.length > 0) {
+                            const generatedById = new Map<string, ReturnType<typeof generateOrbEffect>>();
+                            for (const capture of missingEffects) {
+                                generatedById.set(capture.id, generateOrbEffect(capture.mood_name_snapshot || capture.mood_id));
+                            }
+                            Promise.allSettled(
+                                missingEffects.map(async (capture) => {
+                                    const generated = generatedById.get(capture.id);
+                                    if (!generated) return;
+                                    await supabase
+                                        .from('entries')
+                                        .update({ orb_effect: generated })
+                                        .eq('id', capture.id);
+                                })
+                            ).then((results) => {
+                                const successfulIds = new Set<string>();
+                                results.forEach((result, idx) => {
+                                    if (result.status === 'fulfilled') {
+                                        const capture = missingEffects[idx];
+                                        if (capture) successfulIds.add(capture.id);
+                                    }
+                                });
+                                if (successfulIds.size > 0) {
+                                    set((state) => ({
+                                        captures: state.captures.map((capture) => {
+                                            if (capture.orb_effect || !successfulIds.has(capture.id)) return capture;
+                                            const generated = generatedById.get(capture.id);
+                                            return generated ? { ...capture, orb_effect: generated } : capture;
+                                        }),
+                                    }));
+                                }
+                            });
+                        }
                     }
                 } catch (error) {
                     console.error("Error fetching captures:", error);
@@ -166,6 +204,7 @@ export const useCaptureStore = create<CaptureState>()(
                 const tags = data.tags || [];
                 const includeInInsights = data.includeInInsights ?? true;
                 const usePhotoForInsight = data.usePhotoForInsight ?? false;
+                const orbEffect = generateOrbEffect(data.mood_name_snapshot || data.mood_id);
                 let newCaptureId: string | null = null;
 
                 // Validate required mood fields
@@ -221,6 +260,7 @@ export const useCaptureStore = create<CaptureState>()(
                         use_photo_for_insight: usePhotoForInsight,
                         source_type: data.source_type || 'capture',
                         audio_url: data.audio_url || null,
+                        orb_effect: orbEffect,
                     };
 
                     const { data: inserted, error } = await supabase
@@ -248,6 +288,7 @@ export const useCaptureStore = create<CaptureState>()(
                         usePhotoForInsight: inserted.use_photo_for_insight ?? false,
                         source_type: (inserted.source_type as 'capture' | 'journal' | 'voice') || 'capture',
                         audio_url: inserted.audio_url || null,
+                        orb_effect: (inserted.orb_effect as Capture['orb_effect']) || orbEffect,
                     };
 
                     set((state) => ({ captures: [newCapture, ...state.captures] }));
@@ -275,6 +316,7 @@ export const useCaptureStore = create<CaptureState>()(
                         tags,
                         includeInInsights,
                         usePhotoForInsight,
+                        orb_effect: orbEffect,
                     };
 
                     set((state) => ({ captures: [newCapture, ...state.captures] }));
