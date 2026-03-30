@@ -9,3 +9,5 @@ export {
     contrastTextColor,
     invalidateMoodThemeCache,
 } from './theme';
+
+export { CUSTOM_MOOD_POOL, assignCustomMoodGradient } from './customPool';

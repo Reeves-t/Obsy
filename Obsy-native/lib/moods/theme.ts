@@ -53,17 +53,25 @@ function relativeLuminance(r: number, g: number, b: number): number {
     return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
 }
 
-// ── Derivation helpers ──────────────────────────────────────────────────
-
-/** RGB midpoint blend of a gradient's two stops */
-export function gradientMidpoint(gradient: MoodGradient): string {
-    const [r1, g1, b1] = hexToRgb(gradient.from);
-    const [r2, g2, b2] = hexToRgb(gradient.to);
+/** Blend two hex colors at the midpoint */
+function blendHex(a: string, b: string): string {
+    const [r1, g1, b1] = hexToRgb(a);
+    const [r2, g2, b2] = hexToRgb(b);
     return rgbToHex(
         Math.round((r1 + r2) / 2),
         Math.round((g1 + g2) / 2),
         Math.round((b1 + b2) / 2),
     );
+}
+
+// ── Derivation helpers ──────────────────────────────────────────────────
+
+/**
+ * Single representative color for a mood gradient.
+ * Uses the mid stop directly — it IS the visual center of the 3-stop gradient.
+ */
+export function gradientMidpoint(gradient: MoodGradient): string {
+    return gradient.mid;
 }
 
 /** Whether text on this gradient should be light or dark for readability */
@@ -77,26 +85,28 @@ export function contrastTextColor(gradient: MoodGradient): 'light' | 'dark' {
 // ── Custom mood gradient generation ─────────────────────────────────────
 
 /**
- * Generate a deterministic 2-stop gradient from a mood name.
+ * Generate a deterministic 3-stop gradient from a mood name.
  * Same name always produces the same gradient — no API calls needed.
  */
 export function generateMoodGradient(name: string): MoodGradient {
     const hash = hashString(name.toLowerCase().trim());
     const baseHue = hash % 360;
-    const saturation = 60;
+    const saturation = 55;
 
-    const fromHue = (baseHue - 15 + 360) % 360;
-    const from = hslToHex(fromHue, saturation, 62);
+    const primaryHue = (baseHue - 15 + 360) % 360;
+    const primary = hslToHex(primaryHue, saturation, 62);
 
-    const toHue = (baseHue + 15) % 360;
-    const to = hslToHex(toHue, saturation, 48);
+    const mid = hslToHex(baseHue, saturation, 55);
 
-    return { from, to };
+    const secondaryHue = (baseHue + 20) % 360;
+    const secondary = hslToHex(secondaryHue, saturation, 44);
+
+    return { primary, mid, secondary };
 }
 
 // ── Theme cache ─────────────────────────────────────────────────────────
 
-const DEFAULT_GRADIENT: MoodGradient = { from: '#A8A8A8', to: '#808080' };
+const DEFAULT_GRADIENT: MoodGradient = { primary: '#A8A8A8', mid: '#909090', secondary: '#808080' };
 
 // Cache built themes to avoid recomputation on hot paths (MoodRingDial renders 180 segments)
 const themeCache = new Map<string, MoodTheme>();
@@ -117,8 +127,8 @@ function buildTheme(
  * Get the full design token for any mood (system or custom).
  *
  * Resolution order:
- * 1. Preset mood by ID → handcrafted gradient
- * 2. Cached custom mood from DB → deterministic gradient from name
+ * 1. Preset mood by ID → handcrafted 3-stop gradient
+ * 2. Cached custom mood from DB → stored colors or deterministic from name
  * 3. Custom-looking ID → deterministic gradient from ID
  * 4. Fallback → treat as a name string, generate gradient deterministically
  */
@@ -137,12 +147,19 @@ export function getMoodTheme(moodIdOrLabel: string): MoodTheme {
         return theme;
     }
 
-    // 2. Custom mood from cache — prefer stored AI-assigned colors, fall back to hash
+    // 2. Custom mood from cache — prefer stored colors, fall back to hash
     const dbMood = moodCache.getMoodById(moodIdOrLabel);
     if (dbMood) {
-        const gradient = (dbMood.gradient_from && dbMood.gradient_to)
-            ? { from: dbMood.gradient_from, to: dbMood.gradient_to }
-            : generateMoodGradient(dbMood.name);
+        let gradient: MoodGradient;
+        if (dbMood.gradient_from && dbMood.gradient_to) {
+            gradient = {
+                primary: dbMood.gradient_from,
+                mid: dbMood.gradient_mid ?? blendHex(dbMood.gradient_from, dbMood.gradient_to),
+                secondary: dbMood.gradient_to,
+            };
+        } else {
+            gradient = generateMoodGradient(dbMood.name);
+        }
         theme = buildTheme(dbMood.id, dbMood.name, 'medium', gradient);
         themeCache.set(moodIdOrLabel, theme);
         return theme;

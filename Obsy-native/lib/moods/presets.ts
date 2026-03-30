@@ -2,66 +2,63 @@ import { MoodId, MOODS } from '@/constants/Moods';
 import { MoodGradient, PresetMood } from './types';
 
 /**
- * Handcrafted 2-stop gradients for all 40 system moods.
+ * Handcrafted 3-stop radial gradients for all 40 system moods.
  *
- * Design principles:
- * - Each gradient requires ~40+ hue degrees separation for proper marble contrast
- * - Colors must be visually distinct hues when blended (not just lighter/darker versions)
- * - Low moods spread across the full cool spectrum (teal → blue → purple)
- *   instead of clustering in the same blue-gray lane
- * - No two moods in the same tone band share similar avg hue + lightness
- * - Overall palette stays "Obsy calm": muted saturation, no neon (except manic/hyped)
- * - `from` is the primary/emotionally resonant color, `to` is the undertone/shadow emotion
+ * Design principles (dusty pastel & jewel tone palette):
+ * - primary:   dominant/center color — the emotional "face" of the mood
+ * - mid:       transition tone — bridges primary → secondary
+ * - secondary: shadow/depth color — visible at orb edges
+ *
+ * Moods with design-doc equivalents use those exact values.
+ * Remaining moods are mapped using the same master color palette for
+ * visual coherence across the full set.
  */
 export const MOOD_GRADIENT_MAP: Record<MoodId, MoodGradient> = {
     // ── Low Energy (13) ─────────────────────────────────────────────────
-    // Spread across teal (160°) → blue (220°) → purple (290°)
-    calm:        { from: '#7DD3C8', to: '#5BAED6' },   // teal → sky blue
-    relaxed:     { from: '#6BCBAB', to: '#4DA69D' },   // seafoam → deep teal
-    peaceful:    { from: '#88E0E0', to: '#60C4D4' },   // cyan → aqua
-    tired:       { from: '#9896C8', to: '#706AA0' },   // periwinkle → muted indigo
-    drained:     { from: '#6A9CB8', to: '#4A6B98' },   // steel blue → deep purple-blue
-    bored:       { from: '#A8B0C4', to: '#7A88A6' },   // cool lavender → steel-purple
-    reflective:  { from: '#B4A8E4', to: '#9488D0' },   // soft purple → lilac
-    melancholy:  { from: '#9A7ED0', to: '#7660B8' },   // orchid → deep violet
-    nostalgic:   { from: '#D0A8E0', to: '#B488C8' },   // orchid pink → mauve
-    lonely:      { from: '#6A88B8', to: '#5A6B98' },   // steel blue → deep indigo
-    depressed:   { from: '#605A90', to: '#484860' },   // dusk indigo → dark gray-purple
-    numb:        { from: '#98B0B8', to: '#708890' },   // cool teal-gray → slate-blue
-    safe:        { from: '#A0CCC8', to: '#80B4A8' },   // warm teal → sage
+    calm:        { primary: '#84C1C4', mid: '#A3BFBA', secondary: '#629799' },   // dusty teal → sage teal → jewel teal
+    relaxed:     { primary: '#AED3F2', mid: '#789EBF', secondary: '#4F818C' },   // soft periwinkle → steel blue → deep dusty teal
+    peaceful:    { primary: '#BACDD9', mid: '#84A9BF', secondary: '#54678C' },   // icy blue gray → powder blue → slate blue
+    tired:       { primary: '#8FA9BF', mid: '#54678C', secondary: '#2F1B59' },   // dusty blue → slate blue → deep indigo
+    drained:     { primary: '#C49D84', mid: '#A6654E', secondary: '#592D23' },   // dusty terracotta → burnt umber → dark umber
+    bored:       { primary: '#D9ADAD', mid: '#BBABC4', secondary: '#8FA9BF' },   // dusty blush → muted lavender → dusty blue
+    reflective:  { primary: '#BBABC4', mid: '#A576A6', secondary: '#7C3F8C' },   // muted lavender → muted orchid → dusty amethyst
+    melancholy:  { primary: '#84A9BF', mid: '#7C3F8C', secondary: '#653273' },   // powder blue → dusty amethyst → deep plum
+    nostalgic:   { primary: '#F2D6A2', mid: '#BBABC4', secondary: '#653273' },   // warm cream gold → muted lavender → deep plum
+    lonely:      { primary: '#84A9BF', mid: '#BBABC4', secondary: '#73323E' },   // powder blue → muted lavender → deep raspberry
+    depressed:   { primary: '#54678C', mid: '#244673', secondary: '#2F1B59' },   // slate blue → deep navy jewel → deep indigo
+    numb:        { primary: '#8FA9BF', mid: '#BACDD9', secondary: '#54678C' },   // dusty blue → icy gray blue → slate blue
+    safe:        { primary: '#C5EDD8', mid: '#A3BFBA', secondary: '#629799' },   // ice green → dusty sage teal → jewel teal
 
     // ── Medium Energy (10) ──────────────────────────────────────────────
-    // Neutral + warm/cool mix for transitions and anchors
-    neutral:     { from: '#B4B0AC', to: '#949498' },   // warm gray → cool gray
-    focused:     { from: '#88A4C0', to: '#6888A8' },   // cool steel → warm denim
-    grateful:    { from: '#B0C496', to: '#8EA878' },   // sage → olive green
-    hopeful:     { from: '#8CD4F0', to: '#64BCE0' },   // sky → clear cyan
-    curious:     { from: '#C8A0E0', to: '#A880D0' },   // bright orchid → purple
-    scattered:   { from: '#D0CCC0', to: '#B8B0A0' },   // ecru → sand
-    annoyed:     { from: '#C8B498', to: '#B09878' },   // tan → warm brown
-    unbothered:  { from: '#BCC8D4', to: '#A0B0C0' },   // ice → pale blue
-    awkward:     { from: '#BCA8B8', to: '#A090A0' },   // mauve → gray rose
-    tender:      { from: '#F0C0D8', to: '#D8A0C0' },   // dusty rose → pink
+    neutral:     { primary: '#EDDFC5', mid: '#D9ADAD', secondary: '#BBABC4' },   // soft vanilla → dusty blush → muted lavender
+    focused:     { primary: '#789EBF', mid: '#54678C', secondary: '#244673' },   // steel blue → slate blue → deep navy jewel
+    grateful:    { primary: '#F2D6A2', mid: '#C49D84', secondary: '#A68863' },   // warm cream gold → dusty terracotta → dusty metallic gold
+    hopeful:     { primary: '#B9C48D', mid: '#A3BFBA', secondary: '#025949' },   // sage green → dusty sage teal → deep emerald
+    curious:     { primary: '#C5ECED', mid: '#84A9BF', secondary: '#4F818C' },   // ice teal → powder blue → deep dusty teal
+    scattered:   { primary: '#F2D0D0', mid: '#D9ADAD', secondary: '#BBABC4' },   // soft blush → dusty blush → muted lavender
+    annoyed:     { primary: '#D94F30', mid: '#A62139', secondary: '#73323E' },   // burnt coral → deep rose crimson → deep raspberry
+    unbothered:  { primary: '#F2D6B3', mid: '#EDD4C5', secondary: '#C49D84' },   // warm cream → soft peach cream → dusty terracotta
+    awkward:     { primary: '#EDD4C5', mid: '#BF8888', secondary: '#A65D63' },   // soft peach cream → faded rose → muted rose
+    tender:      { primary: '#D9A0C5', mid: '#BF8888', secondary: '#A65D63' },   // dusty pink → faded rose → muted rose
 
     // ── High Energy (17) ────────────────────────────────────────────────
-    // Warm, vibrant, full spectrum — high visual energy
-    productive:  { from: '#20B8F0', to: '#1090C8' },   // electric blue → teal-blue
-    creative:    { from: '#FCC832', to: '#E8A820' },   // amber → gold
-    inspired:    { from: '#F8AE18', to: '#E89008' },   // golden → deep orange
-    confident:   { from: '#FCA048', to: '#E88028' },   // sunset → tangerine
-    joyful:      { from: '#F888C0', to: '#E060A0' },   // pink → hot pink
-    social:      { from: '#FC8090', to: '#E46078' },   // watermelon → rose
-    busy:        { from: '#FF7878', to: '#E05858' },   // coral → warm red
-    restless:    { from: '#FF8868', to: '#E06848' },   // orange-red → burnt
-    stressed:    { from: '#F03838', to: '#C82848' },   // scarlet → burgundy
-    overwhelmed: { from: '#B82850', to: '#901848' },   // crimson → deep burgundy-purple
-    anxious:     { from: '#E050B0', to: '#C83898' },   // magenta → deep pink
-    angry:       { from: '#C82020', to: '#982828' },   // bright red → dark red-brown
-    pressured:   { from: '#F46858', to: '#D84838' },   // tomato → brick
-    enthusiastic:{ from: '#FCC068', to: '#E8A048' },   // peach → warm amber
-    hyped:       { from: '#FFD820', to: '#F0A820' },   // bright gold → orange-gold
-    manic:       { from: '#FF20FF', to: '#D800E0' },   // electric magenta → neon purple
-    playful:     { from: '#FC8828', to: '#E07010' },   // bright orange → deep amber
+    productive:  { primary: '#789EBF', mid: '#4F818C', secondary: '#025949' },   // steel blue → deep dusty teal → deep emerald
+    creative:    { primary: '#E0B64A', mid: '#A576A6', secondary: '#653273' },   // bright gold → muted orchid → deep plum
+    inspired:    { primary: '#D9A0C5', mid: '#A576A6', secondary: '#653273' },   // dusty pink → muted orchid → deep plum
+    confident:   { primary: '#E0A44A', mid: '#D98452', secondary: '#A6654E' },   // warm amber → warm sienna → burnt umber
+    joyful:      { primary: '#F2D6A2', mid: '#F2AD94', secondary: '#F2913D' },   // warm cream gold → dusty peach → tangerine
+    social:      { primary: '#F2A679', mid: '#F2913D', secondary: '#D95F76' },   // warm peach → tangerine → coral pink
+    busy:        { primary: '#F2AB27', mid: '#E0A44A', secondary: '#D98452' },   // rich amber → warm amber → warm sienna
+    restless:    { primary: '#7C3F8C', mid: '#653273', secondary: '#4B32A6' },   // dusty amethyst → deep plum → deep violet
+    stressed:    { primary: '#E0714A', mid: '#D94F30', secondary: '#A62139' },   // orange red → burnt coral → deep rose crimson
+    overwhelmed: { primary: '#D95F76', mid: '#7C3F8C', secondary: '#4B32A6' },   // coral pink → dusty amethyst → deep violet
+    anxious:     { primary: '#E0714A', mid: '#C49D84', secondary: '#A6654E' },   // orange red → dusty terracotta → burnt umber
+    angry:       { primary: '#D94F30', mid: '#A62139', secondary: '#592D23' },   // burnt coral → deep rose crimson → dark umber
+    pressured:   { primary: '#F29D52', mid: '#E0714A', secondary: '#D94F30' },   // bright amber → orange red → burnt coral
+    enthusiastic:{ primary: '#F2913D', mid: '#F26B5E', secondary: '#D95F76' },   // tangerine → salmon coral → coral pink
+    hyped:       { primary: '#F2AB27', mid: '#F2913D', secondary: '#F26B5E' },   // rich amber → tangerine → salmon coral
+    manic:       { primary: '#F26B5E', mid: '#D95F76', secondary: '#7C3F8C' },   // salmon coral → coral pink → dusty amethyst
+    playful:     { primary: '#D95F76', mid: '#F2913D', secondary: '#E0C94A' },   // coral pink → tangerine → warm yellow
 };
 
 /**

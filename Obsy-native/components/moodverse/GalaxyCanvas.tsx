@@ -615,25 +615,31 @@ export function GalaxyCanvas({
                             }
                         } else {
                             // Core sphere: update color uniforms
+                            const origMid = group.userData.origMid;
                             if (isSelected || isAiHighlighted) {
                                 mat.uniforms.colorFrom.value.copy(origCenter);
+                                if (origMid) mat.uniforms.colorMid.value.copy(origMid);
                                 mat.uniforms.colorTo.value.copy(origEdge);
                                 mat.uniforms.opacity.value = 1.0;
                             } else if (isHighlighted) {
                                 mat.uniforms.colorFrom.value.copy(origCenter);
                                 if (hlPhase > 0.5) mat.uniforms.colorFrom.value.multiplyScalar(1.3);
+                                if (origMid) mat.uniforms.colorMid.value.copy(origMid);
                                 mat.uniforms.colorTo.value.copy(origEdge);
                                 mat.uniforms.opacity.value = 1.0;
                             } else if (hasAiHighlight) {
                                 mat.uniforms.colorFrom.value.copy(DIM_COLOR).lerp(origCenter, 0.2);
+                                if (origMid) mat.uniforms.colorMid.value.copy(DIM_COLOR).lerp(origMid, 0.2);
                                 mat.uniforms.colorTo.value.copy(DIM_COLOR).lerp(origEdge, 0.2);
                                 mat.uniforms.opacity.value = 0.2;
                             } else if (hasSelection) {
                                 mat.uniforms.colorFrom.value.copy(DIM_COLOR).lerp(origCenter, 0.25);
+                                if (origMid) mat.uniforms.colorMid.value.copy(DIM_COLOR).lerp(origMid, 0.25);
                                 mat.uniforms.colorTo.value.copy(DIM_COLOR).lerp(origEdge, 0.25);
                                 mat.uniforms.opacity.value = 0.6;
                             } else {
                                 mat.uniforms.colorFrom.value.copy(origCenter);
+                                if (origMid) mat.uniforms.colorMid.value.copy(origMid);
                                 mat.uniforms.colorTo.value.copy(origEdge);
                                 mat.uniforms.opacity.value = 1.0;
                             }

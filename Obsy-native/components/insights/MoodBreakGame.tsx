@@ -20,6 +20,7 @@ interface CaptureRow {
     mood: string;
     color: string;
     gradientFrom: string;
+    gradientMid: string;
     gradientTo: string;
     totalForMood: number;
 }
@@ -32,6 +33,7 @@ interface Brick {
     height: number;
     color: string;
     gradientFrom: string;
+    gradientMid: string;
     gradientTo: string;
     mood: string;
     count: number;
@@ -159,8 +161,9 @@ function buildCaptureRows(captures: Capture[]): CaptureRow[] {
             moodId: c.mood_id!,
             mood: label,
             color: theme.solid,
-            gradientFrom: theme.gradient.from,
-            gradientTo: theme.gradient.to,
+            gradientFrom: theme.gradient.primary,
+            gradientMid: theme.gradient.mid,
+            gradientTo: theme.gradient.secondary,
             totalForMood: moodCounts[c.mood_id!] || 1,
         };
     });
@@ -194,6 +197,7 @@ function buildBricks(rows: CaptureRow[], containerWidth: number, containerHeight
                 height: brickH,
                 color: row.color,
                 gradientFrom: row.gradientFrom,
+                gradientMid: row.gradientMid,
                 gradientTo: row.gradientTo,
                 mood: row.mood,
                 count: row.totalForMood,
@@ -525,7 +529,7 @@ function GameEngine({ width, height, rows, tone, isLight, gamePhase, onStart, on
                         ]}
                     >
                         <LinearGradient
-                            colors={[brick.gradientFrom, brick.gradientTo]}
+                            colors={[brick.gradientFrom, brick.gradientMid, brick.gradientTo]}
                             start={{ x: 0, y: 0.5 }}
                             end={{ x: 1, y: 0.5 }}
                             style={StyleSheet.absoluteFillObject}

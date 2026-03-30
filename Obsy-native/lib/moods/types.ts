@@ -1,9 +1,10 @@
 import { MoodId } from '@/constants/Moods';
 
-/** Two-stop gradient definition for a mood */
+/** Three-stop radial gradient definition for a mood (center → mid → edge) */
 export interface MoodGradient {
-    from: string;  // hex start color
-    to: string;    // hex end color
+    primary: string;    // dominant/center color (most visible)
+    mid: string;        // transition tone blending primary → secondary
+    secondary: string;  // shadow/depth color at orb edges
 }
 
 /** Full design token for a mood — gradients, derived solid, and accessibility */

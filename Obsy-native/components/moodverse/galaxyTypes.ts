@@ -13,6 +13,7 @@ export interface GalaxyOrb {
     moodId: string;
     moodLabel: string;
     colorFrom: string;
+    colorMid: string;
     colorTo: string;
     colorSolid: string;
     notePreview: string | null;

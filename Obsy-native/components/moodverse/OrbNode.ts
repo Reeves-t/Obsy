@@ -74,6 +74,7 @@ void main() {
 
 const FRAGMENT_SHADER = `
 uniform vec3 colorFrom;
+uniform vec3 colorMid;
 uniform vec3 colorTo;
 uniform float specularIntensity;
 uniform float opacity;
@@ -89,16 +90,20 @@ void main() {
     vec3 viewDir = normalize(-vViewPosition);
     float facing = clamp(dot(vNormal, viewDir), 0.0, 1.0);
 
-    // ── Dual-tone marble interior ────────────────────────────────────
-    // Simple radial gradient: 50/50 blend from center to edge.
-    // Primary color (colorFrom) at center, secondary (colorTo) at edges,
-    // smooth transition in between.
+    // ── 3-tone marble interior ───────────────────────────────────────
+    // Radial 3-stop gradient: primary (center) → mid → secondary (edge)
+    // Matches the SVG/design system: 0% = primary, 50% = mid, 100% = secondary
 
     // Radial factor: core-to-edge falloff (0 = center, 1 = edge)
     float radial = 1.0 - pow(facing, 0.6);
 
-    // Pure 50/50 radial blend: primary center → secondary edge
-    vec3 color = mix(colorFrom, colorTo, radial);
+    // 3-stop blend: primary → mid in first half, mid → secondary in second half
+    vec3 color;
+    if (radial < 0.5) {
+        color = mix(colorFrom, colorMid, radial * 2.0);
+    } else {
+        color = mix(colorMid, colorTo, (radial - 0.5) * 2.0);
+    }
 
     // Specular highlight — offset slightly from center to simulate a light source
     // Light direction: upper-left
@@ -184,13 +189,16 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
 
     const radius = RADIUS_MIN + orb.richness * (RADIUS_MAX - RADIUS_MIN);
 
-    // Derive primary + secondary colors from mood's two-tone gradient pair
+    // Derive 3-tone colors from mood's gradient triple
     const fromColor = new THREE.Color(orb.colorFrom);
-    const toColor = new THREE.Color(orb.colorTo);
+    const midColor  = new THREE.Color(orb.colorMid);
+    const toColor   = new THREE.Color(orb.colorTo);
 
-    // Primary color (75% dominant): brighten and saturate for glowing center
+    // Primary color (center): brighten and saturate for glowing center
     const coreColor = brighten(saturate(fromColor, 1.2), config.coreLightness);
-    // Secondary color (25% accent): saturate to preserve hue contrast, darken less
+    // Mid color: subtle boost to keep the transition visible
+    const midProcessed = saturate(midColor, 1.1);
+    // Secondary color (edge): saturate to preserve hue contrast, darken less
     const edgeColor = saturate(darken(toColor, config.edgeDarkness * 0.6), 1.15);
 
     // ── Core sphere ─────────────────────────────────────────────────────
@@ -199,7 +207,8 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
         fragmentShader: FRAGMENT_SHADER,
         uniforms: {
             colorFrom: { value: coreColor },
-            colorTo: { value: edgeColor },
+            colorMid:  { value: midProcessed },
+            colorTo:   { value: edgeColor },
             specularIntensity: { value: config.specularIntensity },
             opacity: { value: 1.0 },
             fogColor: { value: new THREE.Color(0x050608) },
@@ -224,6 +233,7 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
         moodLabel: orb.moodLabel,
         colorHex: orb.colorSolid,
         colorFromHex: orb.colorFrom,
+        colorMidHex: orb.colorMid,
         colorToHex: orb.colorTo,
         timestamp: orb.timestamp,
         tags: orb.tags,
@@ -233,6 +243,7 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
         orbType,
         // Original shader colors (for restore after dim/highlight)
         origCenter: coreColor.clone(),
+        origMid: midProcessed.clone(),
         origEdge: edgeColor.clone(),
     };
 

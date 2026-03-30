@@ -20,14 +20,18 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-function resolveSegmentGradient(segment: MoodSegment): { from: string; to: string } {
+function resolveSegmentGradient(segment: MoodSegment): { from: string; mid: string; to: string } {
     // Prefer pre-computed gradient fields; fall back to moodId, then descriptive name
     if (segment.gradientFrom && segment.gradientTo) {
-        return { from: segment.gradientFrom, to: segment.gradientTo };
+        return {
+            from: segment.gradientFrom,
+            mid: segment.gradientMid ?? segment.gradientFrom,
+            to: segment.gradientTo,
+        };
     }
     const key = segment.moodId || segment.mood;
     const theme = getMoodTheme(key);
-    return { from: theme.gradient.from, to: theme.gradient.to };
+    return { from: theme.gradient.primary, mid: theme.gradient.mid, to: theme.gradient.secondary };
 }
 
 function buildGradientColors(flow: MoodSegment[]): [string, string, ...string[]] {
@@ -35,14 +39,15 @@ function buildGradientColors(flow: MoodSegment[]): [string, string, ...string[]]
 
     if (flow.length === 1) {
         const grad = resolveSegmentGradient(flow[0]);
-        return [grad.from, grad.to];
+        return [grad.from, grad.mid, grad.to];
     }
 
-    // Multiple moods — interleave each mood's gradient.from with blended transitions
+    // Multiple moods — interleave each mood's 3-stop gradient with blended transitions
     const colors: string[] = [];
     flow.forEach((segment, idx) => {
         const grad = resolveSegmentGradient(segment);
         colors.push(grad.from);
+        colors.push(grad.mid);
         if (idx < flow.length - 1) {
             colors.push(grad.to);
         }

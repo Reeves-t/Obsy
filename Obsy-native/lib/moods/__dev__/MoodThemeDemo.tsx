@@ -76,7 +76,7 @@ function ToneSection({ title, moods }: { title: string; moods: typeof MOODS_PRES
                         <View key={mood.id} style={styles.chipRow}>
                             {/* Gradient orb */}
                             <LinearGradient
-                                colors={[theme.gradient.from, theme.gradient.to]}
+                                colors={[theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                                 style={styles.orb}
@@ -85,7 +85,7 @@ function ToneSection({ title, moods }: { title: string; moods: typeof MOODS_PRES
                             <View style={[styles.solidSwatch, { backgroundColor: theme.solid }]} />
                             {/* Gradient chip */}
                             <LinearGradient
-                                colors={[theme.gradient.from, theme.gradient.to]}
+                                colors={[theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary]}
                                 start={{ x: 0, y: 0.5 }}
                                 end={{ x: 1, y: 0.5 }}
                                 style={styles.chip}

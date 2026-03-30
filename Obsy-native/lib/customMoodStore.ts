@@ -84,7 +84,7 @@ export const useCustomMoodStore = create<CustomMoodState>()((set, get) => ({
         const fallbackGradient = generateMoodGradient(trimmedName);
 
         // Request AI-assigned colors (non-blocking — we don't hold up creation)
-        let aiGradient: { gradient_from: string; gradient_to: string } | null = null;
+        let aiGradient: { gradient_from: string; gradient_mid: string; gradient_to: string } | null = null;
         try {
             const colorResult = await Promise.race([
                 supabase.functions.invoke('generate-mood-color', {
@@ -98,9 +98,10 @@ export const useCustomMoodStore = create<CustomMoodState>()((set, get) => ({
             if (colorResult?.data?.gradient_from && colorResult?.data?.gradient_to) {
                 aiGradient = {
                     gradient_from: colorResult.data.gradient_from,
+                    gradient_mid: colorResult.data.gradient_mid ?? null,
                     gradient_to: colorResult.data.gradient_to,
                 };
-                console.log(`[MoodStore] AI colors for "${trimmedName}": ${aiGradient.gradient_from} → ${aiGradient.gradient_to}`);
+                console.log(`[MoodStore] AI colors for "${trimmedName}": ${aiGradient.gradient_from} → ${aiGradient.gradient_mid} → ${aiGradient.gradient_to}`);
             } else if (colorResult?.error) {
                 console.warn('[MoodStore] AI color generation failed, using fallback:', colorResult.error);
             }
@@ -114,8 +115,9 @@ export const useCustomMoodStore = create<CustomMoodState>()((set, get) => ({
             type: 'custom',
             user_id: userId,
             created_at: new Date().toISOString(),
-            gradient_from: aiGradient?.gradient_from ?? fallbackGradient.from,
-            gradient_to: aiGradient?.gradient_to ?? fallbackGradient.to,
+            gradient_from: aiGradient?.gradient_from ?? fallbackGradient.primary,
+            gradient_mid: aiGradient?.gradient_mid ?? fallbackGradient.mid,
+            gradient_to: aiGradient?.gradient_to ?? fallbackGradient.secondary,
         };
 
         console.log('[MoodStore] Creating custom mood:', trimmedName, 'for user:', userId);
