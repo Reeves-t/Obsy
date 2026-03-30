@@ -21,11 +21,20 @@ const SPLASH_COLORS = {
 } as const;
 
 const MOOD_TEMPERATURE: Record<string, MoodTemperature> = {
+    // Cool — blues, teals, soft grays
     calm: 'cool', peaceful: 'cool', relaxed: 'cool', numb: 'cool', focused: 'cool', safe: 'cool',
+    tired: 'cool', depressed: 'cool', curious: 'cool', productive: 'cool',
+    // Purple — blue-purple, orchid, amethyst spectrum
     tender: 'purple', reflective: 'purple', restless: 'purple', inspired: 'purple', overwhelmed: 'purple',
+    melancholy: 'purple', creative: 'purple', manic: 'purple',
+    // Warm — ambers, corals, pinks, earthy reds
     grateful: 'warm', proud: 'warm', confident: 'warm', motivated: 'warm', enthusiastic: 'warm', hopeful: 'warm',
     happy: 'warm', playful: 'warm', annoyed: 'warm', anxious: 'warm', drained: 'warm', unbothered: 'warm',
-    bored: 'neutral', neutral: 'neutral', soft: 'neutral', content: 'neutral', doubtful: 'neutral', sad: 'neutral', lonely: 'neutral',
+    joyful: 'warm', social: 'warm', busy: 'warm', stressed: 'warm', angry: 'warm', pressured: 'warm',
+    hyped: 'warm', awkward: 'warm',
+    // Neutral — neither temperature dominant
+    bored: 'neutral', neutral: 'neutral', soft: 'neutral', content: 'neutral', doubtful: 'neutral',
+    sad: 'neutral', lonely: 'neutral', nostalgic: 'neutral', scattered: 'neutral',
 };
 
 function normalizeMoodKey(input: string): string {

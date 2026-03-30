@@ -11,3 +11,6 @@ export {
 } from './theme';
 
 export { CUSTOM_MOOD_POOL, assignCustomMoodGradient } from './customPool';
+
+export type { OrbEffect, OrbEffectType } from './orbEffects';
+export { generateOrbEffect, getMoodTemperature, getSplashColor } from './orbEffects';
