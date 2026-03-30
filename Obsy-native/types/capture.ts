@@ -1,3 +1,5 @@
+import type { OrbEffect } from '@/lib/moods/orbEffects';
+
 /**
  * Represents a captured moment/entry in the app.
  * Each capture has an associated mood with historical preservation via mood_name_snapshot.
@@ -63,6 +65,9 @@ export type Capture = {
 
     /** Supabase Storage URL of the voice recording (voice entries only) */
     audio_url?: string | null;
+
+    /** Persisted randomized orb surface effect parameters */
+    orb_effect?: OrbEffect | null;
 };
 
 /**

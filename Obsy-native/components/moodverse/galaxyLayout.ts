@@ -274,6 +274,7 @@ export function computeGalaxyLayout(
             bridgeScore: 0,
             noveltyScore: novelty,
             richness,
+            orbEffect: capture.orb_effect ?? null,
         };
 
         allOrbs.push(orb);

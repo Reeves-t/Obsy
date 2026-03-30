@@ -78,6 +78,16 @@ uniform vec3 colorMid;
 uniform vec3 colorTo;
 uniform float specularIntensity;
 uniform float opacity;
+uniform float effectType; // 0 grain, 1 splash, 2 streak
+uniform float grainOpacity;
+uniform vec3 splashColor;
+uniform vec2 splashCenter;
+uniform float splashRadius;
+uniform float splashOpacity;
+uniform float streakAngle;
+uniform float streakCount;
+uniform float streakOpacity;
+uniform vec3 streakColor;
 uniform vec3 fogColor;
 uniform float fogNear;
 uniform float fogFar;
@@ -86,9 +96,14 @@ varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vWorldPosition;
 
+float random(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
 void main() {
     vec3 viewDir = normalize(-vViewPosition);
     float facing = clamp(dot(vNormal, viewDir), 0.0, 1.0);
+    vec2 orbUv = normalize(vNormal).xy * 0.5 + 0.5;
 
     // ── 3-tone marble interior ───────────────────────────────────────
     // Radial 3-stop gradient: primary (center) → mid → secondary (edge)
@@ -118,6 +133,36 @@ void main() {
     float rimAngle = max(0.0, dot(vNormal, rimLightDir));
     float rimSpec = pow(rimAngle, 16.0) * specularIntensity * 0.3;
     color += vec3(rimSpec);
+
+    // ── Surface effects (assigned once per orb and persisted) ───────────
+    if (effectType < 0.5) {
+        // Grain
+        float grain = random(orbUv * 240.0);
+        color += (grain - 0.5) * (grainOpacity * 0.7);
+    } else if (effectType < 1.5) {
+        // Color splash
+        float d = distance(orbUv, splashCenter);
+        float mask = 1.0 - smoothstep(0.0, splashRadius, d);
+        float softened = smoothstep(0.0, 1.0, mask);
+        color = mix(color, splashColor, softened * splashOpacity);
+    } else {
+        // Streak / aurora
+        float angle = radians(streakAngle);
+        vec2 dir = vec2(cos(angle), sin(angle));
+        float coord = dot(orbUv - 0.5, dir);
+        float pattern = 0.0;
+
+        for (int i = 0; i < 4; i++) {
+            if (float(i) >= streakCount) break;
+            float f = float(i);
+            float offset = (f - (streakCount - 1.0) * 0.5) * 0.12 + 0.02 * sin(f * 3.7);
+            float streak = smoothstep(0.05, 0.0, abs(coord - offset));
+            pattern += streak;
+        }
+
+        pattern = clamp(pattern, 0.0, 1.0);
+        color = mix(color, streakColor, pattern * streakOpacity);
+    }
 
     // Linear fog (matches scene fog)
     float fogDepth = length(vViewPosition);
@@ -200,6 +245,9 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
     const midProcessed = saturate(midColor, 1.1);
     // Secondary color (edge): saturate to preserve hue contrast, darken less
     const edgeColor = saturate(darken(toColor, config.edgeDarkness * 0.6), 1.15);
+    const effect: NonNullable<GalaxyOrb['orbEffect']> = orb.orbEffect ?? { type: 'grain', grainOpacity: 0.1 };
+    const streakColor = brighten(fromColor, 0.25);
+    const effectType = effect.type === 'splash' ? 1 : effect.type === 'streak' ? 2 : 0;
 
     // ── Core sphere ─────────────────────────────────────────────────────
     const coreMaterial = new THREE.ShaderMaterial({
@@ -211,6 +259,21 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
             colorTo:   { value: edgeColor },
             specularIntensity: { value: config.specularIntensity },
             opacity: { value: 1.0 },
+            effectType: { value: effectType },
+            grainOpacity: { value: effect.grainOpacity ?? 0.1 },
+            splashColor: { value: new THREE.Color(effect.splashColor ?? '#84C1C4') },
+            splashCenter: {
+                value: new THREE.Vector2(
+                    0.5 + (effect.splashOffsetX ?? 0.14),
+                    0.5 + (effect.splashOffsetY ?? -0.12),
+                ),
+            },
+            splashRadius: { value: effect.splashRadius ?? 0.14 },
+            splashOpacity: { value: effect.splashOpacity ?? 0.22 },
+            streakAngle: { value: effect.streakAngle ?? 38.0 },
+            streakCount: { value: effect.streakCount ?? 3 },
+            streakOpacity: { value: effect.streakOpacity ?? 0.16 },
+            streakColor: { value: streakColor },
             fogColor: { value: new THREE.Color(0x050608) },
             fogNear: { value: 40.0 },
             fogFar: { value: 120.0 },
@@ -245,6 +308,7 @@ export function createOrbMesh(orb: GalaxyOrb): THREE.Group {
         origCenter: coreColor.clone(),
         origMid: midProcessed.clone(),
         origEdge: edgeColor.clone(),
+        orbEffect: effect,
     };
 
     return group;
