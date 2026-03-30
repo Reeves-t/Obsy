@@ -12,9 +12,11 @@ export interface MoodSegment {
     context?: string;
     /** Original mood ID for proper gradient/theme resolution */
     moodId?: string;
-    /** Gradient "from" (light) color for this mood */
+    /** Gradient primary (center) color for this mood */
     gradientFrom?: string;
-    /** Gradient "to" (dark) color for this mood */
+    /** Gradient mid (transition) color for this mood */
+    gradientMid?: string;
+    /** Gradient secondary (edge) color for this mood */
     gradientTo?: string;
 }
 
@@ -149,8 +151,9 @@ export function computeDailyMoodFlow(captures: Capture[]): DailyMoodFlowData {
                 color: theme.solid,
                 context,
                 moodId,
-                gradientFrom: theme.gradient.from,
-                gradientTo: theme.gradient.to,
+                gradientFrom: theme.gradient.primary,
+                gradientMid: theme.gradient.mid,
+                gradientTo: theme.gradient.secondary,
             };
         })
         .sort((a, b) => b.percentage - a.percentage);

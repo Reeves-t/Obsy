@@ -5,8 +5,10 @@ export interface Mood {
     user_id?: string;                    // Only for custom moods
     created_at: string;                  // ISO timestamp
     deleted_at?: string;                 // Soft delete timestamp
-    gradient_from?: string;              // AI-assigned lighter gradient stop (hex)
-    gradient_to?: string;                // AI-assigned deeper gradient stop (hex)
+    color_pool_id?: string;              // Which custom pool scheme was assigned (custom_pool_1…10)
+    gradient_from?: string;              // Primary gradient stop (hex, center color)
+    gradient_mid?: string;               // Mid gradient stop (hex, transition color)
+    gradient_to?: string;                // Secondary gradient stop (hex, edge color)
 }
 
 export interface MoodSnapshot {

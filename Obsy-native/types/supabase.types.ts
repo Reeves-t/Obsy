@@ -300,6 +300,7 @@ export interface Database {
                     captured_at: string;
                     day_date: string;
                     created_at: string;
+                    orb_effect: Json | null;
                 };
                 Insert: {
                     id?: string;
@@ -314,6 +315,7 @@ export interface Database {
                     captured_at?: string;
                     day_date?: string;
                     created_at?: string;
+                    orb_effect?: Json | null;
                 };
                 Update: {
                     id?: string;
@@ -328,6 +330,7 @@ export interface Database {
                     captured_at?: string;
                     day_date?: string;
                     created_at?: string;
+                    orb_effect?: Json | null;
                 };
                 Relationships: [
                     {

@@ -254,8 +254,9 @@ export function computeGalaxyLayout(
             dateKey: format(date, 'yyyy-MM-dd'),
             moodId: capture.mood_id,
             moodLabel: label,
-            colorFrom: theme.gradient.from,
-            colorTo: theme.gradient.to,
+            colorFrom: theme.gradient.primary,
+            colorMid: theme.gradient.mid,
+            colorTo: theme.gradient.secondary,
             colorSolid: theme.solid,
             notePreview: capture.note ? capture.note.slice(0, 80) : null,
             noteFull: capture.note || null,
@@ -273,6 +274,7 @@ export function computeGalaxyLayout(
             bridgeScore: 0,
             noveltyScore: novelty,
             richness,
+            orbEffect: capture.orb_effect ?? null,
         };
 
         allOrbs.push(orb);

@@ -1,6 +1,7 @@
 /**
  * Shared types for the Moodverse galaxy system.
  */
+import type { OrbEffect } from '@/lib/moods/orbEffects';
 
 export type TimeOfDayBucket = 'morning' | 'afternoon' | 'evening' | 'night';
 export type SelectionMode = 'single' | 'multi' | 'cluster';
@@ -13,6 +14,7 @@ export interface GalaxyOrb {
     moodId: string;
     moodLabel: string;
     colorFrom: string;
+    colorMid: string;
     colorTo: string;
     colorSolid: string;
     notePreview: string | null;
@@ -35,6 +37,7 @@ export interface GalaxyOrb {
     bridgeScore: number;             // 0 = not a bridge, higher = more bridging
     noveltyScore: number;            // 0 = common, higher = unusual
     richness: number;                // 0-1, drives orb size (note+tags+photo = richer)
+    orbEffect?: OrbEffect | null;    // Persisted randomized surface effect params
 }
 
 export interface GalaxyCluster {
