@@ -1,29 +1,32 @@
-﻿import React, { useMemo, memo } from "react";
-import { StyleSheet, View } from "react-native";
+﻿import React, { useMemo, memo, useState } from "react";
+import { StyleSheet, View, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
 import Colors from "@/constants/Colors";
 import { Capture } from "@/lib/captureStore";
-import { getWeeklyMoodSignal } from "@/lib/moodSignals";
+import { getMoodSignal, MoodSignalRange } from "@/lib/moodSignals";
 import { useObsyTheme } from "@/contexts/ThemeContext";
-import { useMoodResolver } from "@/hooks/useMoodResolver";
 
 interface MoodSignalProps {
     captures: Capture[];
     flat?: boolean;
 }
 
+const FILTERS: { key: MoodSignalRange; label: string }[] = [
+    { key: 'this_week', label: 'This Week' },
+    { key: 'last_week', label: 'Last Week' },
+    { key: 'month', label: 'This Month' },
+    { key: 'all_time', label: 'All Time' },
+];
+
 export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: MoodSignalProps) {
     const { colors, isLight } = useObsyTheme();
-    const { isLoading: isMoodCacheLoading } = useMoodResolver();
-    const signalData = useMemo(() => getWeeklyMoodSignal(captures), [captures]);
+    const [selectedRange, setSelectedRange] = useState<MoodSignalRange>('this_week');
+    const signalData = useMemo(() => getMoodSignal(captures, selectedRange), [captures, selectedRange]);
 
     const topMoods = useMemo(() => signalData.moodWeights.slice(0, 5), [signalData.moodWeights]);
     const extraMoodsCount = signalData.totalMoodsCount - topMoods.length;
-
-    // Show loading state while mood cache is being populated
-    const isLoading = isMoodCacheLoading;
 
     const content = (
         <View style={[styles.cardPadding, flat && styles.flatPadding]}>
@@ -34,61 +37,63 @@ export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: M
                         Mood Signal
                     </ThemedText>
                 </View>
+                <ThemedText style={[styles.subtitle, { color: colors.cardTextSecondary }]}>Top moods of the day</ThemedText>
+            </View>
+
+            <View style={[styles.filtersContainer, { backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' }]}>
+                {FILTERS.map((filter) => {
+                    const selected = filter.key === selectedRange;
+                    return (
+                        <TouchableOpacity
+                            key={filter.key}
+                            onPress={() => setSelectedRange(filter.key)}
+                            style={[
+                                styles.filterChip,
+                                selected && {
+                                    backgroundColor: isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)',
+                                }
+                            ]}
+                            activeOpacity={0.85}
+                        >
+                            <ThemedText style={[styles.filterText, { color: selected ? colors.text : colors.cardTextSecondary }]}>
+                                {filter.label}
+                            </ThemedText>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
 
             {/* Visual Signal Area */}
-            <View style={[styles.visualContainer, (!signalData.hasEnoughData || isLoading) && { opacity: 0.3 }]}>
+            <View style={[styles.visualContainer, !signalData.hasEnoughData && { opacity: 0.3 }]}>
                 <View style={styles.patternArea}>
-                    {signalData.weeklyData.map((day, idx) => (
+                    {signalData.bars.map((day, idx) => {
+                        const fillHeight = day.totalCaptures === 0 ? 0 : Math.max(20, Math.round(day.dominance * 100));
+                        return (
                         <View key={`${day.dayName}-${idx}`} style={styles.dayColumn}>
-                            <View style={styles.dotTrack}>
-                                {day.dots.map((dot, dIdx) => {
-                                    // Subtle size variation based on energy tier
-                                    const lowEnergy = ['numb', 'tired', 'drained', 'bored', 'depressed', 'lonely', 'melancholy', 'calm', 'relaxed', 'peaceful', 'safe'];
-                                    const highEnergy = ['productive', 'creative', 'inspired', 'confident', 'joyful', 'social', 'busy', 'restless', 'stressed', 'overwhelmed', 'anxious', 'angry', 'pressured', 'enthusiastic', 'hyped', 'manic', 'playful'];
-
-                                    let dotSize = 8; // Default
-                                    if (lowEnergy.includes(dot.mood)) dotSize = 6;
-                                    else if (highEnergy.includes(dot.mood)) dotSize = 10;
-
-                                    return (
-                                        <View
-                                            key={dIdx}
-                                            style={[
-                                                styles.dot,
-                                                {
-                                                    bottom: `${dot.timePercent * 100}%`,
-                                                    backgroundColor: dot.color,
-                                                    opacity: dot.intensity,
-                                                    width: dotSize,
-                                                    height: dotSize,
-                                                    borderRadius: dotSize / 2,
-                                                    marginLeft: -(dotSize / 2) + 4, // Center on track
-                                                    transform: [{ scale: 0.9 + dot.intensity * 0.2 }]
-                                                }
-                                            ]}
-                                        />
-                                    );
-                                })}
-                                {day.isHighlighted && <View style={[styles.dayHighlight, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)' }]} />}
+                            <View style={[styles.barTrack, { backgroundColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' }]}>
+                                <View
+                                    style={[
+                                        styles.barFill,
+                                        {
+                                            height: `${fillHeight}%`,
+                                            backgroundColor: day.color,
+                                            opacity: day.totalCaptures > 0 ? 0.95 : 0,
+                                        }
+                                    ]}
+                                />
                             </View>
                             <ThemedText style={[styles.dayLabel, { color: colors.cardTextSecondary }]}>{day.dayName}</ThemedText>
                         </View>
-                    ))}
+                        );
+                    })}
                 </View>
 
                 {/* Horizontal Baseline */}
                 <View style={[styles.baseline, { backgroundColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' }]} />
             </View>
 
-            {/* Mood Key (LEGEND) - only show when not loading and has enough data */}
-            {isLoading ? (
-                <View style={styles.keyContainer}>
-                    <View style={[styles.keyPlaceholder, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]} />
-                    <View style={[styles.keyPlaceholder, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)', width: 50 }]} />
-                    <View style={[styles.keyPlaceholder, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)', width: 40 }]} />
-                </View>
-            ) : signalData.hasEnoughData ? (
+            {/* Mood Key (LEGEND) */}
+            {signalData.hasEnoughData ? (
                 <View style={styles.keyContainer}>
                     {topMoods.map((m, idx) => (
                         <View key={idx} style={styles.keyItem}>
@@ -101,17 +106,6 @@ export const MoodSignal = memo(function MoodSignal({ captures, flat = false }: M
                     )}
                 </View>
             ) : null}
-
-            {/* Tiny Insight Text - show placeholder while loading */}
-            <View style={styles.insightContainer}>
-                {isLoading ? (
-                    <View style={[styles.insightPlaceholder, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]} />
-                ) : (
-                    <ThemedText style={[styles.insightText, { color: colors.cardTextSecondary }]}>
-                        "{signalData.insight}"
-                    </ThemedText>
-                )}
-            </View>
         </View>
     );
 
@@ -136,7 +130,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "space-between"
     },
     titleRow: {
         flexDirection: "row",
@@ -146,8 +140,27 @@ const styles = StyleSheet.create({
     title: {
         color: Colors.obsy.silver,
     },
+    subtitle: {
+        fontSize: 14,
+    },
+    filtersContainer: {
+        borderRadius: 12,
+        padding: 4,
+        flexDirection: 'row',
+        gap: 6,
+        flexWrap: 'wrap',
+    },
+    filterChip: {
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    filterText: {
+        fontSize: 13,
+        fontWeight: '500',
+    },
     visualContainer: {
-        height: 120,
+        height: 180,
         justifyContent: 'flex-end',
         paddingTop: 10,
     },
@@ -158,33 +171,24 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
     },
     dayColumn: {
-        width: 32,
+        width: 38,
         alignItems: 'center',
     },
-    dotTrack: {
-        flex: 1,
-        width: '100%',
-        position: 'relative',
+    barTrack: {
+        height: 130,
+        width: 34,
+        borderRadius: 16,
+        overflow: 'hidden',
+        justifyContent: 'flex-end',
         marginBottom: 8,
     },
-    dot: {
-        position: 'absolute',
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        alignSelf: 'center',
-    },
-    dayHighlight: {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        left: 4,
-        right: 4,
-        backgroundColor: 'rgba(255,255,255,0.03)',
-        borderRadius: 4,
+    barFill: {
+        width: '100%',
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
     },
     dayLabel: {
-        fontSize: 10,
+        fontSize: 12,
         color: 'rgba(255,255,255,0.4)',
         fontWeight: '500',
     },
@@ -217,24 +221,5 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: 'rgba(255,255,255,0.3)',
         alignSelf: 'center',
-    },
-    keyPlaceholder: {
-        height: 14,
-        width: 60,
-        borderRadius: 7,
-    },
-    insightContainer: {
-        marginTop: 4,
-    },
-    insightText: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.6)',
-        fontStyle: 'italic',
-        lineHeight: 18,
-    },
-    insightPlaceholder: {
-        height: 18,
-        width: '80%',
-        borderRadius: 4,
     },
 });

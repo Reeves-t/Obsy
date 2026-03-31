@@ -1,14 +1,13 @@
 import { Capture } from '@/types/capture';
 import { getWeekRangeForUser } from './dateUtils';
-import { isWithinInterval, parseISO, format } from 'date-fns';
+import { isWithinInterval, parseISO, format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { resolveMoodColorById, getMoodLabel } from './moodUtils';
 
-export type PatternType = 'time-linked' | 'day-clustering' | 'mood-drift' | 'none';
+export type MoodSignalRange = 'this_week' | 'last_week' | 'month' | 'all_time';
 
 export interface MoodSignalData {
-    pattern: PatternType;
-    insight: string;
-    weeklyData: DailyPatternData[];
+    range: MoodSignalRange;
+    bars: DailyPatternData[];
     moodWeights: { mood: string; color: string; count: number }[];
     totalMoodsCount: number;
     hasEnoughData: boolean;
@@ -16,37 +15,32 @@ export interface MoodSignalData {
 
 export interface DailyPatternData {
     dayName: string; // Mon, Tue, etc.
-    dots: MoodDot[];
-    isHighlighted: boolean;
-}
-
-export interface MoodDot {
-    timePercent: number; // 0 to 1 representing time of day (00:00 to 23:59)
-    intensity: number; // 0 to 1 based on mood or capture frequency
+    topMood: string | null;
     color: string;
-    mood: string;
+    dominance: number; // 0..1
+    totalCaptures: number;
+    topMoodCount: number;
 }
 
 /**
- * Processes captures for the current week into Mood Signal data.
+ * Processes captures into Mood Signal data for the selected range.
+ * Pure data only: top mood by day/weekday with deterministic tie-breaking.
  */
-export function getWeeklyMoodSignal(captures: Capture[]): MoodSignalData {
+export function getMoodSignal(captures: Capture[], range: MoodSignalRange): MoodSignalData {
     const now = new Date();
-    const { start, end } = getWeekRangeForUser(now);
+    const { start, end } = getRangeBounds(now, range);
 
-    // Filter captures for the current week
-    const weeklyCaptures = captures.filter(c => {
+    // Filter captures for the selected range
+    const rangeCaptures = captures.filter(c => {
         const d = parseISO(c.created_at);
         return isWithinInterval(d, { start, end });
     });
 
-    const hasEnoughData = weeklyCaptures.length >= 3;
-
-    // Mood Weights for the color key using mood_id
+    // Mood Weights for legend using mood_id
     const moodCounts: Record<string, number> = {};
     const moodSnapshots: Record<string, string> = {};
 
-    weeklyCaptures.forEach(c => {
+    rangeCaptures.forEach(c => {
         const moodId = c.mood_id || 'neutral';
         moodCounts[moodId] = (moodCounts[moodId] || 0) + 1;
         if (c.mood_name_snapshot) {
@@ -68,196 +62,100 @@ export function getWeeklyMoodSignal(captures: Capture[]): MoodSignalData {
             };
         });
 
-    if (!hasEnoughData) {
-        return {
-            pattern: 'none',
-            insight: "New weekly signal begins Sunday. Insights appear as data builds.",
-            weeklyData: generateEmptyWeeklyData(start),
-            moodWeights: sortedMoods,
-            totalMoodsCount: sortedMoods.length,
-            hasEnoughData: false
-        };
-    }
-
-    // Group captures by day
-    const days: DailyPatternData[] = [];
-    const dayMap: Record<number, Capture[]> = {};
-
-    for (let i = 0; i < 7; i++) {
-        const current = new Date(start);
-        current.setDate(start.getDate() + i);
-        const dayIdx = i; // 0 = Mon, ..., 6 = Sun
-
-        const dayCaptures = weeklyCaptures.filter(c => {
-            const d = parseISO(c.created_at);
-            return d.getDate() === current.getDate() && d.getMonth() === current.getMonth();
-        });
-
-        dayMap[dayIdx] = dayCaptures;
-
-        days.push({
-            dayName: format(current, 'EEE'),
-            dots: dayCaptures.map(c => {
-                const d = parseISO(c.created_at);
-                const minutes = d.getHours() * 60 + d.getMinutes();
-                const moodId = c.mood_id || 'neutral';
-                // Validate snapshot: if it looks like a raw ID (e.g., "custom_abc123"), resolve it
-                const snapshot = c.mood_name_snapshot;
-                const isValidSnapshot = snapshot && !snapshot.startsWith('custom_') && snapshot !== moodId;
-                const label = isValidSnapshot ? snapshot : getMoodLabel(moodId, snapshot);
-                return {
-                    timePercent: minutes / (24 * 60),
-                    intensity: 0.6 + (Math.random() * 0.4),
-                    color: resolveMoodColorById(moodId, label),
-                    mood: label
-                };
-            }),
-            isHighlighted: false
-        });
-    }
-
-    // Pattern Detection Logic
-    let pattern: PatternType = 'none';
-    let insight = "";
-
-    const driftDetected = detectMoodDrift(dayMap);
-    const clusterDetected = detectDayClustering(dayMap);
-    const timeLinkDetected = detectTimeLink(weeklyCaptures);
-
-    // Rotation logic
-    if (timeLinkDetected) {
-        pattern = 'time-linked';
-    } else if (clusterDetected) {
-        pattern = 'day-clustering';
-        const peakDayIdx = findPeakDay(dayMap);
-        if (peakDayIdx !== -1) days[peakDayIdx].isHighlighted = true;
-    } else if (driftDetected) {
-        pattern = 'mood-drift';
-    } else {
-        pattern = 'none';
-    }
-
-    insight = getTinyInsight(pattern, weeklyCaptures);
+    const bars = buildBars(rangeCaptures, start);
+    const hasEnoughData = rangeCaptures.length > 0;
 
     return {
-        pattern,
-        insight,
-        weeklyData: days,
+        range,
+        bars,
         moodWeights: sortedMoods,
         totalMoodsCount: sortedMoods.length,
-        hasEnoughData: true
+        hasEnoughData
     };
 }
 
-function generateEmptyWeeklyData(start: Date): DailyPatternData[] {
+function getRangeBounds(now: Date, range: MoodSignalRange): { start: Date; end: Date } {
+    if (range === 'this_week') {
+        return getWeekRangeForUser(now);
+    }
+    if (range === 'last_week') {
+        const lastWeekDate = addDays(now, -7);
+        return getWeekRangeForUser(lastWeekDate);
+    }
+    if (range === 'month') {
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+    }
+
+    // all_time
+    return { start: new Date(2000, 0, 1), end: now };
+}
+
+function buildBars(captures: Capture[], start: Date): DailyPatternData[] {
     const days: DailyPatternData[] = [];
+
+    // Keep a stable Sun..Sat layout for all ranges to match product design.
     for (let i = 0; i < 7; i++) {
-        const current = new Date(start);
-        current.setDate(start.getDate() + i);
+        const weekDate = new Date(start);
+        weekDate.setDate(start.getDate() + i);
+        const dayName = format(weekDate, 'EEE');
+
+        const dayCaptures = captures.filter((capture) => {
+            const d = parseISO(capture.created_at);
+            return format(d, 'EEE') === dayName;
+        });
+
+        const top = getTopMoodForBucket(dayCaptures);
+
         days.push({
-            dayName: format(current, 'EEE'),
-            dots: [],
-            isHighlighted: false
+            dayName,
+            topMood: top?.label ?? null,
+            color: top?.color ?? 'rgba(140,140,160,0.35)',
+            dominance: top?.dominance ?? 0,
+            totalCaptures: dayCaptures.length,
+            topMoodCount: top?.count ?? 0,
         });
     }
+
     return days;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pattern Detection Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+function getTopMoodForBucket(bucket: Capture[]): { moodId: string; label: string; color: string; count: number; dominance: number } | null {
+    if (bucket.length === 0) return null;
 
-function detectMoodDrift(dayMap: Record<number, Capture[]>): boolean {
-    const activeDays = Object.values(dayMap).filter(caps => caps.length > 0).length;
-    return activeDays >= 4;
-}
-
-function detectDayClustering(dayMap: Record<number, Capture[]>): boolean {
-    const counts = Object.values(dayMap).map(c => c.length);
-    const max = Math.max(...counts);
-    const avg = counts.reduce((a, b) => a + b, 0) / 7;
-    return max > avg * 1.8 && max >= 3;
-}
-
-function findPeakDay(dayMap: Record<number, Capture[]>): number {
-    let max = -1;
-    let peakIdx = -1;
-    Object.entries(dayMap).forEach(([idx, caps]) => {
-        if (caps.length > max) {
-            max = caps.length;
-            peakIdx = parseInt(idx);
+    const counts = new Map<string, { count: number; latestAt: string; label: string }>();
+    bucket.forEach((capture) => {
+        const moodId = capture.mood_id || 'neutral';
+        const snapshot = capture.mood_name_snapshot;
+        const label = getMoodLabel(moodId, snapshot);
+        const existing = counts.get(moodId);
+        if (!existing) {
+            counts.set(moodId, { count: 1, latestAt: capture.created_at, label });
+            return;
         }
-    });
-    return peakIdx;
-}
 
-function detectTimeLink(captures: Capture[]): boolean {
-    if (captures.length < 5) return false;
-    const hours = captures.map(c => parseISO(c.created_at).getHours());
-    const hourCounts: Record<number, number> = {};
-    hours.forEach(h => { hourCounts[h] = (hourCounts[h] || 0) + 1; });
-
-    return Object.values(hourCounts).some(count => count >= captures.length * 0.4);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Insight Generation
-// ─────────────────────────────────────────────────────────────────────────────
-
-function getTinyInsight(pattern: PatternType, captures: Capture[]): string {
-    const moodCounts: Record<string, number> = {};
-    const moodSnapshots: Record<string, string> = {};
-    captures.forEach(c => {
-        const moodId = c.mood_id || 'neutral';
-        moodCounts[moodId] = (moodCounts[moodId] || 0) + 1;
-        if (c.mood_name_snapshot) moodSnapshots[moodId] = c.mood_name_snapshot;
+        counts.set(moodId, {
+            count: existing.count + 1,
+            latestAt: capture.created_at > existing.latestAt ? capture.created_at : existing.latestAt,
+            label: existing.label || label,
+        });
     });
 
-    const sortedMoods = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]);
+    const winner = Array.from(counts.entries()).sort((a, b) => {
+        // 1) highest count
+        if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+        // 2) most recent capture wins ties
+        if (b[1].latestAt !== a[1].latestAt) return b[1].latestAt.localeCompare(a[1].latestAt);
+        // 3) deterministic lexical fallback
+        return a[1].label.localeCompare(b[1].label);
+    })[0];
 
-    // Get top 2-3 moods for richer insights
-    const topMoods = sortedMoods.slice(0, Math.min(3, sortedMoods.length)).map(([moodId]) =>
-        moodSnapshots[moodId] || getMoodLabel(moodId)
-    );
-
-    // Build mood phrase: "calm and anxious", "calm, anxious and productive"
-    const moodPhrase = topMoods.length === 1
-        ? topMoods[0]
-        : topMoods.length === 2
-            ? `${topMoods[0]} and ${topMoods[1]}`
-            : `${topMoods[0]}, ${topMoods[1]} and ${topMoods[2]}`;
-
-    const insights: Record<PatternType, string[]> = {
-        'time-linked': [
-            `Rhythmic ${moodPhrase} states appeared at similar times this week.`,
-            `A consistent timing of ${moodPhrase} captures is emerging in your routine.`,
-            `Daily ${moodPhrase} patterns showed a distinct temporal rhythm.`,
-            `Emotional capture timing centered around ${moodPhrase} states.`
-        ],
-        'day-clustering': [
-            `Certain days showed repeated ${moodPhrase} behavior and frequency.`,
-            `Emotional activity clustered around ${moodPhrase} notes on active days.`,
-            `Frequency of captures peaked with ${moodPhrase} signals on specific days.`,
-            `${moodPhrase} moments appeared concentrated within specific windows.`
-        ],
-        'mood-drift': [
-            `Signals showed a gradual drift through ${moodPhrase} states this week.`,
-            `The weekly slope moved gently through ${moodPhrase} patterns.`,
-            `Inner signals transitioned across ${moodPhrase} landscapes this week.`,
-            `A soft progression through ${moodPhrase} emotional territories.`
-        ],
-        'none': [
-            `Signals remained ambient across ${moodPhrase} territories.`,
-            `Weekly distribution balanced between ${moodPhrase} states.`,
-            `Mood variations broad, flowing through ${moodPhrase} notes.`,
-            `No dominant time pattern, with ${moodPhrase} appearing throughout.`
-        ]
+    if (!winner) return null;
+    const [moodId, data] = winner;
+    return {
+        moodId,
+        label: data.label,
+        color: resolveMoodColorById(moodId, data.label),
+        count: data.count,
+        dominance: data.count / bucket.length,
     };
-
-    const pool = insights[pattern];
-    // Use a more dynamic seed incorporating minutes to allow more variety within the day if data changes
-    const now = new Date();
-    const { start } = getWeekRangeForUser(now);
-    const seed = start.getDate() + pattern.length + now.getDate() + now.getHours() + Math.floor(now.getMinutes() / 15);
-    return pool[seed % pool.length];
 }
