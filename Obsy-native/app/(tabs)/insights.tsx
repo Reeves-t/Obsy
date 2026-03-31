@@ -59,6 +59,8 @@ import { fetchDailyMoodFlows, backfillDailyMoodFlows, getMonthDateRange } from '
 import { fetchMonthlySummary, computeMonthMoodTotals, generateMonthPhraseReasoning, upsertMonthlySummary, getMonthSignals } from '@/services/monthlySummaries';
 import { getBannedMoodWords } from '@/lib/moodColors';
 import { generateMonthPhrase } from '@/lib/monthPhraseGenerator';
+import { getMoodTheme } from '@/lib/moods';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Divider System
@@ -800,46 +802,79 @@ export default function InsightsScreen() {
                                 <SectionHeader title="MOOD BY TIME" />
                                 <View style={styles.timeOfDayGrid}>
                                     {/* Morning */}
-                                    <View style={[styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
-                                        <View style={styles.timeOfDayHeader}>
-                                            <Sunrise size={18} strokeWidth={1.5} color={isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'} />
-                                            <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: colors.textTertiary }]}>MORNING</ThemedText>
-                                        </View>
-                                        <ThemedText style={[styles.timeOfDayMood, { color: colors.text }]}>
-                                            {morningMood.dominant || '—'}
-                                        </ThemedText>
-                                        <ThemedText style={[styles.timeOfDayMeta, { color: colors.textTertiary }]}>
-                                            {morningMood.count > 0 ? `${morningMood.count} of ${morningMood.totalCaptures}` : 'No data'}
-                                        </ThemedText>
-                                    </View>
+                                    {(() => {
+                                        const theme = morningMood.dominant ? getMoodTheme(morningMood.dominant.toLowerCase()) : null;
+                                        const textColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') : (isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)');
+                                        const metaColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)') : colors.textTertiary;
+                                        const CardContainer = theme ? LinearGradient : View;
+                                        const cardProps = theme
+                                            ? { colors: [theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary] as [string, string, string], start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: styles.timeOfDayItem }
+                                            : { style: [styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }] };
+                                        return (
+                                            <CardContainer {...(cardProps as any)}>
+                                                <View style={styles.timeOfDayHeader}>
+                                                    <Sunrise size={18} strokeWidth={1.5} color={textColor} />
+                                                    <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: metaColor }]}>MORNING</ThemedText>
+                                                </View>
+                                                <ThemedText style={[styles.timeOfDayMood, { color: textColor }]}>
+                                                    {morningMood.dominant || '—'}
+                                                </ThemedText>
+                                                <ThemedText style={[styles.timeOfDayMeta, { color: metaColor }]}>
+                                                    {morningMood.count > 0 ? `${morningMood.count} of ${morningMood.totalCaptures}` : 'No data'}
+                                                </ThemedText>
+                                            </CardContainer>
+                                        );
+                                    })()}
 
                                     {/* Afternoon */}
-                                    <View style={[styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
-                                        <View style={styles.timeOfDayHeader}>
-                                            <Sun size={18} strokeWidth={1.5} color={isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'} />
-                                            <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: colors.textTertiary }]}>AFTERNOON</ThemedText>
-                                        </View>
-                                        <ThemedText style={[styles.timeOfDayMood, { color: colors.text }]}>
-                                            {afternoonMood.dominant || '—'}
-                                        </ThemedText>
-                                        <ThemedText style={[styles.timeOfDayMeta, { color: colors.textTertiary }]}>
-                                            {afternoonMood.count > 0 ? `${afternoonMood.count} of ${afternoonMood.totalCaptures}` : 'No data'}
-                                        </ThemedText>
-                                    </View>
+                                    {(() => {
+                                        const theme = afternoonMood.dominant ? getMoodTheme(afternoonMood.dominant.toLowerCase()) : null;
+                                        const textColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') : (isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)');
+                                        const metaColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)') : colors.textTertiary;
+                                        const CardContainer = theme ? LinearGradient : View;
+                                        const cardProps = theme
+                                            ? { colors: [theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary] as [string, string, string], start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: styles.timeOfDayItem }
+                                            : { style: [styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }] };
+                                        return (
+                                            <CardContainer {...(cardProps as any)}>
+                                                <View style={styles.timeOfDayHeader}>
+                                                    <Sun size={18} strokeWidth={1.5} color={textColor} />
+                                                    <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: metaColor }]}>AFTERNOON</ThemedText>
+                                                </View>
+                                                <ThemedText style={[styles.timeOfDayMood, { color: textColor }]}>
+                                                    {afternoonMood.dominant || '—'}
+                                                </ThemedText>
+                                                <ThemedText style={[styles.timeOfDayMeta, { color: metaColor }]}>
+                                                    {afternoonMood.count > 0 ? `${afternoonMood.count} of ${afternoonMood.totalCaptures}` : 'No data'}
+                                                </ThemedText>
+                                            </CardContainer>
+                                        );
+                                    })()}
 
                                     {/* Evening */}
-                                    <View style={[styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
-                                        <View style={styles.timeOfDayHeader}>
-                                            <MoonStar size={18} strokeWidth={1.5} color={isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)'} />
-                                            <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: colors.textTertiary }]}>EVENING</ThemedText>
-                                        </View>
-                                        <ThemedText style={[styles.timeOfDayMood, { color: colors.text }]}>
-                                            {eveningMood.dominant || '—'}
-                                        </ThemedText>
-                                        <ThemedText style={[styles.timeOfDayMeta, { color: colors.textTertiary }]}>
-                                            {eveningMood.count > 0 ? `${eveningMood.count} of ${eveningMood.totalCaptures}` : 'No data'}
-                                        </ThemedText>
-                                    </View>
+                                    {(() => {
+                                        const theme = eveningMood.dominant ? getMoodTheme(eveningMood.dominant.toLowerCase()) : null;
+                                        const textColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') : (isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)');
+                                        const metaColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)') : colors.textTertiary;
+                                        const CardContainer = theme ? LinearGradient : View;
+                                        const cardProps = theme
+                                            ? { colors: [theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary] as [string, string, string], start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: styles.timeOfDayItem }
+                                            : { style: [styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }] };
+                                        return (
+                                            <CardContainer {...(cardProps as any)}>
+                                                <View style={styles.timeOfDayHeader}>
+                                                    <MoonStar size={18} strokeWidth={1.5} color={textColor} />
+                                                    <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: metaColor }]}>EVENING</ThemedText>
+                                                </View>
+                                                <ThemedText style={[styles.timeOfDayMood, { color: textColor }]}>
+                                                    {eveningMood.dominant || '—'}
+                                                </ThemedText>
+                                                <ThemedText style={[styles.timeOfDayMeta, { color: metaColor }]}>
+                                                    {eveningMood.count > 0 ? `${eveningMood.count} of ${eveningMood.totalCaptures}` : 'No data'}
+                                                </ThemedText>
+                                            </CardContainer>
+                                        );
+                                    })()}
                                 </View>
 
                                 {/* WEEKLY MOOD - Mood breakdown / Mood Break game */}
@@ -1307,6 +1342,7 @@ const styles = StyleSheet.create({
         // backgroundColor and borderColor applied via inline override
         borderRadius: 12,
         borderWidth: 1,
+        overflow: 'hidden',
         gap: 8,
     },
     timeOfDayHeader: {

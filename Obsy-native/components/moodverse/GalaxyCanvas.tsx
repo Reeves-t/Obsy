@@ -615,7 +615,7 @@ export function GalaxyCanvas({
                             }
                         } else {
                             // Core sphere: update color uniforms
-                            const origMid = group.userData.origMid;
+                            const origMid = child.userData.origMid;
                             if (isSelected || isAiHighlighted) {
                                 mat.uniforms.colorFrom.value.copy(origCenter);
                                 if (origMid) mat.uniforms.colorMid.value.copy(origMid);
