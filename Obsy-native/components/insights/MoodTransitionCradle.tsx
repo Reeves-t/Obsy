@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions, TouchableOpacity } from 'react-native';
 import Animated, {
     type SharedValue,
+    cancelAnimation,
     runOnJS,
     useAnimatedStyle,
     useSharedValue,
@@ -54,6 +55,7 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     const [labelsVisible, setLabelsVisible] = useState(true);
     const [activeTransition, setActiveTransition] = useState<Transition | null>(null);
     const cycleIndexRef = useRef(0);
+    const mountedRef = useRef(true);
 
     const a0 = useSharedValue(0);
     const a1 = useSharedValue(0);
@@ -62,7 +64,12 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     const a4 = useSharedValue(0);
     const labelOpacity = useSharedValue(1);
 
-    const angles = [a0, a1, a2, a3, a4];
+    const angles = useMemo(() => [a0, a1, a2, a3, a4], [a0, a1, a2, a3, a4]);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => { mountedRef.current = false; };
+    }, []);
 
     const scopedCaptures = useMemo(() => {
         const now = new Date();
@@ -141,13 +148,18 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
         labelOpacity.value = withTiming(1, { duration: 250 });
     };
 
-    const performHaptic = () => {
+    const performHaptic = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    };
+    }, []);
 
-    const runBounce = (fromIdx: number, toIdx: number, baseAngle: number, bounce = 0) => {
+    const cancelAllAnimations = useCallback(() => {
+        angles.forEach((a) => cancelAnimation(a));
+    }, [angles]);
+
+    const runBounce = useCallback((fromIdx: number, toIdx: number, baseAngle: number, bounce = 0) => {
+        if (!mountedRef.current) return;
         if (bounce > 3 || baseAngle < 3) {
-            setTimeout(() => showLabels(), 350);
+            setTimeout(() => { if (mountedRef.current) showLabels(); }, 350);
             return;
         }
 
@@ -162,9 +174,10 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
                 runOnJS(runBounce)(fromIdx, toIdx, -nextEnergy, bounce + 1);
             });
         });
-    };
+    }, [angles, performHaptic]);
 
-    const triggerTransition = (transition: Transition) => {
+    const triggerTransition = useCallback((transition: Transition) => {
+        if (!mountedRef.current) return;
         const fromIdx = moodNodes.findIndex((m) => m.moodId === transition.from);
         const toIdx = moodNodes.findIndex((m) => m.moodId === transition.to);
         if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
@@ -180,21 +193,21 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
             runOnJS(performHaptic)();
             runOnJS(runBounce)(fromIdx, toIdx, angle, 0);
         });
-    };
+    }, [angles, moodNodes, performHaptic, runBounce]);
 
     useEffect(() => {
         cycleIndexRef.current = 0;
-        angles.forEach((a) => {
-            a.value = 0;
-        });
+        cancelAllAnimations();
+        angles.forEach((a) => { a.value = 0; });
         setMessage(null);
         setActiveTransition(null);
         showLabels();
-    }, [scope]);
+    }, [scope, cancelAllAnimations, angles]);
 
     useEffect(() => {
         if (moodNodes.length < MIN_BALLS || transitions.length === 0) return;
         const interval = setInterval(() => {
+            if (!mountedRef.current) return;
             const next = transitions[cycleIndexRef.current % transitions.length];
             cycleIndexRef.current += 1;
             triggerTransition(next);
@@ -202,8 +215,11 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
 
         triggerTransition(transitions[0]);
 
-        return () => clearInterval(interval);
-    }, [transitions, moodNodes.length]);
+        return () => {
+            clearInterval(interval);
+            cancelAllAnimations();
+        };
+    }, [transitions, moodNodes.length, triggerTransition, cancelAllAnimations]);
 
     const onPullRelease = (ballIndex: number, releasedAngle: number) => {
         const source = moodNodes[ballIndex];

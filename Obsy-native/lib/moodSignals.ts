@@ -62,8 +62,8 @@ export function getMoodSignal(captures: Capture[], range: MoodSignalRange): Mood
             };
         });
 
-    const bars = buildBars(rangeCaptures, start);
-    const hasEnoughData = rangeCaptures.length > 0;
+    const bars = buildBars(rangeCaptures);
+    const hasEnoughData = rangeCaptures.length >= 3;
 
     return {
         range,
@@ -90,15 +90,11 @@ function getRangeBounds(now: Date, range: MoodSignalRange): { start: Date; end: 
     return { start: new Date(2000, 0, 1), end: now };
 }
 
-function buildBars(captures: Capture[], start: Date): DailyPatternData[] {
-    const days: DailyPatternData[] = [];
+const WEEKDAY_ORDER = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
-    // Keep a stable Sun..Sat layout for all ranges to match product design.
-    for (let i = 0; i < 7; i++) {
-        const weekDate = new Date(start);
-        weekDate.setDate(start.getDate() + i);
-        const dayName = format(weekDate, 'EEE');
-
+function buildBars(captures: Capture[]): DailyPatternData[] {
+    // Stable Sun..Sat layout regardless of range start date.
+    return WEEKDAY_ORDER.map((dayName) => {
         const dayCaptures = captures.filter((capture) => {
             const d = parseISO(capture.created_at);
             return format(d, 'EEE') === dayName;
@@ -106,17 +102,15 @@ function buildBars(captures: Capture[], start: Date): DailyPatternData[] {
 
         const top = getTopMoodForBucket(dayCaptures);
 
-        days.push({
+        return {
             dayName,
             topMood: top?.label ?? null,
             color: top?.color ?? 'rgba(140,140,160,0.35)',
             dominance: top?.dominance ?? 0,
             totalCaptures: dayCaptures.length,
             topMoodCount: top?.count ?? 0,
-        });
-    }
-
-    return days;
+        };
+    });
 }
 
 function getTopMoodForBucket(bucket: Capture[]): { moodId: string; label: string; color: string; count: number; dominance: number } | null {
