@@ -3,11 +3,16 @@ import { useCaptureStore } from "@/lib/captureStore";
 import { getLocalDayKey } from "@/lib/utils";
 import { getMoodLabel } from "@/lib/moodUtils";
 
-type TimeOfDayMood = {
+export type TimeOfDayMood = {
     dominant: string | null;
+    moodId: string | null;
     count: number;
     totalCaptures: number;
 };
+
+export type TimeBucket = 'early_morning' | 'morning' | 'midday' | 'afternoon' | 'evening' | 'night';
+
+const ALL_BUCKETS: TimeBucket[] = ['early_morning', 'morning', 'midday', 'afternoon', 'evening', 'night'];
 
 type StatsResult = {
     streak: number;
@@ -20,6 +25,7 @@ type StatsResult = {
     morningMood: TimeOfDayMood;
     afternoonMood: TimeOfDayMood;
     eveningMood: TimeOfDayMood;
+    timeBuckets: Record<TimeBucket, TimeOfDayMood>;
 };
 
 const BUCKET_LABELS: Record<"morning" | "afternoon" | "evening", string> = {
@@ -27,6 +33,15 @@ const BUCKET_LABELS: Record<"morning" | "afternoon" | "evening", string> = {
     afternoon: "AFTERNOON",
     evening: "EVENING",
 };
+
+function getTimeBucket(hour: number): TimeBucket {
+    if (hour >= 5 && hour < 8) return 'early_morning';
+    if (hour >= 8 && hour < 12) return 'morning';
+    if (hour >= 12 && hour < 14) return 'midday';
+    if (hour >= 14 && hour < 18) return 'afternoon';
+    if (hour >= 18 && hour < 22) return 'evening';
+    return 'night'; // 10pm-4:59am
+}
 
 export function useInsightsStats(userId?: string): StatsResult {
     const { captures } = useCaptureStore();
@@ -175,6 +190,40 @@ export function useInsightsStats(userId?: string): StatsResult {
         const afternoonMood = getTimeOfDayMood("afternoon");
         const eveningMood = getTimeOfDayMood("evening");
 
-        return { streak, bestStreak, activeHours, peakTimeLabel, totalEntries, mostCapturesDay, avgCapturesPerDay, morningMood, afternoonMood, eveningMood };
+        // 6-bucket time-of-day mood calculation
+        const moodByTimeBucket: Record<TimeBucket, Record<string, { count: number; moodId: string }>> = {
+            early_morning: {}, morning: {}, midday: {}, afternoon: {}, evening: {}, night: {},
+        };
+
+        filtered.forEach((c) => {
+            if (!c.mood_id) return;
+            const snapshot = c.mood_name_snapshot;
+            const isValidSnapshot = snapshot && !snapshot.startsWith('custom_') && snapshot !== c.mood_id;
+            const moodLabel = isValidSnapshot ? snapshot : getMoodLabel(c.mood_id, snapshot);
+            const hour = new Date(c.created_at).getHours();
+            const bucket = getTimeBucket(hour);
+            const existing = moodByTimeBucket[bucket][moodLabel];
+            moodByTimeBucket[bucket][moodLabel] = {
+                count: (existing?.count ?? 0) + 1,
+                moodId: c.mood_id,
+            };
+        });
+
+        const getBucketMood = (bucket: TimeBucket): TimeOfDayMood => {
+            const moods = moodByTimeBucket[bucket];
+            const entries = Object.entries(moods);
+            if (entries.length === 0) {
+                return { dominant: null, moodId: null, count: 0, totalCaptures: 0 };
+            }
+            const sorted = entries.sort((a, b) => b[1].count - a[1].count);
+            const [topLabel, topData] = sorted[0];
+            const totalCaptures = entries.reduce((sum, [, d]) => sum + d.count, 0);
+            return { dominant: topLabel, moodId: topData.moodId, count: topData.count, totalCaptures };
+        };
+
+        const timeBuckets = {} as Record<TimeBucket, TimeOfDayMood>;
+        ALL_BUCKETS.forEach((b) => { timeBuckets[b] = getBucketMood(b); });
+
+        return { streak, bestStreak, activeHours, peakTimeLabel, totalEntries, mostCapturesDay, avgCapturesPerDay, morningMood, afternoonMood, eveningMood, timeBuckets };
     }, [captures, userId]);
 }
