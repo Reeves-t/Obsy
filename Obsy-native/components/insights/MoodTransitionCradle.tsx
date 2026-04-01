@@ -16,9 +16,17 @@ import { ThemedText } from '@/components/ui/ThemedText';
 import { getWeekRangeForUser } from '@/lib/dateUtils';
 import { getMoodLabel, resolveMoodThemeById } from '@/lib/moodUtils';
 import { generateOrbEffect } from '@/lib/moods';
+import { addDays, startOfMonth, endOfMonth } from 'date-fns';
 import type { Capture } from '@/types/capture';
 
-type Scope = 'week' | 'month';
+type Scope = 'this_week' | 'last_week' | 'month' | 'all_time';
+
+const SCOPE_FILTERS: { key: Scope; label: string }[] = [
+    { key: 'this_week', label: 'This Week' },
+    { key: 'last_week', label: 'Last Week' },
+    { key: 'month', label: 'This Month' },
+    { key: 'all_time', label: 'All Time' },
+];
 
 type MoodNode = {
     moodId: string;
@@ -50,7 +58,7 @@ const MAX_PULL_DEG = 45;
 
 export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[]; isLight: boolean }) {
     const { width } = useWindowDimensions();
-    const [scope, setScope] = useState<Scope>('week');
+    const [scope, setScope] = useState<Scope>('all_time');
     const [message, setMessage] = useState<string | null>(null);
     const [labelsVisible, setLabelsVisible] = useState(true);
     const [activeTransition, setActiveTransition] = useState<Transition | null>(null);
@@ -72,19 +80,28 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     }, []);
 
     const scopedCaptures = useMemo(() => {
+        if (scope === 'all_time') return captures;
         const now = new Date();
-        if (scope === 'week') {
+        if (scope === 'this_week') {
             const { start, end } = getWeekRangeForUser(now);
             return captures.filter((c) => {
                 const d = new Date(c.created_at);
                 return d >= start && d <= end;
             });
         }
-        const month = now.getMonth();
-        const year = now.getFullYear();
+        if (scope === 'last_week') {
+            const { start, end } = getWeekRangeForUser(addDays(now, -7));
+            return captures.filter((c) => {
+                const d = new Date(c.created_at);
+                return d >= start && d <= end;
+            });
+        }
+        // month
+        const monthStart = startOfMonth(now);
+        const monthEnd = endOfMonth(now);
         return captures.filter((c) => {
             const d = new Date(c.created_at);
-            return d.getMonth() === month && d.getFullYear() === year;
+            return d >= monthStart && d <= monthEnd;
         });
     }, [captures, scope]);
 
@@ -241,7 +258,8 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
 
         hideLabels();
         setActiveTransition(candidate);
-        setMessage(`${source.label} → ${moodNodes[targetIdx].label} · ${candidate.count}x this ${scope}`);
+        const scopeLabel = SCOPE_FILTERS.find((f) => f.key === scope)?.label ?? scope;
+        setMessage(`${source.label} → ${moodNodes[targetIdx].label} · ${candidate.count}x ${scopeLabel}`);
         runBounce(ballIndex, targetIdx, Math.max(8, Math.abs(releasedAngle)), 0);
         setTimeout(() => setMessage(null), 3000);
     };
@@ -262,13 +280,13 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     return (
         <View style={styles.container}>
             <View style={[styles.scopeToggle, { backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)' }]}>
-                {(['week', 'month'] as Scope[]).map((item) => (
+                {SCOPE_FILTERS.map((item) => (
                     <TouchableOpacity
-                        key={item}
-                        style={[styles.scopePill, scope === item && styles.scopePillActive]}
-                        onPress={() => setScope(item)}
+                        key={item.key}
+                        style={[styles.scopePill, scope === item.key && styles.scopePillActive]}
+                        onPress={() => setScope(item.key)}
                     >
-                        <ThemedText style={styles.scopeText}>{item === 'week' ? 'Week' : 'Month'}</ThemedText>
+                        <ThemedText style={styles.scopeText}>{item.label}</ThemedText>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -300,7 +318,7 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
 
             {!!(message || activeTransition) && (
                 <ThemedText style={styles.transitionText}>
-                    {message || `${moodNodes.find((n) => n.moodId === activeTransition?.from)?.label ?? ''} → ${moodNodes.find((n) => n.moodId === activeTransition?.to)?.label ?? ''} · ${activeTransition?.count ?? 0}x this ${scope}`}
+                    {message || `${moodNodes.find((n) => n.moodId === activeTransition?.from)?.label ?? ''} → ${moodNodes.find((n) => n.moodId === activeTransition?.to)?.label ?? ''} · ${activeTransition?.count ?? 0}x ${SCOPE_FILTERS.find((f) => f.key === scope)?.label ?? scope}`}
                 </ThemedText>
             )}
         </View>
