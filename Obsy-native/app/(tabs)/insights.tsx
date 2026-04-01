@@ -49,6 +49,7 @@ import { ToneTriggerButton } from '@/components/insights/ToneTriggerButton';
 import { MoodSignal } from '@/components/insights/MoodSignal';
 import { useCustomTones } from '@/hooks/useCustomTones';
 import { InsightErrorDisplay } from '@/components/insights/InsightErrorDisplay';
+import { MoodTransitionCradle } from '@/components/insights/MoodTransitionCradle';
 
 import { useInsightsStats } from '@/hooks/useInsightsStats';
 import { PremiumGate } from '@/components/PremiumGate';
@@ -800,6 +801,7 @@ export default function InsightsScreen() {
 
                                 {/* MOOD BY TIME - Time-of-day mood patterns */}
                                 <SectionHeader title="MOOD BY TIME" />
+                                <MoodTransitionCradle captures={captures} isLight={isLight} />
                                 <View style={styles.timeOfDayGrid}>
                                     {/* Morning */}
                                     {(() => {
