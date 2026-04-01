@@ -11,7 +11,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { Sunrise, Sun, MoonStar } from 'lucide-react-native';
+import { Sunrise, Sun, SunMedium, CloudSun, MoonStar, Moon } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { resolveMoodThemeById } from '@/lib/moodUtils';
+import { generateOrbEffect } from '@/lib/moods';
+import type { TimeBucket } from '@/hooks/useInsightsStats';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -60,8 +64,6 @@ import { fetchDailyMoodFlows, backfillDailyMoodFlows, getMonthDateRange } from '
 import { fetchMonthlySummary, computeMonthMoodTotals, generateMonthPhraseReasoning, upsertMonthlySummary, getMonthSignals } from '@/services/monthlySummaries';
 import { getBannedMoodWords } from '@/lib/moodColors';
 import { generateMonthPhrase } from '@/lib/monthPhraseGenerator';
-import { getMoodTheme } from '@/lib/moods';
-import { LinearGradient } from 'expo-linear-gradient';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Divider System
@@ -182,7 +184,7 @@ export default function InsightsScreen() {
     const [toneSelectorVisible, setToneSelectorVisible] = useState(false);
     const [currentTone, setCurrentTone] = useState<AiToneId>(DEFAULT_AI_TONE_ID);
 
-    const { streak, bestStreak, activeHours, peakTimeLabel, totalEntries, mostCapturesDay, avgCapturesPerDay, morningMood, afternoonMood, eveningMood } = useInsightsStats(user?.id);
+    const { streak, bestStreak, activeHours, peakTimeLabel, totalEntries, mostCapturesDay, avgCapturesPerDay, morningMood, afternoonMood, eveningMood, timeBuckets } = useInsightsStats(user?.id);
     const topTags = useMemo(() => getAllTags().slice(0, 5), [captures, getAllTags]);
     const { tones: customTones } = useCustomTones();
 
@@ -802,82 +804,54 @@ export default function InsightsScreen() {
                                 {/* MOOD BY TIME - Time-of-day mood patterns */}
                                 <SectionHeader title="MOOD BY TIME" />
                                 <MoodTransitionCradle captures={captures} isLight={isLight} />
-                                <View style={styles.timeOfDayGrid}>
-                                    {/* Morning */}
-                                    {(() => {
-                                        const theme = morningMood.dominant ? getMoodTheme(morningMood.dominant.toLowerCase()) : null;
-                                        const textColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') : (isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)');
-                                        const metaColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)') : colors.textTertiary;
-                                        const CardContainer = theme ? LinearGradient : View;
-                                        const cardProps = theme
-                                            ? { colors: [theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary] as [string, string, string], start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: styles.timeOfDayItem }
-                                            : { style: [styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }] };
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeOfDayScroll} contentContainerStyle={styles.timeOfDayScrollContent}>
+                                    {([
+                                        { bucket: 'early_morning' as TimeBucket, label: 'EARLY MORNING', Icon: Sunrise, gradient: ['#1a1a2e', '#3d2c4f', '#c4723a'] },
+                                        { bucket: 'morning' as TimeBucket, label: 'MORNING', Icon: Sun, gradient: ['#2d1b4e', '#6b3fa0', '#e8a87c'] },
+                                        { bucket: 'midday' as TimeBucket, label: 'MIDDAY', Icon: SunMedium, gradient: ['#1a4a5e', '#3d8b9e', '#a8d8ea'] },
+                                        { bucket: 'afternoon' as TimeBucket, label: 'AFTERNOON', Icon: CloudSun, gradient: ['#1e3a5f', '#4a7c9b', '#e8c07a'] },
+                                        { bucket: 'evening' as TimeBucket, label: 'EVENING', Icon: MoonStar, gradient: ['#1a1a2e', '#2d1b4e', '#c97b3d'] },
+                                        { bucket: 'night' as TimeBucket, label: 'NIGHT', Icon: Moon, gradient: ['#0a0a1a', '#1a1a2e', '#2d2d4e'] },
+                                    ]).map(({ bucket, label, Icon, gradient }) => {
+                                        const data = timeBuckets[bucket];
+                                        const moodTheme = data.moodId ? resolveMoodThemeById(data.moodId, data.dominant ?? undefined) : null;
+                                        const orbEffect = data.dominant ? generateOrbEffect(data.dominant) : null;
                                         return (
-                                            <CardContainer {...(cardProps as any)}>
+                                            <LinearGradient
+                                                key={bucket}
+                                                colors={gradient as [string, string, ...string[]]}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 0.5, y: 1 }}
+                                                style={styles.timeOfDayCard}
+                                            >
                                                 <View style={styles.timeOfDayHeader}>
-                                                    <Sunrise size={18} strokeWidth={1.5} color={textColor} />
-                                                    <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: metaColor }]}>MORNING</ThemedText>
+                                                    <Icon size={16} strokeWidth={1.5} color="rgba(255,255,255,0.85)" />
+                                                    <ThemedText style={styles.timeOfDayLabel}>{label}</ThemedText>
                                                 </View>
-                                                <ThemedText style={[styles.timeOfDayMood, { color: textColor }]}>
-                                                    {morningMood.dominant || '—'}
+                                                <ThemedText style={styles.timeOfDayMood}>
+                                                    {data.dominant || '—'}
                                                 </ThemedText>
-                                                <ThemedText style={[styles.timeOfDayMeta, { color: metaColor }]}>
-                                                    {morningMood.count > 0 ? `${morningMood.count} of ${morningMood.totalCaptures}` : 'No data'}
-                                                </ThemedText>
-                                            </CardContainer>
-                                        );
-                                    })()}
-
-                                    {/* Afternoon */}
-                                    {(() => {
-                                        const theme = afternoonMood.dominant ? getMoodTheme(afternoonMood.dominant.toLowerCase()) : null;
-                                        const textColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') : (isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)');
-                                        const metaColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)') : colors.textTertiary;
-                                        const CardContainer = theme ? LinearGradient : View;
-                                        const cardProps = theme
-                                            ? { colors: [theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary] as [string, string, string], start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: styles.timeOfDayItem }
-                                            : { style: [styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }] };
-                                        return (
-                                            <CardContainer {...(cardProps as any)}>
-                                                <View style={styles.timeOfDayHeader}>
-                                                    <Sun size={18} strokeWidth={1.5} color={textColor} />
-                                                    <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: metaColor }]}>AFTERNOON</ThemedText>
+                                                <View style={styles.timeOfDayBottom}>
+                                                    {moodTheme && (
+                                                        <LinearGradient
+                                                            colors={[moodTheme.gradient.primary, moodTheme.gradient.mid, moodTheme.gradient.secondary]}
+                                                            start={{ x: 0.25, y: 0.2 }}
+                                                            end={{ x: 0.9, y: 1 }}
+                                                            style={styles.timeOfDayOrb}
+                                                        >
+                                                            {orbEffect?.type === 'grain' && <View style={styles.timeOrbGrain} />}
+                                                            {orbEffect?.type === 'splash' && <View style={[styles.timeOrbSplash, { backgroundColor: orbEffect.splashColor ?? 'rgba(255,255,255,0.25)' }]} />}
+                                                            {orbEffect?.type === 'streak' && <View style={styles.timeOrbStreak} />}
+                                                        </LinearGradient>
+                                                    )}
+                                                    <ThemedText style={styles.timeOfDayMeta}>
+                                                        {data.count > 0 ? `${data.count} of ${data.totalCaptures}` : 'No data'}
+                                                    </ThemedText>
                                                 </View>
-                                                <ThemedText style={[styles.timeOfDayMood, { color: textColor }]}>
-                                                    {afternoonMood.dominant || '—'}
-                                                </ThemedText>
-                                                <ThemedText style={[styles.timeOfDayMeta, { color: metaColor }]}>
-                                                    {afternoonMood.count > 0 ? `${afternoonMood.count} of ${afternoonMood.totalCaptures}` : 'No data'}
-                                                </ThemedText>
-                                            </CardContainer>
+                                            </LinearGradient>
                                         );
-                                    })()}
-
-                                    {/* Evening */}
-                                    {(() => {
-                                        const theme = eveningMood.dominant ? getMoodTheme(eveningMood.dominant.toLowerCase()) : null;
-                                        const textColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') : (isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)');
-                                        const metaColor = theme ? (theme.textOn === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)') : colors.textTertiary;
-                                        const CardContainer = theme ? LinearGradient : View;
-                                        const cardProps = theme
-                                            ? { colors: [theme.gradient.primary, theme.gradient.mid, theme.gradient.secondary] as [string, string, string], start: { x: 0, y: 0 }, end: { x: 1, y: 1 }, style: styles.timeOfDayItem }
-                                            : { style: [styles.timeOfDayItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }] };
-                                        return (
-                                            <CardContainer {...(cardProps as any)}>
-                                                <View style={styles.timeOfDayHeader}>
-                                                    <MoonStar size={18} strokeWidth={1.5} color={textColor} />
-                                                    <ThemedText type="caption" style={[styles.timeOfDayLabel, { color: metaColor }]}>EVENING</ThemedText>
-                                                </View>
-                                                <ThemedText style={[styles.timeOfDayMood, { color: textColor }]}>
-                                                    {eveningMood.dominant || '—'}
-                                                </ThemedText>
-                                                <ThemedText style={[styles.timeOfDayMeta, { color: metaColor }]}>
-                                                    {eveningMood.count > 0 ? `${eveningMood.count} of ${eveningMood.totalCaptures}` : 'No data'}
-                                                </ThemedText>
-                                            </CardContainer>
-                                        );
-                                    })()}
-                                </View>
+                                    })}
+                                </ScrollView>
 
                                 {/* WEEKLY MOOD - Mood breakdown / Mood Break game */}
                                 <SoftFadeDivider />
@@ -1334,18 +1308,19 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
     // MOOD BY TIME Styles
-    timeOfDayGrid: {
-        flexDirection: 'row',
+    timeOfDayScroll: {
+        marginHorizontal: -16,
+    },
+    timeOfDayScrollContent: {
+        paddingHorizontal: 16,
         gap: 12,
     },
-    timeOfDayItem: {
-        flex: 1,
+    timeOfDayCard: {
+        width: 150,
         padding: 16,
-        // backgroundColor and borderColor applied via inline override
-        borderRadius: 12,
-        borderWidth: 1,
+        borderRadius: 16,
+        gap: 10,
         overflow: 'hidden',
-        gap: 8,
     },
     timeOfDayHeader: {
         flexDirection: 'row',
@@ -1355,17 +1330,50 @@ const styles = StyleSheet.create({
     timeOfDayLabel: {
         fontSize: 10,
         fontWeight: '600',
-        // color applied via inline override using colors.textTertiary
         letterSpacing: 1,
+        color: 'rgba(255,255,255,0.8)',
     },
     timeOfDayMood: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '700',
-        // color applied via inline override using colors.text
+        color: '#fff',
+    },
+    timeOfDayBottom: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 4,
+    },
+    timeOfDayOrb: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.24)',
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    timeOrbGrain: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+    } as any,
+    timeOrbSplash: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        opacity: 0.3,
+    },
+    timeOrbStreak: {
+        position: 'absolute',
+        width: 1.5,
+        height: 14,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        transform: [{ rotate: '35deg' }],
     },
     timeOfDayMeta: {
-        fontSize: 10,
-        // color applied via inline override using colors.textTertiary
+        fontSize: 11,
         fontWeight: '500',
+        color: 'rgba(255,255,255,0.6)',
     },
 });

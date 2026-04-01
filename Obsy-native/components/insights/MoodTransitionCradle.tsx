@@ -8,7 +8,7 @@ import Animated, {
     useSharedValue,
     withTiming,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
@@ -400,23 +400,25 @@ function CradleBall({ mood, index, x, total, angle, onPullRelease, labelsVisible
 
     return (
         <View style={[styles.ballAnchor, { left: x - BALL_SIZE / 2 }]}>
-            <GestureDetector gesture={dragGesture}>
-                <Animated.View style={[styles.pendulum, animStyle]}>
-                    <View style={styles.string} />
-                    <LinearGradient
-                        colors={[mood.primary, mood.mid, mood.secondary]}
-                        start={{ x: 0.25, y: 0.2 }}
-                        end={{ x: 0.9, y: 1 }}
-                        style={styles.ball}
-                    >
-                        {effect.type === 'grain' && <View style={styles.grainOverlay} />}
-                        {effect.type === 'splash' && (
-                            <View style={[styles.splash, { backgroundColor: effect.splashColor ?? 'rgba(255,255,255,0.25)' }]} />
-                        )}
-                        {effect.type === 'streak' && <View style={styles.streak} />}
-                    </LinearGradient>
-                </Animated.View>
-            </GestureDetector>
+            <GestureHandlerRootView>
+                <GestureDetector gesture={dragGesture}>
+                    <Animated.View style={[styles.pendulum, animStyle]}>
+                        <View style={styles.string} />
+                        <LinearGradient
+                            colors={[mood.primary, mood.mid, mood.secondary]}
+                            start={{ x: 0.25, y: 0.2 }}
+                            end={{ x: 0.9, y: 1 }}
+                            style={styles.ball}
+                        >
+                            {effect.type === 'grain' && <View style={styles.grainOverlay} />}
+                            {effect.type === 'splash' && (
+                                <View style={[styles.splash, { backgroundColor: effect.splashColor ?? 'rgba(255,255,255,0.25)' }]} />
+                            )}
+                            {effect.type === 'streak' && <View style={styles.streak} />}
+                        </LinearGradient>
+                    </Animated.View>
+                </GestureDetector>
+            </GestureHandlerRootView>
             {labelsVisible && (
                 <Animated.View style={[styles.labelWrap, labelStyle]}>
                     <ThemedText style={styles.label} numberOfLines={1}>{mood.label}</ThemedText>
