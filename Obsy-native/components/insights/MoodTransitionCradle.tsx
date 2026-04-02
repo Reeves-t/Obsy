@@ -42,7 +42,7 @@ type Transition = { from: string; to: string; count: number };
 type BallProps = {
     mood: MoodNode;
     index: number;
-    x: number;
+    anchorX: number;
     total: number;
     angle: SharedValue<number>;
     onPullRelease: (ballIndex: number, releasedAngle: number) => void;
@@ -55,6 +55,7 @@ const MIN_BALLS = 3;
 const STRING_LENGTH = 84;
 const BALL_SIZE = 34;
 const MAX_PULL_DEG = 45;
+const PENDULUM_HEIGHT = STRING_LENGTH + BALL_SIZE;
 
 export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[]; isLight: boolean }) {
     const { width } = useWindowDimensions();
@@ -266,19 +267,13 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
 
     const labelStyle = useAnimatedStyle(() => ({ opacity: labelOpacity.value }));
 
-    if (scopedCaptures.length <= 1) return null;
-
-    if (moodNodes.length < MIN_BALLS) {
-        return (
-            <View style={[styles.placeholder, { borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)' }]}>
-                <View style={[styles.placeholderFrame, { borderColor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.2)' }]} />
-                <ThemedText style={styles.placeholderText}>Log more moods to see your patterns</ThemedText>
-            </View>
-        );
-    }
+    // Determine what to show below the tabs
+    const hasData = scopedCaptures.length > 1;
+    const hasEnoughMoods = moodNodes.length >= MIN_BALLS;
 
     return (
         <View style={styles.container}>
+            {/* Filter tabs — always visible */}
             <View style={[styles.scopeToggle, { backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)' }]}>
                 {SCOPE_FILTERS.map((item) => (
                     <TouchableOpacity
@@ -291,35 +286,47 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
                 ))}
             </View>
 
-            <View style={[styles.cradle, { width: cradleWidth }]}> 
-                <View style={[styles.frameTop, { width: cradleWidth + 48 }]} />
-                <View style={[styles.supportLeft, { left: -12 }]} />
-                <View style={[styles.supportRight, { right: -12 }]} />
+            {/* Cradle or empty state */}
+            {hasData && hasEnoughMoods ? (
+                <>
+                    <View style={[styles.cradle, { width: cradleWidth }]}>
+                        <View style={[styles.frameTop, { width: cradleWidth + 48 }]} />
+                        <View style={[styles.supportLeft, { left: -12 }]} />
+                        <View style={[styles.supportRight, { right: -12 }]} />
 
-                <View style={styles.ballsRow}>
-                    {moodNodes.map((mood, index) => {
-                        const x = index * spacing;
-                        return (
-                            <CradleBall
-                                key={mood.moodId}
-                                mood={mood}
-                                index={index}
-                                x={x}
-                                total={moodNodes.length}
-                                angle={angles[index]}
-                                onPullRelease={onPullRelease}
-                                labelsVisible={labelsVisible}
-                                labelStyle={labelStyle}
-                            />
-                        );
-                    })}
+                        <View style={styles.ballsRow}>
+                            {moodNodes.map((mood, index) => {
+                                const anchorX = index * spacing;
+                                return (
+                                    <CradleBall
+                                        key={mood.moodId}
+                                        mood={mood}
+                                        index={index}
+                                        anchorX={anchorX}
+                                        total={moodNodes.length}
+                                        angle={angles[index]}
+                                        onPullRelease={onPullRelease}
+                                        labelsVisible={labelsVisible}
+                                        labelStyle={labelStyle}
+                                    />
+                                );
+                            })}
+                        </View>
+                    </View>
+
+                    {!!(message || activeTransition) && (
+                        <ThemedText style={styles.transitionText}>
+                            {message || `${moodNodes.find((n) => n.moodId === activeTransition?.from)?.label ?? ''} → ${moodNodes.find((n) => n.moodId === activeTransition?.to)?.label ?? ''} · ${activeTransition?.count ?? 0}x ${SCOPE_FILTERS.find((f) => f.key === scope)?.label ?? scope}`}
+                        </ThemedText>
+                    )}
+                </>
+            ) : (
+                <View style={[styles.placeholder, { borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)' }]}>
+                    <View style={[styles.placeholderFrame, { borderColor: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.2)' }]} />
+                    <ThemedText style={styles.placeholderText}>
+                        {!hasData ? 'Log more moods to see your patterns' : 'Log at least 3 different moods'}
+                    </ThemedText>
                 </View>
-            </View>
-
-            {!!(message || activeTransition) && (
-                <ThemedText style={styles.transitionText}>
-                    {message || `${moodNodes.find((n) => n.moodId === activeTransition?.from)?.label ?? ''} → ${moodNodes.find((n) => n.moodId === activeTransition?.to)?.label ?? ''} · ${activeTransition?.count ?? 0}x ${SCOPE_FILTERS.find((f) => f.key === scope)?.label ?? scope}`}
-                </ThemedText>
             )}
         </View>
     );
@@ -335,9 +342,9 @@ const styles = StyleSheet.create({
     frameTop: { height: 2, borderRadius: 2, backgroundColor: 'rgba(207,212,220,0.82)', marginTop: 8 },
     supportLeft: { position: 'absolute', top: 8, width: 2, height: 132, backgroundColor: 'rgba(196,201,210,0.45)', transform: [{ rotate: '10deg' }] },
     supportRight: { position: 'absolute', top: 8, width: 2, height: 132, backgroundColor: 'rgba(196,201,210,0.45)', transform: [{ rotate: '-10deg' }] },
-    ballsRow: { position: 'absolute', top: 10, width: '100%', height: 140 },
-    ballAnchor: { position: 'absolute', top: 0, width: BALL_SIZE, alignItems: 'center' },
-    pendulum: { alignItems: 'center' },
+    ballsRow: { position: 'absolute', top: 10, width: '100%', height: PENDULUM_HEIGHT + 30 },
+    ballAnchor: { position: 'absolute', top: 0, width: 0, alignItems: 'center' },
+    pendulum: { alignItems: 'center', width: BALL_SIZE, transformOrigin: 'top center' },
     string: { width: 1.25, height: STRING_LENGTH, backgroundColor: 'rgba(220,226,238,0.7)' },
     ball: {
         width: BALL_SIZE,
@@ -362,7 +369,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.2)',
         transform: [{ rotate: '35deg' }],
     },
-    labelWrap: { position: 'absolute', top: STRING_LENGTH + BALL_SIZE + 6, width: 64, left: -15, alignItems: 'center' },
+    labelWrap: { position: 'absolute', top: STRING_LENGTH + BALL_SIZE + 6, width: 64, left: (BALL_SIZE - 64) / 2, alignItems: 'center' },
     label: { fontSize: 10, opacity: 0.7 },
     transitionText: { fontSize: 12, opacity: 0.85, marginTop: 8 },
     placeholder: {
@@ -377,8 +384,10 @@ const styles = StyleSheet.create({
     placeholderText: { fontSize: 12, opacity: 0.7 },
 });
 
-function CradleBall({ mood, index, x, total, angle, onPullRelease, labelsVisible, labelStyle }: BallProps) {
+function CradleBall({ mood, index, anchorX, total, angle, onPullRelease, labelsVisible, labelStyle }: BallProps) {
     const effect = useMemo(() => generateOrbEffect(mood.label), [mood.label]);
+
+    // Rotate the entire pendulum from its top (anchor point on the frame bar)
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ rotateZ: `${angle.value}deg` }],
     }));
@@ -388,7 +397,8 @@ function CradleBall({ mood, index, x, total, angle, onPullRelease, labelsVisible
             Gesture.Pan()
                 .enabled(index === 0 || index === total - 1)
                 .onUpdate((e) => {
-                    const dragAngle = (e.translationX / STRING_LENGTH) * (180 / Math.PI);
+                    // Fix #3: negate so drag-left = swing-left
+                    const dragAngle = -(e.translationX / STRING_LENGTH) * (180 / Math.PI);
                     angle.value = Math.max(-MAX_PULL_DEG, Math.min(MAX_PULL_DEG, dragAngle));
                 })
                 .onEnd(() => {
@@ -399,7 +409,7 @@ function CradleBall({ mood, index, x, total, angle, onPullRelease, labelsVisible
     );
 
     return (
-        <View style={[styles.ballAnchor, { left: x - BALL_SIZE / 2 }]}>
+        <View style={[styles.ballAnchor, { left: anchorX }]}>
             <GestureHandlerRootView>
                 <GestureDetector gesture={dragGesture}>
                     <Animated.View style={[styles.pendulum, animStyle]}>
