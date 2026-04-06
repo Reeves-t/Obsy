@@ -9,6 +9,7 @@ import {
     ScrollView,
     Platform,
     useWindowDimensions,
+    Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
@@ -34,6 +35,7 @@ import Animated, {
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { useObsyTheme } from '@/contexts/ThemeContext';
+import { getProfile, type Profile } from '@/services/profile';
 
 type Step = 'recording' | 'review';
 
@@ -113,11 +115,17 @@ export default function VoiceNoteScreen() {
     const [transcriptError, setTranscriptError] = useState(false);
 
     const [isSaving, setIsSaving] = useState(false);
+    const [includeInInsights, setIncludeInInsights] = useState(true);
+    const [profile, setProfile] = useState<Profile | null>(null);
 
     const pulseScale = useSharedValue(1);
     const pulseStyle = useAnimatedStyle(() => ({
         transform: [{ scale: pulseScale.value }],
     }));
+
+    useEffect(() => {
+        getProfile().then(setProfile).catch(() => setProfile(null));
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -351,7 +359,7 @@ export default function VoiceNoteScreen() {
         if (!moodId || isSaving) return;
         setIsSaving(true);
         try {
-            await createVoiceEntry(user, moodId, moodName, transcript, audioStorageUrl ?? '');
+            await createVoiceEntry(user, moodId, moodName, transcript, audioStorageUrl ?? '', [], includeInInsights && !profile?.ai_free_mode);
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
         } catch (err) {
@@ -480,6 +488,16 @@ export default function VoiceNoteScreen() {
                     {/* Mood picker */}
                     <View style={[styles.moodBarRecording, { borderTopColor: colors.cardBorder }]}>
                         <MoodTrigger />
+                        <View style={[styles.includeRow, profile?.ai_free_mode && styles.includeRowDisabled]}>
+                            <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
+                            <Switch
+                                value={includeInInsights && !profile?.ai_free_mode}
+                                disabled={!!profile?.ai_free_mode}
+                                onValueChange={setIncludeInInsights}
+                                trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
+                                thumbColor="#fff"
+                            />
+                        </View>
                     </View>
                 </View>
             )}
@@ -529,6 +547,16 @@ export default function VoiceNoteScreen() {
 
                     <View style={[styles.moodBarReview, { borderTopColor: colors.cardBorder }]}>
                         <MoodTrigger />
+                        <View style={[styles.includeRow, profile?.ai_free_mode && styles.includeRowDisabled]}>
+                            <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
+                            <Switch
+                                value={includeInInsights && !profile?.ai_free_mode}
+                                disabled={!!profile?.ai_free_mode}
+                                onValueChange={setIncludeInInsights}
+                                trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
+                                thumbColor="#fff"
+                            />
+                        </View>
                     </View>
                 </ScrollView>
             )}
@@ -680,6 +708,19 @@ const styles = StyleSheet.create({
         ...Platform.select({ android: { textAlignVertical: 'top' as const } }),
     },
     moodBarReview: { paddingVertical: 8, borderTopWidth: 1 },
+    includeRow: {
+        marginTop: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    includeRowDisabled: {
+        opacity: 0.45,
+    },
+    includeLabel: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.6)',
+    },
 
     // ── Mood trigger ─────────────────────────────────────────────────
     moodTrigger: {

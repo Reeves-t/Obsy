@@ -628,7 +628,24 @@ export default function ProfileScreen() {
             title="Insight Tone"
             subtitle="Choose how Obsy narrates your day"
             value={currentTone.label}
-            onPress={() => setToneModalVisible(true)}
+            onPress={() => {
+              if (profile?.ai_free_mode) return;
+              setToneModalVisible(true);
+            }}
+          />
+          <SettingRow
+            icon="flash-off-outline"
+            title="AI-Free Mode"
+            subtitle="Disable AI-generated content across Obsy"
+            showChevron={false}
+            rightElement={
+              <Switch
+                value={profile?.ai_free_mode ?? false}
+                onValueChange={(val) => handleUpdateProfile({ ai_free_mode: val })}
+                trackColor={{ false: isLight ? 'rgba(0,0,0,0.1)' : '#3e3e3e', true: Colors.obsy.silver }}
+                thumbColor={isLight ? '#1a1a1a' : '#fff'}
+              />
+            }
           />
           <SettingRow
             icon="calendar-outline"
@@ -639,6 +656,7 @@ export default function ProfileScreen() {
               <Switch
                 value={profile?.ai_auto_daily_insights ?? true}
                 onValueChange={(val) => handleUpdateProfile({ ai_auto_daily_insights: val })}
+                disabled={profile?.ai_free_mode ?? false}
                 trackColor={{ false: isLight ? 'rgba(0,0,0,0.1)' : '#3e3e3e', true: Colors.obsy.silver }}
                 thumbColor={isLight ? '#1a1a1a' : '#fff'}
               />
@@ -654,6 +672,7 @@ export default function ProfileScreen() {
               <Switch
                 value={profile?.ai_use_journal_in_insights ?? true}
                 onValueChange={(val) => handleUpdateProfile({ ai_use_journal_in_insights: val })}
+                disabled={profile?.ai_free_mode ?? false}
                 trackColor={{ false: isLight ? 'rgba(0,0,0,0.1)' : '#3e3e3e', true: Colors.obsy.silver }}
                 thumbColor={isLight ? '#1a1a1a' : '#fff'}
               />

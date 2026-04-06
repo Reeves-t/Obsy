@@ -155,6 +155,7 @@ export default function InsightsScreen() {
     const [isEligibleForInsight, setIsEligibleForInsight] = useState(false);
     const [capturedDaysCount, setCapturedDaysCount] = useState(0);
     const [isReady, setIsReady] = useState(false);
+    const [aiFreeMode, setAiFreeMode] = useState(false);
 
     // Archive storage state
     const [archiveCount, setArchiveCount] = useState(0);
@@ -206,6 +207,20 @@ export default function InsightsScreen() {
     useEffect(() => {
         fetchCaptures(user);
     }, [user]);
+
+    useEffect(() => {
+        getProfile()
+            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
+            .catch(() => setAiFreeMode(false));
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (!aiFreeMode) return;
+        setTodayMoodFlow(null);
+        setGeneratedTagInsight(null);
+        setAiReasoning(null);
+        setMonthPhrase(null);
+    }, [aiFreeMode]);
 
     useEffect(() => {
         if (!user) return;
@@ -275,6 +290,7 @@ export default function InsightsScreen() {
     const buildAiSettings = async () => {
         const profile = await getProfile();
         if (!profile) return null;
+        setAiFreeMode(!!profile.ai_free_mode);
 
         // Resolve actual tone ID: if ai_tone is 'custom', use the selected_custom_tone_id
         const resolvedToneId = profile.ai_tone === 'custom' && profile.selected_custom_tone_id
@@ -301,6 +317,7 @@ export default function InsightsScreen() {
 
     const loadInsight = async (forceRefresh = false) => {
         if (!user || captures.length === 0) return;
+        if (aiFreeMode) return;
 
         try {
             const config = await buildAiSettings();
@@ -319,6 +336,7 @@ export default function InsightsScreen() {
 
     const loadWeeklyInsight = async (force = false) => {
         if (!user || captures.length === 0) return;
+        if (aiFreeMode) return;
         try {
             const config = await buildAiSettings();
             if (!config) return;
@@ -336,6 +354,11 @@ export default function InsightsScreen() {
 
     const loadMonthlyInsight = async (force = false) => {
         if (!user || captures.length === 0) return;
+        if (aiFreeMode) {
+            setMonthPhrase(null);
+            setAiReasoning(null);
+            return;
+        }
         try {
             const config = await buildAiSettings();
             if (!config) return;
@@ -420,6 +443,11 @@ export default function InsightsScreen() {
 
     const loadAiMonthlySummary = async (monthCaptures: typeof captures, force = false) => {
         if (!user) return;
+        if (aiFreeMode) {
+            setMonthPhrase(null);
+            setAiReasoning(null);
+            return;
+        }
 
         try {
             const monthKey = formatMonthKey(currentMonth);
@@ -531,6 +559,10 @@ export default function InsightsScreen() {
 
     const loadTodayMoodFlow = async () => {
         if (!user) return;
+        if (aiFreeMode) {
+            setTodayMoodFlow(null);
+            return;
+        }
         try {
             const todayKey = formatDateKey(new Date());
             console.log('[Insights] Loading mood flow for date:', todayKey);
@@ -565,6 +597,7 @@ export default function InsightsScreen() {
     };
 
     const handleToneSelect = async (toneId: AiToneId) => {
+        if (aiFreeMode) return;
         try {
             // Check if this is a preset tone or a custom tone UUID
             const isPreset = AI_TONES.some(t => t.id === toneId);
@@ -592,6 +625,7 @@ export default function InsightsScreen() {
     };
 
     const handleGenerateTagInsight = async (tag: string) => {
+        if (aiFreeMode) return;
         setLoadingTagInsight(true);
         try {
             const config = await buildAiSettings();
@@ -628,7 +662,10 @@ export default function InsightsScreen() {
                         {/* Tone Picker */}
                         <ToneTriggerButton
                             activeToneName={getCurrentToneName()}
-                            onPress={() => setToneSelectorVisible(true)}
+                            onPress={() => {
+                                if (aiFreeMode) return;
+                                setToneSelectorVisible(true);
+                            }}
                         />
 
                         {/* Timeframe Toggle */}
@@ -685,15 +722,15 @@ export default function InsightsScreen() {
                                 />
                             )}
                             <MonthView
-                                text={monthlyText}
+                                text={aiFreeMode ? null : monthlyText}
                                 currentMonth={currentMonth}
                                 onMonthChange={handleMonthChange}
-                                onGenerate={() => loadMonthlyInsight(true)}
+                                onGenerate={() => { if (!aiFreeMode) loadMonthlyInsight(true); }}
                                 isGenerating={monthlyStatus === 'loading'}
                                 captures={captures}
                                 dailyFlows={monthDailyFlows}
-                                aiReasoning={aiReasoning}
-                                monthPhrase={monthPhrase}
+                                aiReasoning={aiFreeMode ? null : aiReasoning}
+                                monthPhrase={aiFreeMode ? null : monthPhrase}
                                 onArchiveFull={() => setIsArchiveFullModalVisible(true)}
                                 isEligibleForInsight={isEligibleForInsight}
                                 capturedDaysCount={capturedDaysCount}
@@ -712,8 +749,8 @@ export default function InsightsScreen() {
                             />
                         )}
                         <TodayInsightCard
-                            text={dailyText}
-                            onRefresh={() => loadInsight(true)}
+                            text={aiFreeMode ? null : dailyText}
+                            onRefresh={() => { if (!aiFreeMode) loadInsight(true); }}
                             flat
                             onArchiveFull={() => setIsArchiveFullModalVisible(true)}
                         />
@@ -724,7 +761,7 @@ export default function InsightsScreen() {
                                 {/* DAILY FLOW - Mood Flow as a timeline trace */}
                                 <SoftFadeDivider />
                                 <SectionHeader title="DAILY FLOW" />
-                                <MoodFlow moodFlow={todayMoodFlow} loading={dailyStatus === 'loading'} flat />
+                                <MoodFlow moodFlow={aiFreeMode ? null : todayMoodFlow} loading={!aiFreeMode && dailyStatus === 'loading'} flat />
 
                                 {/* MOOD SIGNAL - Weekly pattern analytics */}
                                 <SectionHeader title="MOOD SIGNAL" />
@@ -880,10 +917,10 @@ export default function InsightsScreen() {
                                 <SoftFadeDivider />
                                 <SectionHeader title="WEEKLY RECAP" />
                                 <WeeklySummaryCard
-                                    text={weeklyText}
+                                    text={aiFreeMode ? null : weeklyText}
                                     weeklyStats={weeklyStats}
                                     isGenerating={weeklyStatus === 'loading'}
-                                    onGenerate={() => loadWeeklyInsight(true)}
+                                    onGenerate={() => { if (!aiFreeMode) loadWeeklyInsight(true); }}
                                     onViewHistory={() => { }}
                                     flat
                                     onArchiveFull={() => setIsArchiveFullModalVisible(true)}
@@ -896,15 +933,21 @@ export default function InsightsScreen() {
 
                                 {/* REFLECTIONS - Tag insights */}
                                 <SectionHeader title="REFLECTIONS" />
-                                <TagReflections
-                                    tags={topTags}
-                                    onGenerateTagInsight={handleGenerateTagInsight}
-                                    generatedInsight={generatedTagInsight}
-                                    loading={loadingTagInsight}
-                                    onClose={() => setGeneratedTagInsight(null)}
-                                    flat
-                                    onArchiveFull={() => setIsArchiveFullModalVisible(true)}
-                                />
+                                {!aiFreeMode ? (
+                                    <TagReflections
+                                        tags={topTags}
+                                        onGenerateTagInsight={handleGenerateTagInsight}
+                                        generatedInsight={generatedTagInsight}
+                                        loading={loadingTagInsight}
+                                        onClose={() => setGeneratedTagInsight(null)}
+                                        flat
+                                        onArchiveFull={() => setIsArchiveFullModalVisible(true)}
+                                    />
+                                ) : (
+                                    <ThemedText style={[styles.insightMutedText, { color: onBgTextSecondary }]}>
+                                        AI-Free mode is on, so tag reflections are disabled.
+                                    </ThemedText>
+                                )}
 
                                 {/* ARCHIVE - Quiet, secondary placement */}
                                 <SoftFadeDivider />
@@ -1150,6 +1193,11 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 2,
         // Color applied via inline override using onBgTextSecondary
+    },
+    insightMutedText: {
+        fontSize: 13,
+        opacity: 0.75,
+        marginBottom: 8,
     },
     // ─────────────────────────────────────────────────────────────────────────
     // Three-Tier Divider System
