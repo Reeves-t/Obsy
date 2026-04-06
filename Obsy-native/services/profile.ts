@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { AiToneId, DEFAULT_AI_TONE_ID } from "@/lib/aiTone";
+import { AiToneId, DEFAULT_AI_TONE_ID, isPresetTone } from "@/lib/aiTone";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 
@@ -30,6 +30,12 @@ export interface Profile {
     ai_per_photo_captions: boolean;
     ai_free_mode: boolean;
     selected_custom_tone_id?: string | null;
+}
+
+function normalizeAiToneForSettings(aiTone: string | null | undefined): AiToneId {
+    if (!aiTone) return DEFAULT_AI_TONE_ID;
+    if (aiTone === 'custom') return DEFAULT_AI_TONE_ID;
+    return isPresetTone(aiTone) ? (aiTone as AiToneId) : DEFAULT_AI_TONE_ID;
 }
 
 
@@ -113,7 +119,7 @@ export async function getProfile(): Promise<Profile | null> {
         avatar_url: profileData?.avatar_url ?? undefined,
         friend_code: profileData?.friend_code ?? undefined,
         // Settings from user_settings table
-        ai_tone: (settingsData?.ai_tone as AiToneId) ?? DEFAULT_AI_TONE_ID,
+        ai_tone: normalizeAiToneForSettings(settingsData?.ai_tone),
         ai_auto_daily_insights: settingsData?.ai_auto_daily_insights ?? true,
         ai_use_journal_in_insights: settingsData?.ai_use_journal_in_insights ?? true,
         ai_per_photo_captions: settingsData?.ai_per_photo_captions ?? true,
@@ -150,7 +156,7 @@ export async function updateProfile(updates: Partial<Profile>) {
     // Note: friend_code should not be updated directly; it's generated automatically
 
     // Settings fields go to user_settings table
-    if (updates.ai_tone !== undefined) settingsUpdates.ai_tone = updates.ai_tone;
+    if (updates.ai_tone !== undefined) settingsUpdates.ai_tone = normalizeAiToneForSettings(updates.ai_tone);
     if (updates.ai_auto_daily_insights !== undefined) settingsUpdates.ai_auto_daily_insights = updates.ai_auto_daily_insights;
     if (updates.ai_use_journal_in_insights !== undefined) settingsUpdates.ai_use_journal_in_insights = updates.ai_use_journal_in_insights;
     if (updates.ai_per_photo_captions !== undefined) settingsUpdates.ai_per_photo_captions = updates.ai_per_photo_captions;
@@ -173,6 +179,16 @@ export async function updateProfile(updates: Partial<Profile>) {
 
     // Update user_settings table if there are settings updates
     if (Object.keys(settingsUpdates).length > 0) {
+        // Guard against legacy/invalid ai_tone values that violate stricter DB check constraints
+        if (settingsUpdates.ai_tone === undefined) {
+            const { data: existingSettings } = await (supabase as any)
+                .from("user_settings")
+                .select("ai_tone")
+                .eq("user_id", user.id)
+                .maybeSingle();
+            settingsUpdates.ai_tone = normalizeAiToneForSettings(existingSettings?.ai_tone);
+        }
+
         const { error: settingsError } = await (supabase as any)
             .from("user_settings")
             .upsert({ user_id: user.id, ...settingsUpdates, updated_at: new Date().toISOString() })

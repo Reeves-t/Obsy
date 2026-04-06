@@ -70,7 +70,6 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     const [message, setMessage] = useState<string | null>(null);
     const [labelsVisible, setLabelsVisible] = useState(true);
     const [activeTransition, setActiveTransition] = useState<Transition | null>(null);
-    const cycleIndexRef = useRef(0);
     const mountedRef = useRef(true);
 
     const a0 = useSharedValue(0);
@@ -302,9 +301,7 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
         state.velocities[fromIdx] = 0;
         startSimulation();
     }, [hideLabels, moodNodes, startSimulation]);
-
     useEffect(() => {
-        cycleIndexRef.current = 0;
         cancelAllAnimations();
         const state = simulationRef.current;
         state.angles = [0, 0, 0, 0, 0];
@@ -317,21 +314,12 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     }, [scope, cancelAllAnimations, cradleRock, showLabels, syncSharedAngles]);
 
     useEffect(() => {
-        if (moodNodes.length < MIN_BALLS || transitions.length === 0) return;
-        const interval = setInterval(() => {
-            if (!mountedRef.current) return;
-            const next = transitions[cycleIndexRef.current % transitions.length];
-            cycleIndexRef.current += 1;
-            triggerTransition(next);
-        }, 6000);
-
-        triggerTransition(transitions[0]);
-
+        // Keep cradle idle by default (balls hang naturally).
+        // Auto-cycling caused persistent movement/haptics in some sessions.
         return () => {
-            clearInterval(interval);
             cancelAllAnimations();
         };
-    }, [transitions, moodNodes.length, triggerTransition, cancelAllAnimations]);
+    }, [cancelAllAnimations]);
 
     const onPullRelease = (ballIndex: number, releasedAngle: number) => {
         const source = moodNodes[ballIndex];
