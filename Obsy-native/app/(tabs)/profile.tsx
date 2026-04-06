@@ -28,6 +28,7 @@ import { BlurView } from 'expo-blur';
 import { useTimeFormatStore, TimeFormat } from '@/lib/timeFormatStore';
 import { useFloatingBackgroundStore } from '@/lib/floatingBackgroundStore';
 import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
+import { useI18n } from '@/i18n/config';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -244,6 +245,7 @@ export default function ProfileScreen() {
   const { user, session, isGuest, signOut } = useAuth();
   const { isLight, toggleTheme, colors } = useObsyTheme();
   const { timeFormat, setTimeFormat } = useTimeFormatStore();
+  const { t, languageLabel } = useI18n();
   const router = useRouter();
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -504,7 +506,7 @@ export default function ProfileScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <ThemedText type="title" style={[styles.headerTitle, { color: colors.text }]}>Settings</ThemedText>
+          <ThemedText type="title" style={[styles.headerTitle, { color: colors.text }]}>{t('settings.title')}</ThemedText>
         </View>
 
         {/* Guest UI Override */}
@@ -594,7 +596,7 @@ export default function ProfileScreen() {
         {/* Guest CTA Card (Removed as it's now the main view) */}
 
         {/* APPEARANCE */}
-        <SectionHeader title="APPEARANCE" flat />
+        <SectionHeader title={t('settings.appearance')} flat />
         <View style={styles.flatSection}>
           <SettingRow
             icon="sunny-outline"
@@ -609,6 +611,13 @@ export default function ProfileScreen() {
                 thumbColor="#fff"
               />
             }
+          />
+          <SettingRow
+            icon="language-outline"
+            title={t('settings.languageTitle')}
+            subtitle={t('settings.languageSubtitle')}
+            value={languageLabel}
+            onPress={() => router.push('/language')}
           />
           <SettingRow
             icon="time-outline"

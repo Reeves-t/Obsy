@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ObsyThemeProvider, useObsyTheme } from '@/contexts/ThemeContext';
 import { MockAlbumProvider } from '@/contexts/MockAlbumContext';
+import { I18nProvider } from '@/i18n/config';
 import { moodCache } from '@/lib/moodCache';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTodayInsight } from '@/lib/todayInsightStore';
@@ -99,13 +100,15 @@ function RootLayoutNav({ onDataReady }: { onDataReady: () => void }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ObsyThemeProvider>
-          <MockAlbumProvider>
+        <I18nProvider>
+          <ObsyThemeProvider>
+            <MockAlbumProvider>
             <MoodCacheInitializer />
             <SnapshotLoader onDataReady={onDataReady} />
             <ThemedNavigator />
-          </MockAlbumProvider>
-        </ObsyThemeProvider>
+            </MockAlbumProvider>
+          </ObsyThemeProvider>
+        </I18nProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
@@ -177,6 +180,7 @@ function ThemedNavigator() {
         <Stack.Screen name="voice" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="moodverse" options={{ headerShown: false }} />
         <Stack.Screen name="archive" options={{ headerShown: false }} />
+        <Stack.Screen name="language" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

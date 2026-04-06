@@ -19,6 +19,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import * as Haptics from "expo-haptics";
 import { PendingInsightMessage } from "./PendingInsightMessage";
 import { useObsyTheme } from "@/contexts/ThemeContext";
+import { useI18n } from '@/i18n/config';
+import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
 
 interface MonthViewProps {
     currentMonth: Date;
@@ -122,6 +124,13 @@ export function MonthView({
         return new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
     }, [currentMonth]);
 
+    const monthlyMoodIds = useMemo(() => {
+        return Object.values(dailyFlows)
+            .map((flow) => flow.dominantId || flow.dominant)
+            .filter((value): value is string => !!value);
+    }, [dailyFlows]);
+
+
     // Get captures and flow for selected day
     const selectedDayData = useMemo(() => {
         if (!selectedDay) return null;
@@ -147,6 +156,8 @@ export function MonthView({
                             monthYear={{ year: currentMonth.getFullYear(), month: currentMonth.getMonth() }}
                             monthPhrase={monthPhrase}
                             aiReasoning={aiReasoning}
+                            showCenterMoodOrbs={!text}
+                            centerMoodOrbIds={monthlyMoodIds}
                         />
                     </View>
                 </BlurView>
@@ -165,6 +176,7 @@ export function MonthView({
                 pendingCount={pendingCount}
                 isLight={isLight}
                 colors={colors}
+                currentMonth={currentMonth}
             />
 
             <MonthCalendar
@@ -204,12 +216,13 @@ function MonthSummaryCard({
     pendingCount,
     isLight,
     colors,
+    currentMonth,
 }: {
     text: string | null;
     onGenerate: () => void;
     isGenerating: boolean;
     isSaved: boolean;
-    onSave: () => void;
+    onSave: () => void | Promise<void>;
     saving: boolean;
     onArchiveFull?: () => void;
     isEligible: boolean;
@@ -217,7 +230,11 @@ function MonthSummaryCard({
     pendingCount?: number;
     isLight?: boolean;
     colors?: { cardText: string; cardTextSecondary: string; cardBorder: string; };
+    currentMonth: Date;
 }) {
+    const { t } = useI18n();
+    const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+    const translatedText = useTranslatedInsight({ insightId: `monthly-${monthKey}`, sourceText: text, sourceLanguage: 'en' });
     const formattedDate = null;
 
     return (
@@ -226,7 +243,7 @@ function MonthSummaryCard({
                 <View style={[styles.titleRow, { flex: 1 }]}>
                     <View>
                         <ThemedText type="defaultSemiBold" style={[styles.title, colors && { color: colors.cardText }]}>
-                            Monthly Insight
+                            {t('insight.monthlyInsight')}
                         </ThemedText>
                         {formattedDate && (
                             <ThemedText style={[styles.asOfText, colors && { color: colors.cardTextSecondary }]}>
@@ -246,7 +263,7 @@ function MonthSummaryCard({
                     </TouchableOpacity>
                 ) : (
                     <View style={styles.lockedContainer}>
-                        <ThemedText style={[styles.lockedText, colors && { color: colors.cardTextSecondary }]}>Unlocks after week one</ThemedText>
+                        <ThemedText style={[styles.lockedText, colors && { color: colors.cardTextSecondary }]}>{t('insight.unlockAfterWeekOne')}</ThemedText>
                     </View>
                 )}
             </View>
@@ -262,23 +279,21 @@ function MonthSummaryCard({
             )}
 
             <View style={styles.summaryBody}>
-                {text ? (
+                {translatedText ? (
                     <InsightText
-                        fallbackText={text}
+                        fallbackText={translatedText}
                         collapsedSentences={0}
                         expandable={false}
                         textStyle={[styles.summaryText, colors && { color: colors.cardText }]}
                     />
                 ) : (
                     <ThemedText style={[styles.placeholder, colors && { color: colors.cardTextSecondary }]}>
-                        {isEligible
-                            ? "Create a monthly narrative to see long-form patterns."
-                            : "Keep capturing your days to unlock this insight."}
+                        {isEligible ? t('insight.createMonthly') : t('insight.keepCapturing')}
                     </ThemedText>
                 )}
             </View>
 
-            {text && (
+            {translatedText && (
                 <View style={styles.summaryFooter}>
                     <BookmarkButton
                         isSaved={isSaved}
