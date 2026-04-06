@@ -70,3 +70,4 @@ export interface ParsedDailyInsight {
 export interface ParsedWeeklyInsight {
   insight: string;
 }
+

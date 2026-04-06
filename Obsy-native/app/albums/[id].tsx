@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { getAlbumDayContext } from '@/lib/albumEngine';
 import { generateAlbumInsightSecure, resolveTonePrompt } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
 import { useAlbumToneStore } from '@/lib/albumToneStore';
 import { archiveInsightWithResult } from '@/services/archive';
@@ -48,6 +49,7 @@ export default function AlbumDetailScreen() {
     const [insightTone, setInsightTone] = useState<string | null>(null);
     const [sourceInsightId, setSourceInsightId] = useState<string | null>(null);
     const [hasPosted, setHasPosted] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
 
     // Key to trigger SharedCanvas refresh after posting
     const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
@@ -144,6 +146,10 @@ export default function AlbumDetailScreen() {
 
     const handleGenerateInsight = async () => {
         if (!id) return;
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
 
         // Public album doesn't support insight generation
         if (isPublicAlbum(id)) {
@@ -318,6 +324,10 @@ export default function AlbumDetailScreen() {
 
     const handleRefreshInsight = async () => {
         if (!id) return;
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
         setIsRefreshingInsight(true);
 
         try {

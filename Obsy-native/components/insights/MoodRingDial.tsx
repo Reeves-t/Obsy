@@ -6,6 +6,7 @@ import { ThemedText } from "@/components/ui/ThemedText";
 import { getMoodTheme } from "@/lib/moods";
 import { DailyMoodFlowData } from "@/lib/dailyMoodFlows";
 import { useObsyTheme } from "@/contexts/ThemeContext";
+import { InsightMoodOrbField } from "./InsightMoodOrbField";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CIRCLE_SIZE = 240;
@@ -19,6 +20,8 @@ interface MoodRingDialProps {
     monthPhrase?: string | null;
     /** Reasoning that explains WHY the monthPhrase title was chosen */
     aiReasoning?: string | null;
+    showCenterMoodOrbs?: boolean;
+    centerMoodOrbIds?: string[];
 }
 
 /**
@@ -163,6 +166,8 @@ export function MoodRingDial({
     monthYear,
     monthPhrase,
     aiReasoning,
+    showCenterMoodOrbs = false,
+    centerMoodOrbIds = [],
 }: MoodRingDialProps) {
     const { colors, isLight } = useObsyTheme();
     const SIZE = CIRCLE_SIZE;
@@ -342,7 +347,9 @@ export function MoodRingDial({
                         </Svg>
                         {/* Center label - Month Phrase */}
                         <View style={styles.dialCenterLabel}>
-                            {monthPhrase ? (
+                            {showCenterMoodOrbs ? (
+                                <InsightMoodOrbField moodIds={centerMoodOrbIds} variant="tiny" maxOrbs={12} />
+                            ) : monthPhrase ? (
                                 <>
                                     <ThemedText style={[styles.monthPhraseText, { color: colors.cardText }]}>{monthPhrase}</ThemedText>
                                     <ThemedText style={[styles.monthSubtext, { color: colors.cardTextSecondary }]}>Tap for details</ThemedText>

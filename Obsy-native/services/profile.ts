@@ -14,7 +14,7 @@ const GUEST_ID_KEY = "obsy_guest_id";
  * - id, full_name, avatar_url, friend_code
  *
  * Settings fields (from `user_settings` table):
- * - ai_tone, ai_auto_daily_insights, ai_use_journal_in_insights, ai_per_photo_captions
+ * - ai_tone, ai_auto_daily_insights, ai_use_journal_in_insights, ai_per_photo_captions, ai_free_mode
  */
 export interface Profile {
     // Identity fields from profiles table
@@ -28,6 +28,7 @@ export interface Profile {
     ai_auto_daily_insights: boolean;
     ai_use_journal_in_insights: boolean;
     ai_per_photo_captions: boolean;
+    ai_free_mode: boolean;
     selected_custom_tone_id?: string | null;
 }
 
@@ -46,7 +47,8 @@ export async function getProfile(): Promise<Profile | null> {
                 if (parsed.id && parsed.id !== "guest") {
                     return {
                         ...parsed,
-                        ai_per_photo_captions: parsed.ai_per_photo_captions ?? true
+                        ai_per_photo_captions: parsed.ai_per_photo_captions ?? true,
+                        ai_free_mode: parsed.ai_free_mode ?? false,
                     };
                 }
             }
@@ -72,6 +74,7 @@ export async function getProfile(): Promise<Profile | null> {
             ai_auto_daily_insights: true,
             ai_use_journal_in_insights: true,
             ai_per_photo_captions: true,
+            ai_free_mode: false,
         };
     }
 
@@ -98,6 +101,7 @@ export async function getProfile(): Promise<Profile | null> {
             ai_auto_daily_insights: true,
             ai_use_journal_in_insights: true,
             ai_per_photo_captions: true,
+            ai_free_mode: false,
         };
     }
 
@@ -113,6 +117,7 @@ export async function getProfile(): Promise<Profile | null> {
         ai_auto_daily_insights: settingsData?.ai_auto_daily_insights ?? true,
         ai_use_journal_in_insights: settingsData?.ai_use_journal_in_insights ?? true,
         ai_per_photo_captions: settingsData?.ai_per_photo_captions ?? true,
+        ai_free_mode: settingsData?.ai_free_mode ?? false,
         selected_custom_tone_id: settingsData?.selected_custom_tone_id ?? undefined,
     };
 }
@@ -149,6 +154,7 @@ export async function updateProfile(updates: Partial<Profile>) {
     if (updates.ai_auto_daily_insights !== undefined) settingsUpdates.ai_auto_daily_insights = updates.ai_auto_daily_insights;
     if (updates.ai_use_journal_in_insights !== undefined) settingsUpdates.ai_use_journal_in_insights = updates.ai_use_journal_in_insights;
     if (updates.ai_per_photo_captions !== undefined) settingsUpdates.ai_per_photo_captions = updates.ai_per_photo_captions;
+    if (updates.ai_free_mode !== undefined) settingsUpdates.ai_free_mode = updates.ai_free_mode;
     if (updates.selected_custom_tone_id !== undefined) settingsUpdates.selected_custom_tone_id = updates.selected_custom_tone_id;
 
 

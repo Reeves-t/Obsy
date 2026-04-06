@@ -11,13 +11,14 @@ import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/
 import { BookmarkButton } from "@/components/insights/BookmarkButton";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/contexts/AuthContext";
-import { startOfWeek, format } from "date-fns";
+import { startOfWeek, endOfWeek, format } from "date-fns";
 import { useCaptureStore } from "@/lib/captureStore";
 import { PendingInsightMessage } from "./PendingInsightMessage";
 import { useObsyTheme } from "@/contexts/ThemeContext";
-import { getUserFriendlyErrorMessage } from "@/lib/insightErrorUtils";
-
-type InsightError = { stage: string; message: string; requestId?: string } | null;
+import { getUserFriendlyErrorMessage, type InsightError } from "@/lib/insightErrorUtils";
+import { useI18n } from '@/i18n/config';
+import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
+import { InsightMoodOrbField } from './InsightMoodOrbField';
 
 interface WeeklySummaryCardProps {
     text: string | null;
@@ -28,7 +29,7 @@ interface WeeklySummaryCardProps {
     flat?: boolean;
     onArchiveFull?: () => void;
     pendingCount?: number;
-    error?: InsightError;
+    error?: InsightError | null;
 }
 
 export const WeeklySummaryCard = memo(function WeeklySummaryCard({
@@ -43,9 +44,24 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     error = null,
 }: WeeklySummaryCardProps) {
     const { colors, isLight } = useObsyTheme();
+    const { t } = useI18n();
     const { user } = useAuth();
     const { captures } = useCaptureStore();
-    const hasInsight = !!text;
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+    const weekKey = format(currentWeekStart, 'yyyy-MM-dd');
+    const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
+    const weekMoodIds = React.useMemo(() => {
+        return captures
+            .filter((capture) => {
+                const date = new Date(capture.created_at);
+                return date >= currentWeekStart && date <= currentWeekEnd;
+            })
+            .map((capture) => capture.mood_id)
+            .filter(Boolean);
+    }, [captures, currentWeekStart.getTime(), currentWeekEnd.getTime()]);
+
+    const translatedText = useTranslatedInsight({ insightId: `weekly-${weekKey}`, sourceText: text, sourceLanguage: 'en' });
+    const hasInsight = !!translatedText;
 
     const [isSaved, setIsSaved] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
@@ -128,16 +144,16 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                     <Ionicons name="calendar-outline" size={18} color={colors.cardTextSecondary} />
                     <View>
                         <ThemedText type="defaultSemiBold" style={[styles.title, { color: colors.cardText }]}>
-                            Week in Review
+                            {t('insight.weekInReview')}
                         </ThemedText>
                         <ThemedText style={[styles.subline, { color: colors.cardTextSecondary }]}>
-                            A reflection across your days so far
+                            {t('insight.weekSubline')}
                         </ThemedText>
                     </View>
                 </View>
                 <View style={styles.actions}>
                     <TouchableOpacity onPress={onViewHistory}>
-                        <ThemedText style={[styles.historyHint, { color: colors.cardTextSecondary }]}>View history</ThemedText>
+                        <ThemedText style={[styles.historyHint, { color: colors.cardTextSecondary }]}>{t('insight.viewHistory')}</ThemedText>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={onGenerate} disabled={isGenerating}>
                         {isGenerating ? (
@@ -161,11 +177,14 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
 
             <View style={styles.insightBody}>
                 {hasInsight ? (
+                    <>
                     <InsightText
-                        fallbackText={text || ''}
+                        fallbackText={translatedText || ''}
                         collapsedSentences={4}
                         expandable={true}
                     />
+                    <InsightMoodOrbField moodIds={weekMoodIds} variant="subtle" maxOrbs={8} />
+                    </>
                 ) : (
                     <View style={styles.emptyState}>
                         <ThemedText style={[styles.emptyText, { color: colors.cardTextSecondary }]}>
@@ -181,6 +200,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                                 Error ID: {error.requestId}
                             </ThemedText>
                         )}
+                        <InsightMoodOrbField moodIds={weekMoodIds} variant="focus" maxOrbs={10} />
                         <TouchableOpacity onPress={onGenerate} disabled={isGenerating}>
                             <LinearGradient
                                 colors={['#8B5CF6', '#6D28D9']}
@@ -191,7 +211,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                                 {isGenerating ? (
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
-                                    <ThemedText style={[styles.generateText, { color: colors.cardText }]}>Generate Narrative</ThemedText>
+                                    <ThemedText style={[styles.generateText, { color: colors.cardText }]}>{t('insight.generateNarrative')}</ThemedText>
                                 )}
                             </LinearGradient>
                         </TouchableOpacity>

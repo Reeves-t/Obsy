@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useCallback, useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -21,6 +21,7 @@ import { SelectionTrail } from '@/components/moodverse/SelectionTrail';
 import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 import { computeEdgesForOrb, computeAmbientMesh } from '@/components/moodverse/edgeCompute';
 import { computeTransitions, computeTransitionAuras, TransitionData, TransitionAura } from '@/components/moodverse/transitionCompute';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 const DEFAULT_CAMERA_Z = 35;
 const CAMERA_Z_MIN = 5;
@@ -46,6 +47,7 @@ export default function MoodversePage() {
     const [isFocused, setIsFocused] = useState(true);
     const [showSearch, setShowSearch] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
     const [trailPoints, setTrailPoints] = useState<Array<{ x: number; y: number }>>([]);
     const { tier } = useSubscription();
     const isPro = tier === 'founder' || tier === 'subscriber';
@@ -61,6 +63,7 @@ export default function MoodversePage() {
     const isExplainOpen = useMoodverseStore((s) => s.isExplainOpen);
     const isIdle = useMoodverseStore((s) => s.isIdle);
     const aiHighlightedOrbIds = useMoodverseStore((s) => s.aiHighlightedOrbIds);
+
 
     // Camera state via refs (read by render loop, updated by gestures)
     const cameraZRef = useRef(DEFAULT_CAMERA_Z);
@@ -465,6 +468,10 @@ export default function MoodversePage() {
                 <TouchableOpacity
                     style={[styles.floatingChatBtn, { bottom: insets.bottom + 24 }]}
                     onPress={() => {
+                        if (aiFreeMode) {
+                            Alert.alert('AI-Free Mode', 'Moodverse chat is disabled while AI-Free mode is on.');
+                            return;
+                        }
                         if (!isPro) {
                             setShowPaywall(true);
                             return;

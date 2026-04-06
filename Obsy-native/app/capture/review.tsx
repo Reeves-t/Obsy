@@ -16,6 +16,7 @@ import { TagInput } from '@/components/capture/TagInput';
 import { LinedJournalInput } from '@/components/capture/LinedJournalInput';
 import { generateCaptureInsightSecure, CaptureData } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { supabase } from '@/lib/supabase';
 import { DestinationSelector } from '@/components/capture/DestinationSelector';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
@@ -53,6 +54,7 @@ export default function CaptureReviewScreen() {
     const [journalModalVisible, setJournalModalVisible] = useState(false);
     const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [usePhotoForInsight, setUsePhotoForInsight] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
 
     const { getMoodById, systemMoods, customMoods } = useCustomMoodStore();
 
@@ -77,6 +79,11 @@ export default function CaptureReviewScreen() {
 
     // Public album constant (not stored in database)
     const PUBLIC_ALBUM = { id: 'public', name: 'Public' };
+
+    // Disable photo-for-insight when AI-free mode is active
+    useEffect(() => {
+        if (aiFreeMode) setUsePhotoForInsight(false);
+    }, [aiFreeMode]);
 
     useEffect(() => {
         if (user) {
@@ -166,7 +173,7 @@ export default function CaptureReviewScreen() {
                     obsyNote = await generateCaptureInsightSecure(
                         captureData,
                         profile.ai_tone || 'friendly',
-                        profile.selected_custom_tone_id
+                        profile.selected_custom_tone_id || undefined
                     );
                 } catch (aiError: any) {
                     console.error('[Review] Obsy Note generation failed:', aiError);
@@ -362,8 +369,11 @@ export default function CaptureReviewScreen() {
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={styles.insightOptIn}
-                            onPress={() => setUsePhotoForInsight(!usePhotoForInsight)}
+                            style={[styles.insightOptIn, aiFreeMode && styles.insightOptInDisabled]}
+                            onPress={() => {
+                                if (aiFreeMode) return;
+                                setUsePhotoForInsight(!usePhotoForInsight);
+                            }}
                             activeOpacity={0.7}
                         >
                             <View style={[
@@ -536,6 +546,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+    },
+    insightOptInDisabled: {
+        opacity: 0.45,
     },
     checkmark: {
         width: 22,

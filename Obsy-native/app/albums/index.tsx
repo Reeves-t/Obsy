@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { getAlbumDayContext } from '@/lib/albumEngine';
 import { generateAlbumInsightSecure } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { Alert } from 'react-native';
 import { DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
 import { archiveInsightWithResult } from '@/services/archive';
@@ -34,6 +35,7 @@ export default function AlbumsScreen() {
     // Default to Public album
     const [currentAlbum, setCurrentAlbum] = useState<Album | null>(PUBLIC_ALBUM);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
 
     // Set Public as default album on mount
     useEffect(() => {
@@ -78,6 +80,10 @@ export default function AlbumsScreen() {
     }, [currentAlbum]);
 
     const handleGenerateInsight = async () => {
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
         setIsGenerating(true);
 
         try {
@@ -212,6 +218,10 @@ export default function AlbumsScreen() {
     };
 
     const handleRefreshInsight = async () => {
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
         if (!currentAlbum) return;
         setIsRefreshing(true);
 

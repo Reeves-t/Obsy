@@ -12,6 +12,10 @@ import { BookmarkButton } from '@/components/insights/BookmarkButton';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import Colors from '@/constants/Colors';
 import { countPendingDailyCaptures } from '@/lib/pendingCaptureUtils';
+import { useI18n } from '@/i18n/config';
+import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
+import { getLocalDayKey } from '@/lib/utils';
+import { InsightMoodOrbField } from '@/components/insights/InsightMoodOrbField';
 
 interface TodayInsightCardProps {
     text: string | null;
@@ -34,6 +38,7 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
     const { captures } = useCaptureStore();
     const { isLight } = useObsyTheme();
     const { loadSnapshot, lastUpdated } = useTodayInsight();
+    const { t } = useI18n();
 
     const [isSaved, setIsSaved] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
@@ -108,17 +113,26 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
         }
     };
 
-    const isEmpty = !text;
+    const todayMoodIds = React.useMemo(() => {
+        const todayKey = getLocalDayKey(new Date());
+        return captures
+            .filter(c => getLocalDayKey(new Date(c.created_at)) === todayKey)
+            .map(c => c.mood_id)
+            .filter(Boolean);
+    }, [captures]);
+
+    const translatedText = useTranslatedInsight({ insightId: 'daily-current', sourceText: text, sourceLanguage: 'en' });
+    const isEmpty = !translatedText;
 
     return (
         <View style={[styles.container, flat && styles.flatContainer]}>
             <View style={[styles.header, flat && styles.flatHeader]}>
                 <ThemedText type="subtitle" style={[styles.title, flat && { color: flatTitleColor }]}>
-                    {flat ? "DAILY INSIGHT" : "Today's Insight"}
+                    {flat ? t('insight.dailyTitleFlat') : t('insight.dailyTitle')}
                 </ThemedText>
                 {onRefresh && (
                     <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
-                        <ThemedText style={styles.refreshText}>Refresh</ThemedText>
+                        <ThemedText style={styles.refreshText}>{t('common.refresh')}</ThemedText>
                     </TouchableOpacity>
                 )}
             </View>
@@ -129,7 +143,7 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
             {!isEmpty && pendingCount > 0 && (
                 <View style={styles.pendingMessageContainer}>
                     <ThemedText style={styles.pendingMessage}>
-                        {pendingCount} new capture{pendingCount > 1 ? 's' : ''} not yet included. Refresh to update
+                        {t(pendingCount === 1 ? 'insight.pendingCaptureOne' : 'insight.pendingCaptureOther', { count: pendingCount })}
                     </ThemedText>
                 </View>
             )}
@@ -138,17 +152,20 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
                 {isEmpty ? (
                     <View style={styles.emptyContainer}>
                         <ThemedText style={[styles.emptyText, flat && { color: flatTextSecondary }]}>
-                            No entries for today yet. Capture a moment to start your day.
+                            {t('insight.emptyDaily')}
                         </ThemedText>
+                        <InsightMoodOrbField moodIds={todayMoodIds} variant="focus" maxOrbs={10} />
                     </View>
                 ) : (
                     <View>
                         <InsightText
-                            fallbackText={text}
+                            fallbackText={translatedText || ''}
                             collapsedSentences={4}
                             expandable={true}
                             textStyle={flat ? { color: flatTextColor } : styles.insightText}
                         />
+
+                        <InsightMoodOrbField moodIds={todayMoodIds} variant="subtle" maxOrbs={8} />
 
                         <View style={styles.footer}>
                             <ThemedText type="caption" style={[styles.footerDate, flat && { color: flatDateColor }]}>

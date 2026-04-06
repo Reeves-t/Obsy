@@ -21,6 +21,7 @@ import { computeGalaxyLayout } from '@/components/moodverse/galaxyLayout';
 import { ObsyIcon } from '@/components/moodverse/ObsyIcon';
 import type { GalaxyOrb, GalaxyCluster } from '@/components/moodverse/galaxyTypes';
 import { format } from 'date-fns';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 // ── Eclipse Loader ──────────────────────────────────────────────────────
 
@@ -228,6 +229,7 @@ export default function MoodverseChatScreen() {
     } = useMoodverseStore();
 
     const [inputText, setInputText] = useState('');
+    const { aiFreeMode } = useAiFreeMode();
     const flatListRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
     const hasInitialized = useRef(false);
@@ -269,6 +271,7 @@ export default function MoodverseChatScreen() {
     sendArgsRef.current = { captureContexts, chatContextMode, moodverseContext, selectedOrbs, orbs, isGeneral };
 
     const sendToAI = useCallback(async (history: ChatMessage[]) => {
+        if (aiFreeMode) return;
         const { captureContexts: ctx, chatContextMode: mode, moodverseContext: mvCtx, orbs: all, selectedOrbs: sel, isGeneral: gen } = sendArgsRef.current;
         setAiLoading(true);
 
@@ -307,7 +310,17 @@ export default function MoodverseChatScreen() {
         } finally {
             setAiLoading(false);
         }
-    }, [addChatMessage, setAiLoading, setAiHighlightedOrbIds]);
+    }, [addChatMessage, aiFreeMode, setAiLoading, setAiHighlightedOrbIds]);
+
+    if (aiFreeMode) {
+        return (
+            <View style={[styles.root, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+                <ThemedText style={{ opacity: 0.8, textAlign: 'center' }}>
+                    AI-Free mode is enabled, so Moodverse chat is unavailable.
+                </ThemedText>
+            </View>
+        );
+    }
 
     // Auto-initialize
     useEffect(() => {

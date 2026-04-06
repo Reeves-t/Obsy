@@ -46,7 +46,8 @@ type CaptureState = {
         moodId: string,
         moodName: string,
         note: string,
-        tags?: string[]
+        tags?: string[],
+        includeInInsights?: boolean
     ) => Promise<string | null>;
     createVoiceEntry: (
         user: User | null,
@@ -54,7 +55,8 @@ type CaptureState = {
         moodName: string,
         transcript: string,
         audioUrl: string,
-        tags?: string[]
+        tags?: string[],
+        includeInInsights?: boolean
     ) => Promise<string | null>;
     createCapture: (
         imageUri: string,
@@ -506,7 +508,7 @@ export const useCaptureStore = create<CaptureState>()(
                 }
             },
 
-            createJournalEntry: async (user, moodId, moodName, note, tags = []) => {
+            createJournalEntry: async (user, moodId, moodName, note, tags = [], includeInInsights = true) => {
                 // Ensure mood cache is fresh
                 if (!moodCache.isInitialized() || moodCache.isStale()) {
                     await moodCache.fetchAllMoods(user?.id ?? null);
@@ -521,10 +523,11 @@ export const useCaptureStore = create<CaptureState>()(
                     source_type: 'journal',
                     audio_url: null,
                     usePhotoForInsight: false,
+                    includeInInsights,
                 });
             },
 
-            createVoiceEntry: async (user, moodId, moodName, transcript, audioUrl, tags = []) => {
+            createVoiceEntry: async (user, moodId, moodName, transcript, audioUrl, tags = [], includeInInsights = true) => {
                 if (!moodCache.isInitialized() || moodCache.isStale()) {
                     await moodCache.fetchAllMoods(user?.id ?? null);
                 }
@@ -538,6 +541,7 @@ export const useCaptureStore = create<CaptureState>()(
                     source_type: 'voice',
                     audio_url: audioUrl,
                     usePhotoForInsight: false,
+                    includeInInsights,
                 });
             },
 
