@@ -20,6 +20,7 @@ import { ProgressIndicator } from '@/components/onboarding/ProgressIndicator';
 import { useSubscription } from '@/hooks/useSubscription';
 import { createCustomTone, validateCustomTone } from '@/lib/customTone';
 import { updateProfile } from '@/services/profile';
+import { DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
@@ -98,7 +99,7 @@ export default function OnboardingScreen() {
                 const newTone = await createCustomTone(toneName || 'My Tone', tonePrompt);
                 if (newTone) {
                     await updateProfile({
-                        ai_tone: 'custom',
+                        ai_tone: DEFAULT_AI_TONE_ID,
                         selected_custom_tone_id: newTone.id
                     });
                 }
