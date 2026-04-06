@@ -32,6 +32,7 @@ export default function LanguageScreen() {
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => {
             const selected = language === item.code;
+            const isComingSoon = item.tier === 'tier2';
             return (
               <TouchableOpacity
                 style={[
@@ -39,15 +40,18 @@ export default function LanguageScreen() {
                   {
                     borderBottomColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)',
                   },
+                  isComingSoon && styles.rowDisabled,
                 ]}
-                onPress={() => onSelect(item.code)}
-                activeOpacity={0.7}
+                onPress={() => !isComingSoon && onSelect(item.code)}
+                activeOpacity={isComingSoon ? 1 : 0.7}
               >
                 <View style={styles.rowText}>
-                  <ThemedText style={[styles.native, { color: colors.text }]}>{item.nativeName}</ThemedText>
-                  <ThemedText style={[styles.name, { color: colors.textSecondary }]}>{item.name}</ThemedText>
+                  <ThemedText style={[styles.native, { color: isComingSoon ? colors.textSecondary : colors.text }]}>{item.nativeName}</ThemedText>
+                  <ThemedText style={[styles.name, { color: colors.textSecondary }]}>
+                    {item.name}{isComingSoon ? ' — coming soon' : ''}
+                  </ThemedText>
                 </View>
-                {selected && <Ionicons name="checkmark" size={20} color={colors.text} />}
+                {selected && !isComingSoon && <Ionicons name="checkmark" size={20} color={colors.text} />}
               </TouchableOpacity>
             );
           }}
@@ -93,5 +97,8 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 12,
+  },
+  rowDisabled: {
+    opacity: 0.45,
   },
 });

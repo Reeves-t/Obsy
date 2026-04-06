@@ -16,6 +16,7 @@ import { TagInput } from '@/components/capture/TagInput';
 import { LinedJournalInput } from '@/components/capture/LinedJournalInput';
 import { generateCaptureInsightSecure, CaptureData } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { supabase } from '@/lib/supabase';
 import { DestinationSelector } from '@/components/capture/DestinationSelector';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
@@ -53,7 +54,7 @@ export default function CaptureReviewScreen() {
     const [journalModalVisible, setJournalModalVisible] = useState(false);
     const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [usePhotoForInsight, setUsePhotoForInsight] = useState(false);
-    const [aiFreeMode, setAiFreeMode] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
 
     const { getMoodById, systemMoods, customMoods } = useCustomMoodStore();
 
@@ -79,15 +80,10 @@ export default function CaptureReviewScreen() {
     // Public album constant (not stored in database)
     const PUBLIC_ALBUM = { id: 'public', name: 'Public' };
 
+    // Disable photo-for-insight when AI-free mode is active
     useEffect(() => {
-        getProfile()
-            .then((profile) => {
-                const disabled = !!profile?.ai_free_mode;
-                setAiFreeMode(disabled);
-                if (disabled) setUsePhotoForInsight(false);
-            })
-            .catch(() => setAiFreeMode(false));
-    }, []);
+        if (aiFreeMode) setUsePhotoForInsight(false);
+    }, [aiFreeMode]);
 
     useEffect(() => {
         if (user) {

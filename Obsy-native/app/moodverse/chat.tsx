@@ -21,7 +21,7 @@ import { computeGalaxyLayout } from '@/components/moodverse/galaxyLayout';
 import { ObsyIcon } from '@/components/moodverse/ObsyIcon';
 import type { GalaxyOrb, GalaxyCluster } from '@/components/moodverse/galaxyTypes';
 import { format } from 'date-fns';
-import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 // ── Eclipse Loader ──────────────────────────────────────────────────────
 
@@ -229,18 +229,12 @@ export default function MoodverseChatScreen() {
     } = useMoodverseStore();
 
     const [inputText, setInputText] = useState('');
-    const [aiFreeMode, setAiFreeMode] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
     const flatListRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
     const hasInitialized = useRef(false);
 
     const isGeneral = chatContextMode === 'general';
-
-    useEffect(() => {
-        getProfile()
-            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
-            .catch(() => setAiFreeMode(false));
-    }, []);
 
     // Recompute orbs/clusters from captures (same as MoodversePage)
     const { orbs, clusters } = useMemo(() => {

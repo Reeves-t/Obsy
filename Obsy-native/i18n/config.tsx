@@ -59,19 +59,19 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
     const initializeLanguage = async () => {
       try {
         const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
         if (savedLanguage && isSupportedLanguage(savedLanguage)) {
-          setLanguageState(savedLanguage);
-          setIsReady(true);
+          if (mounted) setLanguageState(savedLanguage);
           return;
         }
 
         const isInitialized = await AsyncStorage.getItem(LANGUAGE_INITIALIZED_KEY);
         if (isInitialized) {
-          setLanguageState(DEFAULT_LANGUAGE);
-          setIsReady(true);
+          if (mounted) setLanguageState(DEFAULT_LANGUAGE);
           return;
         }
 
@@ -79,7 +79,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
         const deviceTag = locales[0]?.languageTag;
         const detected = normalizeLocaleToLanguageCode(deviceTag);
 
-        setLanguageState(detected);
+        if (mounted) setLanguageState(detected);
         await AsyncStorage.multiSet([
           [LANGUAGE_STORAGE_KEY, detected],
           [LANGUAGE_INITIALIZED_KEY, 'true'],
@@ -88,13 +88,17 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
         if (__DEV__) {
           console.warn('[i18n] Failed to initialize language preference:', error);
         }
-        setLanguageState(DEFAULT_LANGUAGE);
+        if (mounted) setLanguageState(DEFAULT_LANGUAGE);
       } finally {
-        setIsReady(true);
+        if (mounted) setIsReady(true);
       }
     };
 
     initializeLanguage();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const setLanguage = useCallback(async (nextLanguage: SupportedLanguageCode) => {

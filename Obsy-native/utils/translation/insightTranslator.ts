@@ -23,7 +23,7 @@ export async function maybeTranslateInsight(request: InsightTranslationRequest):
   await upsertLocalizedInsightRecord({
     id: request.insightId,
     originalText: request.originalText,
-    originalLanguage: 'en',
+    originalLanguage: sourceLanguage,
   });
 
   if (!request.originalText?.trim()) {

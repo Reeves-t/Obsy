@@ -24,9 +24,14 @@ export function protectTerms(text: string, protectedTerms: readonly string[]) {
   const tokenToTerm = new Map<string, string>();
   let output = text;
 
-  protectedTerms.forEach((term, index) => {
-    const token = `${TOKEN_PREFIX}${index}__`;
-    const pattern = new RegExp(escapeRegExp(term), 'g');
+  // Sort by length descending so longer terms match first (e.g. "Obsy+" before "Obsy")
+  const sorted = [...protectedTerms].sort((a, b) => b.length - a.length);
+
+  sorted.forEach((term) => {
+    const originalIndex = protectedTerms.indexOf(term);
+    const token = `${TOKEN_PREFIX}${originalIndex}__`;
+    // Use word-boundary matching to avoid substring collisions
+    const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'g');
     output = output.replace(pattern, token);
     tokenToTerm.set(token, term);
   });

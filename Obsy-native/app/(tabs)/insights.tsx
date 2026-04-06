@@ -34,6 +34,7 @@ import { AiToneId, AI_TONES, DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
 import { resolveTonePrompt } from '@/services/secureAI';
 import { fetchDailyArchives, InsightHistory } from '@/services/insightHistory';
 import { getProfile, updateProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { archiveInsight } from '@/services/archive';
 import { ToneSelector } from '@/components/insights/ToneSelector';
 import { MoodChart } from '@/components/insights/MoodChart';
@@ -155,7 +156,7 @@ export default function InsightsScreen() {
     const [isEligibleForInsight, setIsEligibleForInsight] = useState(false);
     const [capturedDaysCount, setCapturedDaysCount] = useState(0);
     const [isReady, setIsReady] = useState(false);
-    const [aiFreeMode, setAiFreeMode] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
 
     // Archive storage state
     const [archiveCount, setArchiveCount] = useState(0);
@@ -207,12 +208,6 @@ export default function InsightsScreen() {
     useEffect(() => {
         fetchCaptures(user);
     }, [user]);
-
-    useEffect(() => {
-        getProfile()
-            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
-            .catch(() => setAiFreeMode(false));
-    }, [user?.id]);
 
     useEffect(() => {
         if (!aiFreeMode) return;
@@ -290,7 +285,6 @@ export default function InsightsScreen() {
     const buildAiSettings = async () => {
         const profile = await getProfile();
         if (!profile) return null;
-        setAiFreeMode(!!profile.ai_free_mode);
 
         // Resolve actual tone ID: if ai_tone is 'custom', use the selected_custom_tone_id
         const resolvedToneId = profile.ai_tone === 'custom' && profile.selected_custom_tone_id

@@ -21,6 +21,7 @@ import { MOODS } from '@/constants/Moods';
 import Colors from '@/constants/Colors';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { getProfile, type Profile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 export default function JournalEntryScreen() {
     const router = useRouter();
@@ -39,6 +40,7 @@ export default function JournalEntryScreen() {
     const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [includeInInsights, setIncludeInInsights] = useState(true);
     const [profile, setProfile] = useState<Profile | null>(null);
+    const { aiFreeMode } = useAiFreeMode();
 
     useEffect(() => {
         getProfile().then(setProfile).catch(() => setProfile(null));
@@ -54,7 +56,7 @@ export default function JournalEntryScreen() {
         if (!moodId || isSaving) return;
         setIsSaving(true);
         try {
-            await createJournalEntry(user, moodId, moodName, note, [], includeInInsights && !profile?.ai_free_mode);
+            await createJournalEntry(user, moodId, moodName, note, [], includeInInsights && !aiFreeMode);
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
         } catch (err) {
@@ -131,11 +133,11 @@ export default function JournalEntryScreen() {
                             )}
                         </TouchableOpacity>
                     </View>
-                    <View style={[styles.includeRow, profile?.ai_free_mode && styles.includeRowDisabled]}>
+                    <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
                         <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
                         <Switch
-                            value={includeInInsights && !profile?.ai_free_mode}
-                            disabled={!!profile?.ai_free_mode}
+                            value={includeInInsights && !aiFreeMode}
+                            disabled={aiFreeMode}
                             onValueChange={setIncludeInInsights}
                             trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
                             thumbColor="#fff"

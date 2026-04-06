@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { getAlbumDayContext } from '@/lib/albumEngine';
 import { generateAlbumInsightSecure, resolveTonePrompt } from '@/services/secureAI';
 import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
 import { useAlbumToneStore } from '@/lib/albumToneStore';
 import { archiveInsightWithResult } from '@/services/archive';
@@ -48,7 +49,7 @@ export default function AlbumDetailScreen() {
     const [insightTone, setInsightTone] = useState<string | null>(null);
     const [sourceInsightId, setSourceInsightId] = useState<string | null>(null);
     const [hasPosted, setHasPosted] = useState(false);
-    const [aiFreeMode, setAiFreeMode] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
 
     // Key to trigger SharedCanvas refresh after posting
     const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
@@ -136,12 +137,6 @@ export default function AlbumDetailScreen() {
     useEffect(() => {
         fetchAlbumDetails();
     }, [fetchAlbumDetails]);
-
-    useEffect(() => {
-        getProfile()
-            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
-            .catch(() => setAiFreeMode(false));
-    }, []);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);

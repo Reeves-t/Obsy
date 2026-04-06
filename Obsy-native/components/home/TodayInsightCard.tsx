@@ -143,7 +143,7 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
             {!isEmpty && pendingCount > 0 && (
                 <View style={styles.pendingMessageContainer}>
                     <ThemedText style={styles.pendingMessage}>
-                        {t('insight.pendingCaptures', { count: pendingCount, plural: pendingCount > 1 ? 's' : '' })}
+                        {t(pendingCount === 1 ? 'insight.pendingCaptureOne' : 'insight.pendingCaptureOther', { count: pendingCount })}
                     </ThemedText>
                 </View>
             )}

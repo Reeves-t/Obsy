@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'expo-router';
 import type { GalaxyOrb, GalaxyCluster } from './galaxyTypes';
 import type { TransitionData } from './transitionCompute';
-import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 interface BottomSheetMetadataProps {
     orbs: GalaxyOrb[];
@@ -34,18 +34,12 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
 
     const { tier } = useSubscription();
     const [showPaywall, setShowPaywall] = useState(false);
-    const [aiFreeMode, setAiFreeMode] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
 
     const isPro = tier === 'founder' || tier === 'subscriber';
     const hasSelection = selectedOrbId !== null || selectedOrbIds.length > 0;
 
     const snapPoints = useMemo(() => ['28%', '55%'], []);
-
-    useEffect(() => {
-        getProfile()
-            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
-            .catch(() => setAiFreeMode(false));
-    }, []);
 
     const selectedOrb = useMemo(() => {
         if (!selectedOrbId) return null;

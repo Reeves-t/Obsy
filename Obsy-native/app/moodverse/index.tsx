@@ -21,7 +21,7 @@ import { SelectionTrail } from '@/components/moodverse/SelectionTrail';
 import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 import { computeEdgesForOrb, computeAmbientMesh } from '@/components/moodverse/edgeCompute';
 import { computeTransitions, computeTransitionAuras, TransitionData, TransitionAura } from '@/components/moodverse/transitionCompute';
-import { getProfile } from '@/services/profile';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 const DEFAULT_CAMERA_Z = 35;
 const CAMERA_Z_MIN = 5;
@@ -47,7 +47,7 @@ export default function MoodversePage() {
     const [isFocused, setIsFocused] = useState(true);
     const [showSearch, setShowSearch] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
-    const [aiFreeMode, setAiFreeMode] = useState(false);
+    const { aiFreeMode } = useAiFreeMode();
     const [trailPoints, setTrailPoints] = useState<Array<{ x: number; y: number }>>([]);
     const { tier } = useSubscription();
     const isPro = tier === 'founder' || tier === 'subscriber';
@@ -64,11 +64,6 @@ export default function MoodversePage() {
     const isIdle = useMoodverseStore((s) => s.isIdle);
     const aiHighlightedOrbIds = useMoodverseStore((s) => s.aiHighlightedOrbIds);
 
-    useEffect(() => {
-        getProfile()
-            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
-            .catch(() => setAiFreeMode(false));
-    }, [user?.id]);
 
     // Camera state via refs (read by render loop, updated by gestures)
     const cameraZRef = useRef(DEFAULT_CAMERA_Z);
