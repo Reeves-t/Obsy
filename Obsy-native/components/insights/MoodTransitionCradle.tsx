@@ -63,7 +63,6 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     const [message, setMessage] = useState<string | null>(null);
     const [labelsVisible, setLabelsVisible] = useState(true);
     const [activeTransition, setActiveTransition] = useState<Transition | null>(null);
-    const cycleIndexRef = useRef(0);
     const mountedRef = useRef(true);
 
     const a0 = useSharedValue(0);
@@ -177,7 +176,12 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     const runBounce = useCallback((fromIdx: number, toIdx: number, baseAngle: number, bounce = 0) => {
         if (!mountedRef.current) return;
         if (bounce > 3 || baseAngle < 3) {
-            setTimeout(() => { if (mountedRef.current) showLabels(); }, 350);
+            setTimeout(() => {
+                if (mountedRef.current) {
+                    showLabels();
+                    setActiveTransition(null);
+                }
+            }, 350);
             return;
         }
 
@@ -194,27 +198,7 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
         });
     }, [angles, performHaptic]);
 
-    const triggerTransition = useCallback((transition: Transition) => {
-        if (!mountedRef.current) return;
-        const fromIdx = moodNodes.findIndex((m) => m.moodId === transition.from);
-        const toIdx = moodNodes.findIndex((m) => m.moodId === transition.to);
-        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
-
-        hideLabels();
-        setActiveTransition(transition);
-
-        const count = transition.count;
-        const angle = count >= 10 ? 38 : count >= 5 ? 24 : 13;
-        angles[fromIdx].value = -angle;
-        angles[fromIdx].value = withTiming(0, { duration: 400 }, (finished) => {
-            if (!finished) return;
-            runOnJS(performHaptic)();
-            runOnJS(runBounce)(fromIdx, toIdx, angle, 0);
-        });
-    }, [angles, moodNodes, performHaptic, runBounce]);
-
     useEffect(() => {
-        cycleIndexRef.current = 0;
         cancelAllAnimations();
         angles.forEach((a) => { a.value = 0; });
         setMessage(null);
@@ -223,21 +207,12 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     }, [scope, cancelAllAnimations, angles]);
 
     useEffect(() => {
-        if (moodNodes.length < MIN_BALLS || transitions.length === 0) return;
-        const interval = setInterval(() => {
-            if (!mountedRef.current) return;
-            const next = transitions[cycleIndexRef.current % transitions.length];
-            cycleIndexRef.current += 1;
-            triggerTransition(next);
-        }, 6000);
-
-        triggerTransition(transitions[0]);
-
+        // Keep cradle idle by default (balls hang naturally).
+        // Auto-cycling caused persistent movement/haptics in some sessions.
         return () => {
-            clearInterval(interval);
             cancelAllAnimations();
         };
-    }, [transitions, moodNodes.length, triggerTransition, cancelAllAnimations]);
+    }, [cancelAllAnimations]);
 
     const onPullRelease = (ballIndex: number, releasedAngle: number) => {
         const source = moodNodes[ballIndex];
@@ -262,6 +237,7 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
         const scopeLabel = SCOPE_FILTERS.find((f) => f.key === scope)?.label ?? scope;
         setMessage(`${source.label} → ${moodNodes[targetIdx].label} · ${candidate.count}x ${scopeLabel}`);
         runBounce(ballIndex, targetIdx, Math.max(8, Math.abs(releasedAngle)), 0);
+        performHaptic();
         setTimeout(() => setMessage(null), 3000);
     };
 

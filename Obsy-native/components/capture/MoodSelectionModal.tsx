@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, View, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { StyleSheet, View, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,9 +40,80 @@ interface MoodCategoryProps {
     selectedMood: string | null;
     onSelect: (moodId: string) => void;
     isLoading?: boolean;
+    onLongPressMood?: (moodId: string, moodName: string) => void;
+    deletingMoodId?: string | null;
 }
 
-function MoodCategory({ title, moods, selectedMood, onSelect, isLoading }: MoodCategoryProps) {
+function MoodChip({
+    moodName,
+    moodColor,
+    isSelected,
+    isDeleting,
+    onPress,
+    onLongPress,
+}: {
+    moodName: string;
+    moodColor: string;
+    isSelected: boolean;
+    isDeleting?: boolean;
+    onPress: () => void;
+    onLongPress?: () => void;
+}) {
+    const nudge = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            const shouldNudge = Math.random() < 0.35;
+            if (!shouldNudge || isDeleting) return;
+            const amount = (Math.random() * 2 - 1) * 2.5; // -2.5..2.5 px
+            Animated.sequence([
+                Animated.timing(nudge, {
+                    toValue: amount,
+                    duration: 240,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(nudge, {
+                    toValue: 0,
+                    duration: 260,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        }, 3000);
+
+        return () => clearInterval(id);
+    }, [isDeleting, nudge]);
+
+    return (
+        <Animated.View style={[styles.moodChipWrap, { transform: [{ translateY: nudge }] }, isDeleting && styles.moodPillDeleting]}>
+            <TouchableOpacity
+                style={[
+                    styles.moodColorPill,
+                    { backgroundColor: moodColor },
+                    isSelected && styles.moodColorPillSelected,
+                ]}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                activeOpacity={0.8}
+                disabled={isDeleting}
+            >
+                {isDeleting && <ActivityIndicator color="rgba(255,255,255,0.9)" size="small" />}
+                {!!onLongPress && !isDeleting && (
+                    <View style={styles.miniDelete}>
+                        <Ionicons name="close" size={10} color="rgba(255,255,255,0.85)" />
+                    </View>
+                )}
+            </TouchableOpacity>
+            <ThemedText
+                numberOfLines={1}
+                style={[styles.moodNameLabel, isSelected && styles.moodNameLabelSelected]}
+            >
+                {moodName}
+            </ThemedText>
+        </Animated.View>
+    );
+}
+
+function MoodCategory({ title, moods, selectedMood, onSelect, isLoading, onLongPressMood, deletingMoodId }: MoodCategoryProps) {
     if (isLoading) {
         return (
             <View style={styles.categoryContainer}>
@@ -60,25 +131,18 @@ function MoodCategory({ title, moods, selectedMood, onSelect, isLoading }: MoodC
             <View style={styles.moodGrid}>
                 {moods.map((mood) => {
                     const isSelected = selectedMood === mood.id;
+                    const moodColor = getMoodTheme(mood.name).solid;
+                    const isDeleting = deletingMoodId === mood.id;
                     return (
-                        <TouchableOpacity
+                        <MoodChip
                             key={mood.id}
-                            style={[
-                                styles.moodPill,
-                                isSelected && styles.moodPillSelected,
-                            ]}
+                            moodName={mood.name}
+                            moodColor={moodColor}
+                            isSelected={isSelected}
+                            isDeleting={isDeleting}
                             onPress={() => onSelect(mood.id)}
-                            activeOpacity={0.7}
-                        >
-                            <ThemedText
-                                style={[
-                                    styles.moodText,
-                                    isSelected && styles.moodTextSelected,
-                                ]}
-                            >
-                                {mood.name}
-                            </ThemedText>
-                        </TouchableOpacity>
+                            onLongPress={onLongPressMood ? () => onLongPressMood(mood.id, mood.name) : undefined}
+                        />
                     );
                 })}
             </View>
@@ -276,40 +340,15 @@ export function MoodSelectionModal({
                                                 const moodColor = getMoodTheme(mood.name).solid;
                                                 const isBeingDeleted = isDeleting === mood.id;
                                                 return (
-                                                    <TouchableOpacity
+                                                    <MoodChip
                                                         key={mood.id}
-                                                        style={[
-                                                            styles.moodPill,
-                                                            isSelected && styles.moodPillSelected,
-                                                            { borderLeftColor: moodColor, borderLeftWidth: 3 },
-                                                            isBeingDeleted && styles.moodPillDeleting
-                                                        ]}
+                                                        moodName={mood.name}
+                                                        moodColor={moodColor}
+                                                        isSelected={isSelected}
+                                                        isDeleting={isBeingDeleted}
                                                         onPress={() => handleSelect(mood.id)}
                                                         onLongPress={() => handleDeleteCustom(mood.id, mood.name)}
-                                                        activeOpacity={0.7}
-                                                        disabled={isBeingDeleted}
-                                                    >
-                                                        {isBeingDeleted ? (
-                                                            <ActivityIndicator color="rgba(255,255,255,0.5)" size="small" />
-                                                        ) : (
-                                                            <>
-                                                                <ThemedText
-                                                                    style={[
-                                                                        styles.moodText,
-                                                                        isSelected && styles.moodTextSelected,
-                                                                    ]}
-                                                                >
-                                                                    {mood.name}
-                                                                </ThemedText>
-                                                                <TouchableOpacity
-                                                                    style={styles.miniDelete}
-                                                                    onPress={() => handleDeleteCustom(mood.id, mood.name)}
-                                                                >
-                                                                    <Ionicons name="close" size={12} color="rgba(255,255,255,0.3)" />
-                                                                </TouchableOpacity>
-                                                            </>
-                                                        )}
-                                                    </TouchableOpacity>
+                                                    />
                                                 );
                                             })}
 
@@ -452,39 +491,52 @@ const styles = StyleSheet.create({
     moodGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 10,
+        gap: 12,
     },
-    moodPill: {
-        flexDirection: 'row',
+    moodChipWrap: {
+        width: 74,
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 100,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        gap: 8,
+        gap: 7,
     },
-    moodPillSelected: {
-        backgroundColor: '#FFFFFF',
+    moodColorPill: {
+        width: 56,
+        height: 34,
+        borderRadius: 17,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.24)',
+    },
+    moodColorPillSelected: {
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+        shadowColor: '#FFFFFF',
+        shadowOpacity: 0.24,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 0 },
     },
     moodPillDeleting: {
-        opacity: 0.5,
+        opacity: 0.45,
     },
-    moodText: {
-        fontSize: 14,
+    moodNameLabel: {
+        fontSize: 12,
         color: 'rgba(255,255,255,0.7)',
+        textAlign: 'center',
     },
-    moodTextSelected: {
-        color: '#000000',
+    moodNameLabelSelected: {
+        color: '#FFFFFF',
         fontWeight: '600',
     },
-    colorDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-    },
     miniDelete: {
-        marginLeft: 4,
-        padding: 2,
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: 'rgba(0,0,0,0.24)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     customContainer: {
         gap: 20,

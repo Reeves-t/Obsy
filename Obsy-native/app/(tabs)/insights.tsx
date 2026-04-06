@@ -276,10 +276,8 @@ export default function InsightsScreen() {
         const profile = await getProfile();
         if (!profile) return null;
 
-        // Resolve actual tone ID: if ai_tone is 'custom', use the selected_custom_tone_id
-        const resolvedToneId = profile.ai_tone === 'custom' && profile.selected_custom_tone_id
-            ? profile.selected_custom_tone_id
-            : profile.ai_tone;
+        // Resolve actual tone ID: selected custom tone takes precedence when present
+        const resolvedToneId = profile.selected_custom_tone_id ?? profile.ai_tone;
         setCurrentTone(resolvedToneId);
 
         // Resolve the actual tone prompt text (fetches custom tone from DB if needed)
@@ -576,9 +574,9 @@ export default function InsightsScreen() {
                     selected_custom_tone_id: null
                 });
             } else {
-                // Custom tone: save 'custom' sentinel + the UUID
+                // Custom tone: keep ai_tone on a valid preset and store custom tone UUID separately
                 await updateProfile({
-                    ai_tone: 'custom',
+                    ai_tone: DEFAULT_AI_TONE_ID,
                     selected_custom_tone_id: toneId
                 });
             }
