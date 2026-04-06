@@ -5,6 +5,7 @@ import { Tabs } from 'expo-router';
 import Colors from '@/constants/Colors';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useObsyTheme } from '@/contexts/ThemeContext';
+import { useI18n } from '@/i18n/config';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -16,6 +17,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const { isDark, colors } = useObsyTheme();
+  const { t } = useI18n();
   // Use our theme context instead of system color scheme
   const themeKey = isDark ? 'dark' : 'light';
 
@@ -35,7 +37,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t('navigation.home'),
           headerShown: false,
           tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />,
         }}
@@ -43,21 +45,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="gallery"
         options={{
-          title: 'Gallery',
+          title: t('navigation.gallery'),
           tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'images' : 'images-outline'} color={color} />,
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
-          title: 'Insights',
+          title: t('navigation.insights'),
           tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Settings',
+          title: t('navigation.settings'),
           tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'settings' : 'settings-outline'} color={color} />,
         }}
       />
