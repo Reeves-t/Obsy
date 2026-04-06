@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useMoodverseStore } from '@/lib/moodverseStore';
@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'expo-router';
 import type { GalaxyOrb, GalaxyCluster } from './galaxyTypes';
 import type { TransitionData } from './transitionCompute';
+import { getProfile } from '@/services/profile';
 
 interface BottomSheetMetadataProps {
     orbs: GalaxyOrb[];
@@ -33,11 +34,18 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
 
     const { tier } = useSubscription();
     const [showPaywall, setShowPaywall] = useState(false);
+    const [aiFreeMode, setAiFreeMode] = useState(false);
 
     const isPro = tier === 'founder' || tier === 'subscriber';
     const hasSelection = selectedOrbId !== null || selectedOrbIds.length > 0;
 
     const snapPoints = useMemo(() => ['28%', '55%'], []);
+
+    useEffect(() => {
+        getProfile()
+            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
+            .catch(() => setAiFreeMode(false));
+    }, []);
 
     const selectedOrb = useMemo(() => {
         if (!selectedOrbId) return null;
@@ -62,6 +70,10 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
     }, [clearSelection]);
 
     const handleExplainPress = useCallback(() => {
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Moodverse chat is disabled while AI-Free mode is on.');
+            return;
+        }
         if (!isPro) {
             setShowPaywall(true);
             return;
@@ -72,7 +84,7 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
             : selectedOrbIds;
         openChat(orbIds, selectionMode as 'single' | 'multi' | 'cluster');
         router.push('/moodverse/chat');
-    }, [isPro, selectionMode, selectedOrbId, selectedOrbIds, openChat, router]);
+    }, [aiFreeMode, isPro, selectionMode, selectedOrbId, selectedOrbIds, openChat, router]);
 
     if (!hasSelection) return null;
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -6,6 +6,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     TextInput,
+    Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -19,6 +20,7 @@ import { useCustomMoodStore } from '@/lib/customMoodStore';
 import { MOODS } from '@/constants/Moods';
 import Colors from '@/constants/Colors';
 import { useObsyTheme } from '@/contexts/ThemeContext';
+import { getProfile, type Profile } from '@/services/profile';
 
 export default function JournalEntryScreen() {
     const router = useRouter();
@@ -35,6 +37,12 @@ export default function JournalEntryScreen() {
     const [note, setNote] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [moodModalVisible, setMoodModalVisible] = useState(false);
+    const [includeInInsights, setIncludeInInsights] = useState(true);
+    const [profile, setProfile] = useState<Profile | null>(null);
+
+    useEffect(() => {
+        getProfile().then(setProfile).catch(() => setProfile(null));
+    }, []);
 
     const handleMoodSelect = (id: string) => {
         const mood = getMoodById(id);
@@ -46,7 +54,7 @@ export default function JournalEntryScreen() {
         if (!moodId || isSaving) return;
         setIsSaving(true);
         try {
-            await createJournalEntry(user, moodId, moodName, note);
+            await createJournalEntry(user, moodId, moodName, note, [], includeInInsights && !profile?.ai_free_mode);
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
         } catch (err) {
@@ -104,23 +112,35 @@ export default function JournalEntryScreen() {
 
                 {/* Mood bar — sticks above keyboard via KeyboardAvoidingView */}
                 <View style={[styles.moodBar, { borderTopColor: colors.cardBorder }]}>
-                    <TouchableOpacity
-                        activeOpacity={0.7}
-                        onPress={handleOpenMoodModal}
-                        style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
-                    >
-                        {moodId ? (
-                            <>
-                                <ThemedText style={styles.moodTriggerText}>{moodName}</ThemedText>
-                                <Ionicons name="chevron-down" size={14} color="rgba(0,0,0,0.6)" />
-                            </>
-                        ) : (
-                            <>
-                                <Ionicons name="add" size={16} color="rgba(255,255,255,0.6)" />
-                                <ThemedText style={styles.moodTriggerPlaceholder}>How are you feeling?</ThemedText>
-                            </>
-                        )}
-                    </TouchableOpacity>
+                    <View style={styles.moodBarTop}>
+                        <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={handleOpenMoodModal}
+                            style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
+                        >
+                            {moodId ? (
+                                <>
+                                    <ThemedText style={styles.moodTriggerText}>{moodName}</ThemedText>
+                                    <Ionicons name="chevron-down" size={14} color="rgba(0,0,0,0.6)" />
+                                </>
+                            ) : (
+                                <>
+                                    <Ionicons name="add" size={16} color="rgba(255,255,255,0.6)" />
+                                    <ThemedText style={styles.moodTriggerPlaceholder}>How are you feeling?</ThemedText>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                    <View style={[styles.includeRow, profile?.ai_free_mode && styles.includeRowDisabled]}>
+                        <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
+                        <Switch
+                            value={includeInInsights && !profile?.ai_free_mode}
+                            disabled={!!profile?.ai_free_mode}
+                            onValueChange={setIncludeInInsights}
+                            trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
+                            thumbColor="#fff"
+                        />
+                    </View>
                 </View>
             </KeyboardAvoidingView>
 
@@ -157,6 +177,24 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderTopWidth: 1,
+    },
+    moodBarTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    includeRow: {
+        marginTop: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    includeRowDisabled: {
+        opacity: 0.45,
+    },
+    includeLabel: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.6)',
     },
     moodTrigger: {
         flexDirection: 'row',

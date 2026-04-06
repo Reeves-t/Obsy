@@ -56,6 +56,13 @@ const STRING_LENGTH = 84;
 const BALL_SIZE = 34;
 const MAX_PULL_DEG = 45;
 const PENDULUM_HEIGHT = STRING_LENGTH + BALL_SIZE;
+const SIM_DT = 1 / 60;
+const GRAVITY_OVER_LENGTH = 18;
+const ANGULAR_DAMPING = 1.9;
+const COLLISION_RESTITUTION = 0.95;
+const COLLISION_GAP = BALL_SIZE - 1.5;
+const ROCKING_GAIN = 0.24;
+const MAX_ROCK_DEG = 6;
 
 export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[]; isLight: boolean }) {
     const { width } = useWindowDimensions();
@@ -72,12 +79,23 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
     const a3 = useSharedValue(0);
     const a4 = useSharedValue(0);
     const labelOpacity = useSharedValue(1);
+    const cradleRock = useSharedValue(0);
+    const simulationRef = useRef<{ angles: number[]; velocities: number[] }>({ angles: [0, 0, 0, 0, 0], velocities: [0, 0, 0, 0, 0] });
+    const animationFrameRef = useRef<number | null>(null);
+    const lastTickRef = useRef<number | null>(null);
+    const lastHapticRef = useRef<number>(0);
 
     const angles = useMemo(() => [a0, a1, a2, a3, a4], [a0, a1, a2, a3, a4]);
 
     useEffect(() => {
         mountedRef.current = true;
-        return () => { mountedRef.current = false; };
+        return () => {
+            mountedRef.current = false;
+            if (animationFrameRef.current != null) {
+                cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+        };
     }, []);
 
     const scopedCaptures = useMemo(() => {
@@ -172,27 +190,100 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
 
     const cancelAllAnimations = useCallback(() => {
         angles.forEach((a) => cancelAnimation(a));
+        if (animationFrameRef.current != null) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+        lastTickRef.current = null;
     }, [angles]);
 
-    const runBounce = useCallback((fromIdx: number, toIdx: number, baseAngle: number, bounce = 0) => {
-        if (!mountedRef.current) return;
-        if (bounce > 3 || baseAngle < 3) {
-            setTimeout(() => { if (mountedRef.current) showLabels(); }, 350);
-            return;
+    const syncSharedAngles = useCallback((values: number[]) => {
+        for (let i = 0; i < angles.length; i += 1) {
+            angles[i].value = values[i] ?? 0;
         }
+    }, [angles]);
 
-        const nextEnergy = baseAngle * (bounce === 0 ? 0.8 : 0.75);
-        angles[fromIdx].value = withTiming(0, { duration: 380 }, (finished) => {
-            if (!finished) return;
-            runOnJS(performHaptic)();
-            angles[toIdx].value = nextEnergy;
-            angles[toIdx].value = withTiming(0, { duration: 380 }, (done) => {
-                if (!done) return;
-                runOnJS(performHaptic)();
-                runOnJS(runBounce)(fromIdx, toIdx, -nextEnergy, bounce + 1);
-            });
-        });
-    }, [angles, performHaptic]);
+    const startSimulation = useCallback(() => {
+        if (animationFrameRef.current != null) return;
+
+        const step = (timestamp: number) => {
+            if (!mountedRef.current) return;
+            const previous = lastTickRef.current ?? timestamp;
+            const elapsed = Math.min(0.05, (timestamp - previous) / 1000);
+            lastTickRef.current = timestamp;
+
+            const state = simulationRef.current;
+            const loops = Math.max(1, Math.ceil(elapsed / SIM_DT));
+            const dt = elapsed / loops;
+
+            for (let loop = 0; loop < loops; loop += 1) {
+                for (let i = 0; i < moodNodes.length; i += 1) {
+                    const theta = (state.angles[i] ?? 0) * (Math.PI / 180);
+                    const omega = state.velocities[i] ?? 0;
+                    const angularAcc = -GRAVITY_OVER_LENGTH * Math.sin(theta) - ANGULAR_DAMPING * omega;
+                    state.velocities[i] = omega + angularAcc * dt;
+                    state.angles[i] = (state.angles[i] ?? 0) + state.velocities[i] * dt * (180 / Math.PI);
+                }
+
+                for (let i = 0; i < Math.max(0, moodNodes.length - 1); i += 1) {
+                    const aDeg = state.angles[i] ?? 0;
+                    const bDeg = state.angles[i + 1] ?? 0;
+                    const aRad = aDeg * (Math.PI / 180);
+                    const bRad = bDeg * (Math.PI / 180);
+                    const xA = STRING_LENGTH * Math.sin(aRad);
+                    const xB = STRING_LENGTH * Math.sin(bRad);
+                    const penetration = COLLISION_GAP - (xB - xA);
+
+                    if (penetration > 0) {
+                        const vxA = (state.velocities[i] ?? 0) * STRING_LENGTH * Math.cos(aRad);
+                        const vxB = (state.velocities[i + 1] ?? 0) * STRING_LENGTH * Math.cos(bRad);
+                        if (vxA > vxB) {
+                            const nextVA = vxB * COLLISION_RESTITUTION;
+                            const nextVB = vxA * COLLISION_RESTITUTION;
+                            state.velocities[i] = nextVA / Math.max(16, STRING_LENGTH * Math.cos(aRad));
+                            state.velocities[i + 1] = nextVB / Math.max(16, STRING_LENGTH * Math.cos(bRad));
+
+                            const now = Date.now();
+                            if (now - lastHapticRef.current > 80) {
+                                lastHapticRef.current = now;
+                                performHaptic();
+                            }
+                        }
+
+                        const correction = penetration / 2;
+                        const correctedXA = xA - correction;
+                        const correctedXB = xB + correction;
+                        state.angles[i] = (Math.asin(Math.max(-1, Math.min(1, correctedXA / STRING_LENGTH))) * 180) / Math.PI;
+                        state.angles[i + 1] = (Math.asin(Math.max(-1, Math.min(1, correctedXB / STRING_LENGTH))) * 180) / Math.PI;
+                    }
+                }
+            }
+
+            let momentumX = 0;
+            for (let i = 0; i < moodNodes.length; i += 1) {
+                const theta = (state.angles[i] ?? 0) * (Math.PI / 180);
+                const vx = (state.velocities[i] ?? 0) * STRING_LENGTH * Math.cos(theta);
+                momentumX += vx;
+            }
+            const targetRock = Math.max(-MAX_ROCK_DEG, Math.min(MAX_ROCK_DEG, momentumX * ROCKING_GAIN * 0.01));
+            cradleRock.value += (targetRock - cradleRock.value) * 0.14;
+            syncSharedAngles(state.angles);
+
+            const hasEnergy = moodNodes.some((_, i) => Math.abs(state.angles[i] ?? 0) > 0.35 || Math.abs(state.velocities[i] ?? 0) > 0.045);
+            if (hasEnergy) {
+                animationFrameRef.current = requestAnimationFrame(step);
+            } else {
+                animationFrameRef.current = null;
+                lastTickRef.current = null;
+                cradleRock.value = withTiming(0, { duration: 420 });
+                if (mountedRef.current) {
+                    setTimeout(() => { if (mountedRef.current) showLabels(); }, 280);
+                }
+            }
+        };
+
+        animationFrameRef.current = requestAnimationFrame(step);
+    }, [cradleRock, moodNodes, performHaptic, showLabels, syncSharedAngles]);
 
     const triggerTransition = useCallback((transition: Transition) => {
         if (!mountedRef.current) return;
@@ -204,23 +295,26 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
         setActiveTransition(transition);
 
         const count = transition.count;
-        const angle = count >= 10 ? 38 : count >= 5 ? 24 : 13;
-        angles[fromIdx].value = -angle;
-        angles[fromIdx].value = withTiming(0, { duration: 400 }, (finished) => {
-            if (!finished) return;
-            runOnJS(performHaptic)();
-            runOnJS(runBounce)(fromIdx, toIdx, angle, 0);
-        });
-    }, [angles, moodNodes, performHaptic, runBounce]);
+        const angle = count >= 10 ? 38 : count >= 5 ? 24 : 14;
+        const direction = toIdx > fromIdx ? 1 : -1;
+        const state = simulationRef.current;
+        state.angles[fromIdx] = -direction * angle;
+        state.velocities[fromIdx] = 0;
+        startSimulation();
+    }, [hideLabels, moodNodes, startSimulation]);
 
     useEffect(() => {
         cycleIndexRef.current = 0;
         cancelAllAnimations();
-        angles.forEach((a) => { a.value = 0; });
+        const state = simulationRef.current;
+        state.angles = [0, 0, 0, 0, 0];
+        state.velocities = [0, 0, 0, 0, 0];
+        syncSharedAngles(state.angles);
+        cradleRock.value = 0;
         setMessage(null);
         setActiveTransition(null);
         showLabels();
-    }, [scope, cancelAllAnimations, angles]);
+    }, [scope, cancelAllAnimations, cradleRock, showLabels, syncSharedAngles]);
 
     useEffect(() => {
         if (moodNodes.length < MIN_BALLS || transitions.length === 0) return;
@@ -249,7 +343,10 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
 
         if (!candidate) {
             setMessage(`No pattern yet for ${source.label}`);
-            angles[ballIndex].value = withTiming(0, { duration: 450 });
+            const state = simulationRef.current;
+            state.angles[ballIndex] = 0;
+            state.velocities[ballIndex] = 0;
+            syncSharedAngles(state.angles);
             setTimeout(() => setMessage(null), 2600);
             return;
         }
@@ -261,11 +358,18 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
         setActiveTransition(candidate);
         const scopeLabel = SCOPE_FILTERS.find((f) => f.key === scope)?.label ?? scope;
         setMessage(`${source.label} → ${moodNodes[targetIdx].label} · ${candidate.count}x ${scopeLabel}`);
-        runBounce(ballIndex, targetIdx, Math.max(8, Math.abs(releasedAngle)), 0);
+        const state = simulationRef.current;
+        const direction = targetIdx > ballIndex ? 1 : -1;
+        state.angles[ballIndex] = Math.max(-MAX_PULL_DEG, Math.min(MAX_PULL_DEG, releasedAngle));
+        state.velocities[ballIndex] = direction * Math.max(1.05, Math.abs(releasedAngle) * 0.065);
+        startSimulation();
         setTimeout(() => setMessage(null), 3000);
     };
 
     const labelStyle = useAnimatedStyle(() => ({ opacity: labelOpacity.value }));
+    const cradleRockStyle = useAnimatedStyle(() => ({
+        transform: [{ rotateZ: `${cradleRock.value}deg` }],
+    }));
 
     // Determine what to show below the tabs
     const hasData = scopedCaptures.length > 1;
@@ -289,7 +393,7 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
             {/* Cradle or empty state */}
             {hasData && hasEnoughMoods ? (
                 <>
-                    <View style={[styles.cradle, { width: cradleWidth }]}>
+                    <Animated.View style={[styles.cradle, { width: cradleWidth }, cradleRockStyle]}>
                         <View style={[styles.frameTop, { width: cradleWidth + 48 }]} />
                         <View style={[styles.supportLeft, { left: -12 }]} />
                         <View style={[styles.supportRight, { right: -12 }]} />
@@ -312,7 +416,7 @@ export function MoodTransitionCradle({ captures, isLight }: { captures: Capture[
                                 );
                             })}
                         </View>
-                    </View>
+                    </Animated.View>
 
                     {!!(message || activeTransition) && (
                         <ThemedText style={styles.transitionText}>

@@ -76,6 +76,7 @@ export interface Database {
                     ai_auto_daily_insights: boolean | null;
                     ai_use_journal_in_insights: boolean | null;
                     ai_per_photo_captions: boolean | null;
+                    ai_free_mode: boolean | null;
                     is_premium: boolean | null;
                     premium_until: string | null;
                     subscription_tier: 'guest' | 'free' | 'founder' | 'subscriber';
@@ -96,6 +97,7 @@ export interface Database {
                     ai_auto_daily_insights?: boolean | null;
                     ai_use_journal_in_insights?: boolean | null;
                     ai_per_photo_captions?: boolean | null;
+                    ai_free_mode?: boolean | null;
                     is_premium?: boolean | null;
                     premium_until?: string | null;
                     subscription_tier?: 'guest' | 'free' | 'founder' | 'subscriber';
@@ -116,6 +118,7 @@ export interface Database {
                     ai_auto_daily_insights?: boolean | null;
                     ai_use_journal_in_insights?: boolean | null;
                     ai_per_photo_captions?: boolean | null;
+                    ai_free_mode?: boolean | null;
                     is_premium?: boolean | null;
                     premium_until?: string | null;
                     subscription_tier?: 'guest' | 'free' | 'founder' | 'subscriber';

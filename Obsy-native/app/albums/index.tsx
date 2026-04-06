@@ -34,12 +34,19 @@ export default function AlbumsScreen() {
     // Default to Public album
     const [currentAlbum, setCurrentAlbum] = useState<Album | null>(PUBLIC_ALBUM);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [aiFreeMode, setAiFreeMode] = useState(false);
 
     // Set Public as default album on mount
     useEffect(() => {
         if (!currentAlbum) {
             setCurrentAlbum(PUBLIC_ALBUM);
         }
+    }, []);
+
+    useEffect(() => {
+        getProfile()
+            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
+            .catch(() => setAiFreeMode(false));
     }, []);
 
     const [insightText, setInsightText] = useState("");
@@ -78,6 +85,10 @@ export default function AlbumsScreen() {
     }, [currentAlbum]);
 
     const handleGenerateInsight = async () => {
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
         setIsGenerating(true);
 
         try {
@@ -212,6 +223,10 @@ export default function AlbumsScreen() {
     };
 
     const handleRefreshInsight = async () => {
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
         if (!currentAlbum) return;
         setIsRefreshing(true);
 

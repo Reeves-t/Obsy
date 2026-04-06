@@ -48,6 +48,7 @@ export default function AlbumDetailScreen() {
     const [insightTone, setInsightTone] = useState<string | null>(null);
     const [sourceInsightId, setSourceInsightId] = useState<string | null>(null);
     const [hasPosted, setHasPosted] = useState(false);
+    const [aiFreeMode, setAiFreeMode] = useState(false);
 
     // Key to trigger SharedCanvas refresh after posting
     const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
@@ -136,6 +137,12 @@ export default function AlbumDetailScreen() {
         fetchAlbumDetails();
     }, [fetchAlbumDetails]);
 
+    useEffect(() => {
+        getProfile()
+            .then((profile) => setAiFreeMode(!!profile?.ai_free_mode))
+            .catch(() => setAiFreeMode(false));
+    }, []);
+
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         await fetchAlbumDetails();
@@ -144,6 +151,10 @@ export default function AlbumDetailScreen() {
 
     const handleGenerateInsight = async () => {
         if (!id) return;
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
 
         // Public album doesn't support insight generation
         if (isPublicAlbum(id)) {
@@ -318,6 +329,10 @@ export default function AlbumDetailScreen() {
 
     const handleRefreshInsight = async () => {
         if (!id) return;
+        if (aiFreeMode) {
+            Alert.alert('AI-Free Mode', 'Album insights are disabled while AI-Free mode is on.');
+            return;
+        }
         setIsRefreshingInsight(true);
 
         try {
