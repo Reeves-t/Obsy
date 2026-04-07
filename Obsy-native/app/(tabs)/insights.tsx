@@ -34,7 +34,7 @@ import { archiveInsight } from '@/services/archive';
 import { ToneSelector } from '@/components/insights/ToneSelector';
 import { MoodChart } from '@/components/insights/MoodChart';
 import { MoodFlow } from '@/components/insights/MoodFlow';
-import { ChronotypeDial } from '@/components/insights/ChronotypeDial';
+import { MoodConnectionDial } from '@/components/insights/MoodConnectionDial';
 import { WeeklySummaryCard } from '@/components/insights/WeeklySummaryCard';
 import { ObjectOfWeek } from '@/components/insights/ObjectOfWeek';
 import { PastInsightsStrip } from '@/components/insights/PastInsightsStrip';
@@ -795,12 +795,11 @@ export default function InsightsScreen() {
                                 <SectionHeader title={selectedTimeframe === 'week' ? "WEEKLY MOOD" : "MONTHLY MOOD"} />
                                 <MoodChart captures={captures} timeframe={selectedTimeframe} />
 
-                                {/* ROUTINES - Chronotype dial as hero artifact */}
+                                {/* MOOD CONNECTIONS - Relationship dial from capture history */}
                                 <SoftFadeDivider />
-                                <SectionHeader title="ROUTINES" />
-                                <ChronotypeDial
+                                <SectionHeader title="MOOD CONNECTIONS" />
+                                <MoodConnectionDial
                                     captures={captures}
-                                    totalEntries={totalEntries}
                                     flat
                                 />
 
