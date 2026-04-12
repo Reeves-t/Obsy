@@ -2,10 +2,11 @@ import React from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 
-import Colors from '@/constants/Colors';
+import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/i18n/config';
+
+const TAB_BAR_FOREGROUND = '#000000';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -16,23 +17,28 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
-  const { isDark, colors } = useObsyTheme();
   const { t } = useI18n();
-  // Use our theme context instead of system color scheme
-  const themeKey = isDark ? 'dark' : 'light';
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[themeKey].tint,
-        tabBarInactiveTintColor: Colors[themeKey].tabIconDefault,
+        tabBarActiveTintColor: TAB_BAR_FOREGROUND,
+        tabBarInactiveTintColor: TAB_BAR_FOREGROUND,
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, false),
         tabBarStyle: {
-          backgroundColor: isDark ? Colors.dark.background : Colors.light.background,
-          borderTopColor: colors.glassBorder,
-        }
+          backgroundColor: 'transparent',
+          borderTopColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+          height: DEFAULT_TAB_BAR_HEIGHT,
+          shadowOpacity: 0,
+          position: 'absolute',
+        },
+        tabBarLabelStyle: {
+          color: TAB_BAR_FOREGROUND,
+        },
       }}>
       <Tabs.Screen
         name="index"

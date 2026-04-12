@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 
@@ -78,6 +79,7 @@ interface CornerWashProps {
 // Gradient locations - where each color stop occurs (0-1)
 // Aggressive early fade: color at 0%, fading fast, transparent by ~45%
 const GRADIENT_LOCATIONS = [0, 0.15, 0.35, 0.55] as const;
+const REFERENCE_BACKGROUND = require('../../assets/images/ambient-reference-bg.jpg');
 
 // CornerWash: A rectangular gradient that fills the corner region
 // NO borderRadius - the gradient fades to transparent, creating soft edges naturally
@@ -143,12 +145,13 @@ interface AmbientBackgroundProps {
 
 export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName }) => {
     const { theme } = useObsyTheme();
+    const isOnboarding = screenName === 'onboarding';
     const themeSettings = THEME_SETTINGS[theme];
     const screenSettings = SCREEN_SETTINGS[screenName || 'default'];
 
     // Calculate effective corner opacity with light mode boost
     const effectiveCornerOpacity = useMemo(() => {
-        let opacity = themeSettings.cornerOpacity;
+        let opacity: number = themeSettings.cornerOpacity;
         // Apply light mode boost for atmospheric screens
         if (theme === 'light' && screenSettings.lightModeBoost > 0) {
             opacity = Math.min(1, opacity * (1 + screenSettings.lightModeBoost));
@@ -174,6 +177,74 @@ export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName
 
     // Determine overlay opacity (for ghosted gradient effect on focus screens)
     const overlayOpacity = screenSettings.overlayOpacity;
+
+    if (!isOnboarding) {
+        return (
+            <View style={styles.container} pointerEvents="none">
+                {/* Base steel fallback under the image treatment */}
+                <LinearGradient
+                    colors={['#0B0F16', '#18202B', '#0A0E15']}
+                    locations={[0, 0.52, 1]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={styles.baseLayer}
+                />
+
+                {/* Image layer recreates the soft abstract depth from the reference vibe */}
+                <Image
+                    source={REFERENCE_BACKGROUND}
+                    contentFit="cover"
+                    transition={0}
+                    style={styles.referenceImage}
+                />
+
+                {/* Cool grey wash keeps the image grounded in the current Obsy palette */}
+                <LinearGradient
+                    colors={['rgba(0,0,0,0.9)', 'rgba(4,4,5,0.8)', 'rgba(18,18,20,0.52)']}
+                    locations={[0, 0.5, 1]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={styles.imageTone}
+                />
+
+                {/* White-to-cream atmospheric tint similar to the Aura sample, but neutralized */}
+                <LinearGradient
+                    colors={['rgba(255,255,255,0.015)', 'rgba(210,194,166,0.04)', 'rgba(210,194,166,0.015)', 'transparent']}
+                    locations={[0, 0.2, 0.52, 1]}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.88, y: 1 }}
+                    style={styles.creamWash}
+                />
+
+                {/* Soft white highlight gives the image a lifted, misty top edge */}
+                <LinearGradient
+                    colors={['rgba(255,255,255,0.025)', 'rgba(255,255,255,0.008)', 'transparent']}
+                    locations={[0, 0.36, 1]}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.92, y: 0.72 }}
+                    style={styles.whiteBloom}
+                />
+
+                {/* Bottom tan-white lift warms the lower third without flattening the whole image */}
+                <LinearGradient
+                    colors={['transparent', 'rgba(58,58,62,0.22)', 'rgba(96,96,104,0.52)']}
+                    locations={[0, 0.66, 1]}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.bottomShade}
+                />
+
+                {/* Edge vignette prevents the photo layer from feeling flat or washed out */}
+                <LinearGradient
+                    colors={['rgba(0,0,0,0.72)', 'transparent', 'rgba(0,0,0,0.5)']}
+                    locations={[0, 0.5, 1]}
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                    style={styles.edgeVignette}
+                />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container} pointerEvents="none">
@@ -213,6 +284,10 @@ const styles = StyleSheet.create({
     baseLayer: {
         ...StyleSheet.absoluteFillObject,
     },
+    referenceImage: {
+        ...StyleSheet.absoluteFillObject,
+        opacity: 0.34,
+    },
     cornerWashContainer: {
         position: 'absolute',
         width: CORNER_WASH_SIZE,
@@ -226,5 +301,20 @@ const styles = StyleSheet.create({
     dimmingOverlay: {
         ...StyleSheet.absoluteFillObject,
     },
+    imageTone: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    creamWash: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    whiteBloom: {
+        ...StyleSheet.absoluteFillObject,
+        opacity: 0.28,
+    },
+    bottomShade: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    edgeVignette: {
+        ...StyleSheet.absoluteFillObject,
+    },
 });
-

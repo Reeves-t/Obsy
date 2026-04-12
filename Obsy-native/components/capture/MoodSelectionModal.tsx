@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomMoodStore, initializeMoodStore } from '@/lib/customMoodStore';
 import { CreateCustomMoodModal } from './CreateCustomMoodModal';
-import { getMoodTheme } from '@/lib/moods';
+import { getMoodTheme, type MoodGradient } from '@/lib/moods';
 import { Mood } from '@/types/mood';
 import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { moodCache } from '@/lib/moodCache';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MoodSelectionModalProps {
     visible: boolean;
@@ -46,14 +48,14 @@ interface MoodCategoryProps {
 
 function MoodChip({
     moodName,
-    moodColor,
+    moodGradient,
     isSelected,
     isDeleting,
     onPress,
     onLongPress,
 }: {
     moodName: string;
-    moodColor: string;
+    moodGradient: MoodGradient;
     isSelected: boolean;
     isDeleting?: boolean;
     onPress: () => void;
@@ -88,7 +90,6 @@ function MoodChip({
             <TouchableOpacity
                 style={[
                     styles.moodColorPill,
-                    { backgroundColor: moodColor },
                     isSelected && styles.moodColorPillSelected,
                 ]}
                 onPress={onPress}
@@ -96,6 +97,12 @@ function MoodChip({
                 activeOpacity={0.8}
                 disabled={isDeleting}
             >
+                <LinearGradient
+                    colors={[moodGradient.primary, moodGradient.mid, moodGradient.secondary]}
+                    start={{ x: 0.12, y: 0.08 }}
+                    end={{ x: 0.92, y: 0.94 }}
+                    style={styles.moodColorPillFill}
+                />
                 {isDeleting && <ActivityIndicator color="rgba(255,255,255,0.9)" size="small" />}
                 {!!onLongPress && !isDeleting && (
                     <View style={styles.miniDelete}>
@@ -111,6 +118,18 @@ function MoodChip({
             </ThemedText>
         </Animated.View>
     );
+}
+
+function resolveMoodChipGradient(mood: Mood): MoodGradient {
+    const theme = getMoodTheme(mood.id);
+    if (mood.gradient_from && mood.gradient_to) {
+        return {
+            primary: mood.gradient_from,
+            mid: mood.gradient_mid ?? theme.gradient.mid,
+            secondary: mood.gradient_to,
+        };
+    }
+    return theme.gradient;
 }
 
 function MoodCategory({ title, moods, selectedMood, onSelect, isLoading, onLongPressMood, deletingMoodId }: MoodCategoryProps) {
@@ -131,13 +150,13 @@ function MoodCategory({ title, moods, selectedMood, onSelect, isLoading, onLongP
             <View style={styles.moodGrid}>
                 {moods.map((mood) => {
                     const isSelected = selectedMood === mood.id;
-                    const moodColor = getMoodTheme(mood.name).solid;
+                    const moodGradient = resolveMoodChipGradient(mood);
                     const isDeleting = deletingMoodId === mood.id;
                     return (
                         <MoodChip
                             key={mood.id}
                             moodName={mood.name}
-                            moodColor={moodColor}
+                            moodGradient={moodGradient}
                             isSelected={isSelected}
                             isDeleting={isDeleting}
                             onPress={() => onSelect(mood.id)}
@@ -156,6 +175,7 @@ export function MoodSelectionModal({
     onSelect,
     onClose,
 }: MoodSelectionModalProps) {
+    const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState<'moods' | 'custom'>('moods');
     const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
@@ -263,10 +283,9 @@ export function MoodSelectionModal({
             onRequestClose={onClose}
         >
             <BlurView intensity={95} tint="dark" style={styles.modalContainer}>
-                <View style={styles.modalContent}>
+                <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 16) }]}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <View style={styles.handle} />
                         <View style={styles.headerRow}>
                             <ThemedText style={styles.headerTitle}>Select Mood</ThemedText>
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -337,13 +356,13 @@ export function MoodSelectionModal({
                                         <View style={styles.moodGrid}>
                                             {activeCustomMoods.map((mood) => {
                                                 const isSelected = selectedMood === mood.id;
-                                                const moodColor = getMoodTheme(mood.name).solid;
+                                                const moodGradient = resolveMoodChipGradient(mood);
                                                 const isBeingDeleted = isDeleting === mood.id;
                                                 return (
                                                     <MoodChip
                                                         key={mood.id}
                                                         moodName={mood.name}
-                                                        moodColor={moodColor}
+                                                        moodGradient={moodGradient}
                                                         isSelected={isSelected}
                                                         isDeleting={isBeingDeleted}
                                                         onPress={() => handleSelect(mood.id)}
@@ -402,25 +421,15 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
+        flex: 1,
         backgroundColor: '#0A0A0A',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        maxHeight: '85%',
-        minHeight: '60%',
     },
     header: {
         alignItems: 'center',
-        paddingTop: 12,
-        paddingBottom: 8,
+        paddingTop: 10,
+        paddingBottom: 10,
         borderBottomWidth: 1,
         borderBottomColor: 'rgba(255,255,255,0.08)',
-    },
-    handle: {
-        width: 40,
-        height: 4,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 2,
-        marginBottom: 16,
     },
     headerRow: {
         flexDirection: 'row',
@@ -428,7 +437,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         width: '100%',
         paddingHorizontal: 20,
-        marginBottom: 16,
+        marginBottom: 14,
     },
     headerTitle: {
         fontSize: 18,
@@ -470,7 +479,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         padding: 20,
-        paddingBottom: 40,
+        paddingBottom: 28,
         gap: 28,
     },
     categoryContainer: {
@@ -491,22 +500,27 @@ const styles = StyleSheet.create({
     moodGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 12,
+        gap: 14,
     },
     moodChipWrap: {
-        width: 74,
+        width: 82,
         alignItems: 'center',
-        gap: 7,
+        gap: 8,
     },
     moodColorPill: {
-        width: 56,
-        height: 34,
-        borderRadius: 17,
+        width: 62,
+        height: 38,
+        borderRadius: 19,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.24)',
+        overflow: 'hidden',
+        position: 'relative',
     },
+    moodColorPillFill: {
+        ...StyleSheet.absoluteFillObject,
+        },
     moodColorPillSelected: {
         borderWidth: 2,
         borderColor: '#FFFFFF',
@@ -519,7 +533,7 @@ const styles = StyleSheet.create({
         opacity: 0.45,
     },
     moodNameLabel: {
-        fontSize: 12,
+        fontSize: 12.5,
         color: 'rgba(255,255,255,0.7)',
         textAlign: 'center',
     },

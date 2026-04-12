@@ -4,6 +4,8 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { runAiTextTask } from "../_shared/ai/router.ts";
+import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
 interface MonthSignals {
   dominantMood: string;
@@ -196,9 +198,6 @@ serve(async (req) => {
 
     console.log(`[MONTHLY_INSIGHT_REQUEST] requestId: ${requestId} | monthLabel: ${body.monthLabel ?? "n/a"} | monthStart: ${body.monthStart ?? "n/a"}`);
 
-    if (!Deno.env.get("GEMINI_API_KEY")) {
-      return errorResponse(500, "config", "Missing GEMINI_API_KEY", requestId);
-    }
     if (!Deno.env.get("SUPABASE_URL") || !Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
       return errorResponse(500, "config", "Missing Supabase service env vars", requestId);
     }
@@ -278,19 +277,49 @@ serve(async (req) => {
 
     console.log(`[MONTHLY_INSIGHT_PARAMS] requestId: ${requestId} | captures: ${captureRows.length} | daysWithData: ${Object.keys(dayContext).length} | tone: ${tone}`);
 
-    let sanitized = "";
     let monthPhrase: string | undefined;
     let aiReasoning: string | undefined;
-    try {
-      const rawText = await callGemini(prompt, requestId);
-      const result = extractStructuredResponse(rawText, requestId);
-      sanitized = sanitizeText(result.text);
-      monthPhrase = result.monthPhrase ? sanitizeText(result.monthPhrase) : undefined;
-      aiReasoning = result.aiReasoning ? sanitizeText(result.aiReasoning) : undefined;
-    } catch (error: any) {
-      console.error(`[MONTHLY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"}`);
-      return errorResponse(502, "gemini_api", error?.message || "Gemini call failed", requestId);
+    const aiResult = await runAiTextTask({
+      requestId,
+      userId,
+      feature: "generate_monthly_insight",
+      task: "monthly_insight",
+      prompt,
+      inputMode: "text",
+      responseFormat: "json",
+      maxTokens: 1800,
+      temperature: 0.7,
+      promptVersion: "generate_monthly_insight_v1",
+      requestPayload: {
+        tone,
+        has_custom_tone: Boolean(body.customTonePrompt),
+        month_label: body.monthLabel ?? "This month",
+        total_captures: captureRows.length,
+        active_days: signals.activeDays,
+      },
+      postProcess: (rawText: string): AiPostProcessResult => {
+        const result = extractStructuredResponseFromModelText(rawText, requestId);
+        const text = sanitizeText(result.text);
+        if (!text) {
+          return {
+            ok: false,
+            stage: "validate",
+            message: "AI generated empty or invalid response",
+            status: 500,
+          };
+        }
+        monthPhrase = result.monthPhrase ? sanitizeText(result.monthPhrase) : undefined;
+        aiReasoning = result.aiReasoning ? sanitizeText(result.aiReasoning) : undefined;
+        return { ok: true, text };
+      },
+    });
+
+    if (!aiResult.ok) {
+      console.error(`[MONTHLY_INSIGHT_ERROR] requestId: ${requestId} | stage: ai_router | message: ${aiResult.message}`);
+      return errorResponse(aiResult.status, aiResult.stage, aiResult.message, requestId);
     }
+
+    const sanitized = aiResult.text;
 
     if (!validateGeminiResponse(sanitized)) {
       console.error(
@@ -443,58 +472,6 @@ function buildMonthlyPrompt(input: {
   ].join("\n");
 }
 
-async function callGemini(prompt: string, requestId: string): Promise<string> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  console.log(`[GEMINI_API_CALL] requestId: ${requestId} | model: gemini-2.5-flash`);
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error(`[GEMINI_API_ERROR] requestId: ${requestId} | status: ${res.status} | response: ${errText}`);
-    throw new Error(`Gemini request failed: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return JSON.stringify(data);
-}
-
-/**
- * Recursively search a parsed JSON object for the first long string value
- * that looks like narrative prose (not a key name or short metadata).
- */
-function findDeepestString(obj: unknown, minLength = 40): string | null {
-  if (typeof obj === "string" && obj.length >= minLength) return obj;
-  if (Array.isArray(obj)) {
-    for (const item of obj) {
-      const found = findDeepestString(item, minLength);
-      if (found) return found;
-    }
-  } else if (obj && typeof obj === "object") {
-    for (const val of Object.values(obj)) {
-      const found = findDeepestString(val, minLength);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
 interface StructuredResult {
   text: string;
   monthPhrase?: string;
@@ -539,6 +516,33 @@ function extractStructuredResponse(raw: string, requestId: string): StructuredRe
 
   // Fallback: use legacy text-only extraction
   return { text: extractText(raw, requestId) };
+}
+
+function extractStructuredResponseFromModelText(raw: string, requestId: string): StructuredResult {
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+
+  try {
+    const insight = JSON.parse(cleaned);
+    const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
+    if (typeof narrativeText === "string" && narrativeText.trim()) {
+      console.log(`[EXTRACT_STRUCTURED_SUCCESS] requestId: ${requestId} | has month_phrase: ${!!insight?.month_phrase}`);
+      return {
+        text: narrativeText,
+        monthPhrase: typeof insight?.month_phrase === "string" ? insight.month_phrase : undefined,
+        aiReasoning: typeof insight?.ai_reasoning === "string" ? insight.ai_reasoning : undefined,
+      };
+    }
+  } catch {
+    if (cleaned && !cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+      return { text: cleaned };
+    }
+  }
+
+  console.error(`[EXTRACT_STRUCTURED_FAILED] requestId: ${requestId} | unable to extract monthly narrative`);
+  return { text: "" };
 }
 
 function extractText(raw: string, requestId: string): string {

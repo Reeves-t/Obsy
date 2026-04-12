@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { resolveMoodThemeById } from '@/lib/moodUtils';
 import { generateOrbEffect } from '@/lib/moods';
 import type { TimeBucket } from '@/hooks/useInsightsStats';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { InsightText } from '@/components/insights/InsightText';
@@ -41,6 +41,7 @@ import { MoodChart } from '@/components/insights/MoodChart';
 import { MoodBreakGame } from '@/components/insights/MoodBreakGame';
 import { MoodFlow } from '@/components/insights/MoodFlow';
 import { ChronotypeDial } from '@/components/insights/ChronotypeDial';
+import { MoodConnectionDial } from '@/components/insights/MoodConnectionDial';
 import { WeeklySummaryCard } from '@/components/insights/WeeklySummaryCard';
 import { ObjectOfWeek } from '@/components/insights/ObjectOfWeek';
 import { PastInsightsStrip } from '@/components/insights/PastInsightsStrip';
@@ -54,7 +55,6 @@ import { ToneTriggerButton } from '@/components/insights/ToneTriggerButton';
 import { MoodSignal } from '@/components/insights/MoodSignal';
 import { useCustomTones } from '@/hooks/useCustomTones';
 import { InsightErrorDisplay } from '@/components/insights/InsightErrorDisplay';
-import { MoodTransitionCradle } from '@/components/insights/MoodTransitionCradle';
 
 import { useInsightsStats } from '@/hooks/useInsightsStats';
 import { PremiumGate } from '@/components/PremiumGate';
@@ -644,7 +644,7 @@ export default function InsightsScreen() {
 
 
     return (
-        <ScreenWrapper screenName="insights" hideFloatingBackground>
+        <ScreenWrapper screenName="insights" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
             {/* Header - Transparent, no background */}
             <View style={styles.header}>
                 <View style={styles.headerContent}>
@@ -832,7 +832,7 @@ export default function InsightsScreen() {
 
                                 {/* MOOD BY TIME - Time-of-day mood patterns */}
                                 <SectionHeader title="MOOD BY TIME" />
-                                <MoodTransitionCradle captures={captures} isLight={isLight} />
+                                <MoodConnectionDial captures={captures} flat />
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeOfDayScroll} contentContainerStyle={styles.timeOfDayScrollContent}>
                                     {([
                                         { bucket: 'early_morning' as TimeBucket, label: 'EARLY MORNING', Icon: Sunrise, gradient: ['#1a1a2e', '#3d2c4f', '#c4723a'] },

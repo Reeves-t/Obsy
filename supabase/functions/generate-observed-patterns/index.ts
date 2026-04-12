@@ -2,6 +2,8 @@
 // Generates lifelong pattern reflections from all eligible captures.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { runAiTextTask } from "../_shared/ai/router.ts";
+import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
 type TimeBucket = "early" | "midday" | "late" | string;
 type DayPart = "Late night" | "Morning" | "Midday" | "Evening" | "Night" | string;
@@ -80,10 +82,6 @@ serve(async (req) => {
   try {
     console.log(`[OBSERVED_PATTERNS_REQUEST] requestId: ${requestId} | method: ${req.method}`);
 
-    if (!Deno.env.get("GEMINI_API_KEY")) {
-      return errorResponse(500, "config", "Missing GEMINI_API_KEY", requestId);
-    }
-
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return errorResponse(401, "auth", "Missing authorization header", requestId);
@@ -128,16 +126,44 @@ serve(async (req) => {
       eligibleCount,
     });
 
-    let sanitized = "";
-    try {
-      const rawText = await callGemini(prompt, requestId);
-      sanitized = extractAndSanitize(rawText, requestId);
-    } catch (error: any) {
+    const aiResult = await runAiTextTask({
+      requestId,
+      feature: "generate_observed_patterns",
+      task: "observed_patterns",
+      prompt,
+      inputMode: "text",
+      responseFormat: "json",
+      maxTokens: 1200,
+      temperature: 0.7,
+      promptVersion: "generate_observed_patterns_v1",
+      requestPayload: {
+        capture_count: captures.length,
+        generation_number: generationNumber,
+        eligible_count: eligibleCount,
+        has_previous_pattern: Boolean(previousPatternText),
+      },
+      postProcess: (rawText: string): AiPostProcessResult => {
+        const text = extractAndSanitize(rawText, requestId);
+        if (!text.trim()) {
+          return {
+            ok: false,
+            stage: "validate",
+            message: "AI generated empty response",
+            status: 500,
+          };
+        }
+        return { ok: true, text };
+      },
+    });
+
+    if (!aiResult.ok) {
       console.error(
-        `[OBSERVED_PATTERNS_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"}`
+        `[OBSERVED_PATTERNS_ERROR] requestId: ${requestId} | stage: ai_router | message: ${aiResult.message}`
       );
-      return errorResponse(502, "gemini_api", error?.message || "Gemini call failed", requestId);
+      return errorResponse(aiResult.status, aiResult.stage, aiResult.message, requestId);
     }
+
+    const sanitized = aiResult.text;
 
     if (!sanitized || !sanitized.trim()) {
       return errorResponse(500, "response_validation", "AI generated empty response", requestId);
@@ -304,84 +330,30 @@ function computeStats(captures: CaptureData[]): {
 // Gemini API
 // ---------------------------------------------------------------------------
 
-async function callGemini(prompt: string, requestId: string): Promise<string> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  console.log(
-    `[GEMINI_API_CALL] requestId: ${requestId} | model: gemini-2.5-flash`
-  );
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error(`[GEMINI_API_ERROR] requestId: ${requestId} | status: ${res.status} | response: ${errText}`);
-    throw new Error(`Gemini request failed: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return JSON.stringify(data);
-}
-
 // ---------------------------------------------------------------------------
 // Response parsing
 // ---------------------------------------------------------------------------
 
 function extractAndSanitize(raw: string, requestId: string): string {
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+
   try {
-    const parsed = JSON.parse(raw);
-    const candidate = parsed?.candidates?.[0];
-    // Filter out thinking parts (thought: true) from Gemini 2.5+ models
-    const contentParts = candidate?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
-    const partsText = contentParts.map((p: any) => p?.text).filter(Boolean).join(" ");
-
-    if (partsText) {
-      // Strip markdown code blocks
-      const cleaned = partsText
-        .replace(/^```(?:json)?\s*\n?/i, "")
-        .replace(/\n?```\s*$/i, "")
-        .trim();
-
-      try {
-        const insight = JSON.parse(cleaned);
-        const text = insight?.text;
-        if (text && typeof text === "string") {
-          console.log(`[EXTRACT_SUCCESS] requestId: ${requestId} | parsed JSON text field`);
-          return sanitizeText(text);
-        }
-      } catch {
-        // Not JSON, treat as plain text
-        if (cleaned && !cleaned.startsWith("{") && !cleaned.startsWith("[")) {
-          return sanitizeText(cleaned);
-        }
-      }
-
-      // Fallback to raw parts text if it doesn't look like JSON
-      if (!partsText.trim().startsWith("{") && !partsText.trim().startsWith("[")) {
-        return sanitizeText(partsText);
-      }
+    const insight = JSON.parse(cleaned);
+    const text = insight?.text;
+    if (typeof text === "string" && text.trim()) {
+      console.log(`[EXTRACT_SUCCESS] requestId: ${requestId} | parsed JSON text field`);
+      return sanitizeText(text);
     }
-
-    if (candidate?.output_text) return sanitizeText(candidate.output_text);
-    if (parsed?.text) return sanitizeText(parsed.text);
   } catch {
-    // raw might already be plain text
+    if (cleaned && !cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+      return sanitizeText(cleaned);
+    }
   }
-  return sanitizeText(raw);
+
+  return "";
 }
 
 function sanitizeText(text: string): string {

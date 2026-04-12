@@ -5,11 +5,14 @@ import { FloatingBackgroundController } from '@/components/backgrounds/FloatingB
 import { AmbientBackground } from '@/components/ui/AmbientBackground';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 
+export const DEFAULT_TAB_BAR_HEIGHT = 84;
+
 interface ScreenWrapperProps {
     children: React.ReactNode;
     style?: ViewStyle;
     withSafeArea?: boolean;
     hideFloatingBackground?: boolean;
+    bottomInset?: number;
     edges?: Edge[];
     screenName?: 'home' | 'gallery' | 'insights' | 'profile' | 'archive' | 'onboarding' | 'albums';
 }
@@ -19,10 +22,13 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
     style,
     withSafeArea = true,
     hideFloatingBackground = false,
+    bottomInset = 0,
     edges = ['top', 'left', 'right', 'bottom'],
     screenName
 }) => {
     const { isDark } = useObsyTheme();
+    const isOnboarding = screenName === 'onboarding';
+    const statusBarStyle = isOnboarding ? (isDark ? 'light-content' : 'dark-content') : 'light-content';
 
     return (
         <View style={styles.wrapper}>
@@ -33,15 +39,15 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
             {!hideFloatingBackground && <FloatingBackgroundController screenName={screenName} />}
 
             {/* StatusBar: light icons on dark bg, dark icons on light bg */}
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+            <StatusBar barStyle={statusBarStyle} />
 
             {/* Main content */}
             {withSafeArea ? (
-                <SafeAreaView style={[styles.container, style]} edges={edges}>
+                <SafeAreaView style={[styles.container, { paddingBottom: bottomInset }, style]} edges={edges}>
                     {children}
                 </SafeAreaView>
             ) : (
-                <View style={[styles.container, style]}>
+                <View style={[styles.container, { paddingBottom: bottomInset }, style]}>
                     {children}
                 </View>
             )}

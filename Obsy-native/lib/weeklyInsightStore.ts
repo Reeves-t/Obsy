@@ -6,6 +6,7 @@ import { getCapturesForWeek, CaptureData } from '@/lib/captureData';
 import { getMoodLabel } from '@/lib/moodUtils';
 import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
 import { fetchInsightHistory, fetchMostRecentWeeklyInsight, upsertInsightHistory } from '@/services/insightHistory';
+import { areAllMoodOnlyEntries, buildMoodOnlyInsight } from '@/lib/moodOnlyInsights';
 
 /**
  * Validates and sanitizes a mood string.
@@ -166,6 +167,35 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
                 return;
             }
 
+            if (areAllMoodOnlyEntries(captures)) {
+                const simpleInsight = buildMoodOnlyInsight('weekly', captures);
+                set({
+                    status: 'success',
+                    text: simpleInsight,
+                    requestId: null,
+                    lastUpdated: new Date(),
+                    weekStart,
+                    error: null,
+                });
+
+                const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
+                try {
+                    await upsertInsightHistory(
+                        userId,
+                        'weekly',
+                        weekStart,
+                        weekEnd,
+                        simpleInsight,
+                        undefined,
+                        captures.map((capture) => capture.id)
+                    );
+                } catch (e) {
+                    console.warn('[WeeklyInsight] Failed to persist mood-only insight:', e);
+                }
+
+                return;
+            }
+
             const captureData: CaptureData[] = captures.map((c) => {
                 const date = new Date(c.created_at);
                 const mood = resolveMoodWithFallback(
@@ -175,7 +205,7 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
                 );
                 return {
                     mood,
-                    note: c.note ?? c.journal_entry ?? undefined,
+                    note: c.note ?? undefined,
                     capturedAt: c.created_at,
                     tags: c.tags ?? [],
                     timeBucket: c.timeBucket ?? getTimeBucketForDate(date),

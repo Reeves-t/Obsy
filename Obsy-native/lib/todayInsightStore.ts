@@ -8,6 +8,7 @@ import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
 import { fetchMostRecentDailyInsight, fetchInsightHistory, upsertInsightHistory } from '@/services/insightHistory';
 import { upsertDailyMoodFlow, fetchDailyMoodFlows } from '@/services/dailyMoodFlows';
 import { formatDateKey, isMoodFlowReading } from '@/lib/dailyMoodFlows';
+import { areAllMoodOnlyEntries, buildMoodOnlyInsight } from '@/lib/moodOnlyInsights';
 
 /**
  * Validates and sanitizes a mood string.
@@ -155,6 +156,36 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
                 return;
             }
 
+            if (areAllMoodOnlyEntries(todayCaptures)) {
+                const simpleInsight = buildMoodOnlyInsight('daily', todayCaptures);
+                set({
+                    status: 'success',
+                    text: simpleInsight,
+                    requestId: null,
+                    lastUpdated: new Date(),
+                    error: null,
+                    hasGeneratedToday: true,
+                    dateKey: getLocalDayKey(new Date()),
+                });
+
+                const today = new Date();
+                try {
+                    await upsertInsightHistory(
+                        userId,
+                        'daily',
+                        today,
+                        today,
+                        simpleInsight,
+                        undefined,
+                        todayCaptures.map((capture) => capture.id)
+                    );
+                } catch (e) {
+                    console.warn('[TodayInsight] Failed to persist mood-only insight:', e);
+                }
+
+                return;
+            }
+
             const captureData: CaptureData[] = todayCaptures.map((c) => {
                 const date = new Date(c.created_at);
                 const mood = resolveMoodWithFallback(
@@ -164,7 +195,7 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
                 );
                 return {
                     mood,
-                    note: c.note ?? c.journal_entry ?? undefined,
+                    note: c.note ?? undefined,
                     capturedAt: c.created_at,
                     tags: c.tags ?? [],
                     timeBucket: c.timeBucket ?? getTimeBucketForDate(date),

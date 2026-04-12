@@ -14,7 +14,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -499,7 +499,7 @@ export default function ProfileScreen() {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <ScreenWrapper screenName="profile" hideFloatingBackground>
+    <ScreenWrapper screenName="profile" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

@@ -2,6 +2,8 @@
 // Generates weekly insights with isolated routing, strict envelopes, CORS, and auth.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { runAiTextTask } from "../_shared/ai/router.ts";
+import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
 type TimeBucket = "early" | "midday" | "late" | string;
 type DayPart = "Late night" | "Morning" | "Midday" | "Evening" | "Night" | string;
@@ -186,10 +188,6 @@ serve(async (req) => {
   try {
     console.log(`[WEEKLY_INSIGHT_REQUEST] requestId: ${requestId} | method: ${req.method}`);
 
-    if (!Deno.env.get("GEMINI_API_KEY")) {
-      return errorResponse(500, "config", "Missing GEMINI_API_KEY", requestId);
-    }
-
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return errorResponse(401, "auth", "Missing authorization header", requestId);
@@ -228,17 +226,45 @@ serve(async (req) => {
       `[WEEKLY_INSIGHT_PARAMS] requestId: ${requestId} | captures: ${captures.length} | tone: ${tone} | hasCustomTone: ${!!body.customTonePrompt} | weekLabel: ${body.weekLabel ?? "This week"}`
     );
 
-    let sanitized = "";
-    try {
-      const rawText = await callGemini(prompt, requestId);
-      const extracted = extractText(rawText, requestId);
-      sanitized = sanitizeText(extracted);
-    } catch (error: any) {
+    const aiResult = await runAiTextTask({
+      requestId,
+      feature: "generate_weekly_insight",
+      task: "weekly_insight",
+      prompt,
+      inputMode: "text",
+      responseFormat: "json",
+      maxTokens: 1200,
+      temperature: 0.85,
+      promptVersion: "generate_weekly_insight_v1",
+      requestPayload: {
+        tone,
+        has_custom_tone: Boolean(body.customTonePrompt),
+        capture_count: captures.length,
+        week_label: body.weekLabel ?? "This week",
+      },
+      postProcess: (rawText: string): AiPostProcessResult => {
+        const extracted = extractText(rawText, requestId);
+        const text = sanitizeText(extracted);
+        if (!text) {
+          return {
+            ok: false,
+            stage: "validate",
+            message: "AI generated empty or invalid response",
+            status: 500,
+          };
+        }
+        return { ok: true, text };
+      },
+    });
+
+    if (!aiResult.ok) {
       console.error(
-        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"}`
+        `[WEEKLY_INSIGHT_ERROR] requestId: ${requestId} | stage: ai_router | message: ${aiResult.message}`
       );
-      return errorResponse(502, "gemini_api", error?.message || "Gemini call failed", requestId);
+      return errorResponse(aiResult.status, aiResult.stage, aiResult.message, requestId);
     }
+
+    const sanitized = aiResult.text;
 
     if (!validateGeminiResponse(sanitized)) {
       return errorResponse(500, "response_validation", "AI generated empty or invalid response", requestId);
@@ -330,82 +356,29 @@ function validateGeminiResponse(text: string): boolean {
   return true;
 }
 
-async function callGemini(prompt: string, requestId: string): Promise<string> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  console.log(
-    `[GEMINI_API_CALL] requestId: ${requestId} | model: gemini-2.5-flash | url: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
-  );
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.85,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error(`[GEMINI_API_ERROR] requestId: ${requestId} | status: ${res.status} | response: ${errText}`);
-    throw new Error(`Gemini request failed: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return JSON.stringify(data);
-}
-
 function extractText(raw: string, requestId: string): string {
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+
   try {
-    const parsed = JSON.parse(raw);
-    const candidate = parsed?.candidates?.[0];
-    // Filter out thinking parts (thought: true) from Gemini 2.5+ models
-    const contentParts = candidate?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
-    const partsText = contentParts.map((p: any) => p?.text).filter(Boolean).join(" ");
-    let parsedFromParts: string | null = null;
-
-    if (partsText) {
-      console.log(`[EXTRACT_TEXT_ATTEMPT_JSON] requestId: ${requestId} | attempting to parse partsText as JSON`);
-
-      // Strip markdown code blocks (```json ... ``` or ``` ... ```)
-      const cleaned = partsText
-        .replace(/^```(?:json)?\s*\n?/i, "")  // Remove opening ```json or ```
-        .replace(/\n?```\s*$/i, "")            // Remove closing ```
-        .trim();
-
-      try {
-        const insight = JSON.parse(cleaned);
-        const narrativeText = insight?.narrative?.text ?? insight?.insight ?? cleaned;
-        if (narrativeText) {
-          console.log(
-            `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text`
-          );
-          return narrativeText;
-        }
-      } catch {
-        console.log(
-          `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not JSON, will try other fallbacks`
-        );
-      }
-      parsedFromParts = partsText;
+    const insight = JSON.parse(cleaned);
+    const narrativeText = insight?.narrative?.text ?? insight?.insight ?? insight?.text;
+    if (typeof narrativeText === "string" && narrativeText.trim()) {
+      console.log(
+        `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text`
+      );
+      return narrativeText;
     }
-    if (candidate?.output_text) return candidate.output_text;
-    if (parsed?.narrative?.text) return parsed.narrative.text;
-    if (parsed?.text) return parsed.text;
-    if (parsed?.insight) return parsed.insight;
-    if (parsedFromParts) return parsedFromParts;
   } catch {
-    // raw might already be plain text
+    if (cleaned && !cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+      return cleaned;
+    }
   }
-  return raw;
+
+  console.warn(`[EXTRACT_TEXT_FAILED] requestId: ${requestId} | unable to extract weekly narrative`);
+  return "";
 }
 
 function sanitizeText(text: string): string {

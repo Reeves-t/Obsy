@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from 'react';
 import { StyleSheet, View, FlatList, TouchableOpacity, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useCaptureStore, Capture } from '@/lib/captureStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -451,7 +451,7 @@ export default function GalleryScreen() {
     const iconInactive = onBgTextTertiary;
 
     return (
-        <ScreenWrapper screenName="gallery" hideFloatingBackground>
+        <ScreenWrapper screenName="gallery" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
             {/* Header */}
             <View style={styles.header}>
                 <ThemedText type="title" style={{ color: onBgText }}>Gallery</ThemedText>

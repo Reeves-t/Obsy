@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import Svg, { Ellipse } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 
-interface AnimatedJournalButtonProps {
+interface QuickMoodButtonProps {
   size?: number;
   disabled?: boolean;
   onPress?: () => void;
@@ -13,14 +13,24 @@ interface AnimatedJournalButtonProps {
 const DEFAULT_SIZE = 44;
 const RING_PADDING = 8;
 
-export function AnimatedJournalButton({
+function QuickMoodGlyph({ size }: { size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Ellipse cx="30" cy="18" rx="8.5" ry="8" fill="rgba(255,255,255,0.96)" />
+      <Ellipse cx="18" cy="31" rx="6.2" ry="5.4" fill="rgba(255,255,255,0.9)" />
+      <Ellipse cx="12.5" cy="15.5" rx="4.8" ry="4.8" fill="rgba(255,255,255,0.82)" />
+    </Svg>
+  );
+}
+
+export function QuickMoodButton({
   size = DEFAULT_SIZE,
   disabled = false,
   onPress,
-}: AnimatedJournalButtonProps) {
+}: QuickMoodButtonProps) {
   const router = useRouter();
   const ringSize = size + RING_PADDING;
-  const iconSize = size * 0.46;
+  const iconSize = size * 0.52;
 
   const handlePress = () => {
     if (disabled) return;
@@ -28,7 +38,7 @@ export function AnimatedJournalButton({
       onPress();
       return;
     }
-    router.push('/journal');
+    router.push('/quick-mood' as never);
   };
 
   return (
@@ -43,10 +53,7 @@ export function AnimatedJournalButton({
           colors={['rgba(200,200,200,0.25)', 'rgba(120,120,120,0.15)', 'rgba(200,200,200,0.25)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[
-            styles.ringGradient,
-            { borderRadius: ringSize / 2 },
-          ]}
+          style={[styles.ringGradient, { borderRadius: ringSize / 2 }]}
         />
       </View>
 
@@ -81,44 +88,7 @@ export function AnimatedJournalButton({
         />
         <View style={[styles.innerGlint, { borderRadius: size / 2 }]} />
         <View style={styles.iconContainer}>
-          <Svg width={iconSize} height={iconSize} viewBox="0 0 24 24">
-            <Path
-              d="M7 3.5h6.8l3.7 3.8V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"
-              stroke="#FFFFFF"
-              strokeWidth={1.5}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Path
-              d="M13.8 3.8V7.2H17.2"
-              stroke="#FFFFFF"
-              strokeWidth={1.3}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Path
-              d="M8.5 10.5h5.5"
-              stroke="#FFFFFF"
-              strokeWidth={1.2}
-              strokeLinecap="round"
-            />
-            <Path
-              d="M8.5 13.3h4.4"
-              stroke="#FFFFFF"
-              strokeWidth={1.2}
-              strokeLinecap="round"
-            />
-            <Path
-              d="M11.8 16.8l4.9-4.9 1.4 1.4-4.9 4.9-2.3.9z"
-              stroke="#FFFFFF"
-              strokeWidth={1.4}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
+          <QuickMoodGlyph size={iconSize} />
         </View>
       </TouchableOpacity>
     </View>

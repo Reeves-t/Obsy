@@ -1,11 +1,13 @@
 // Supabase Edge Function: generate-mood-color
-// Uses Gemini to assign a semantically appropriate two-tone gradient to a custom mood.
+// Uses shared Claude-primary routing to assign a semantically appropriate two-tone gradient to a custom mood.
 //
 // Input:  { moodName: string }
 // Output: { gradient_from: string, gradient_to: string }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { runAiTextTask } from "../_shared/ai/router.ts";
+import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -44,6 +46,8 @@ Respond with ONLY a JSON object, no markdown, no explanation:
 {"from":"#XXXXXX","to":"#XXXXXX"}`;
 
 serve(async (req: Request) => {
+    const requestId = crypto.randomUUID();
+
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
@@ -85,61 +89,58 @@ serve(async (req: Request) => {
         const trimmedName = moodName.trim();
         console.log(`[generate-mood-color] Generating colors for: "${trimmedName}" (user: ${user.id})`);
 
-        // 3. Call Gemini
-        const geminiKey = Deno.env.get("GEMINI_API_KEY");
-        if (!geminiKey) {
-            console.error("[generate-mood-color] GEMINI_API_KEY not configured");
-            return new Response(
-                JSON.stringify({ error: "AI service not configured" }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-
         const prompt = `Mood name: "${trimmedName}"`;
 
-        const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-                    contents: [
-                        { role: "user", parts: [{ text: prompt }] },
-                    ],
-                    generationConfig: {
-                        thinkingConfig: { thinkingBudget: 0 },
-                    },
-                }),
-            }
-        );
-
-        if (!geminiResponse.ok) {
-            const errBody = await geminiResponse.text();
-            console.error("[generate-mood-color] Gemini API error:", errBody);
-            return new Response(
-                JSON.stringify({ error: "AI generation failed" }),
-                { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-
-        const geminiData = await geminiResponse.json();
-        // Filter out thinking parts (thought: true) from Gemini 2.5+ models
-        const contentParts = geminiData.candidates?.[0]?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
-        const rawText = contentParts[0]?.text || "";
-
         // 4. Parse the JSON response
-        let parsed: { from?: string; to?: string };
-        try {
-            // Extract JSON from response (handle potential markdown wrapping)
-            const jsonMatch = rawText.match(/\{[^}]+\}/);
-            if (!jsonMatch) throw new Error("No JSON found in response");
-            parsed = JSON.parse(jsonMatch[0]);
-        } catch (parseErr) {
-            console.error("[generate-mood-color] Failed to parse Gemini response:", rawText);
+        let parsed: { from?: string; to?: string } | null = null;
+        const aiResult = await runAiTextTask({
+            requestId,
+            userId: user.id,
+            feature: "generate_mood_color",
+            task: "mood_color",
+            prompt,
+            systemPrompt: SYSTEM_PROMPT,
+            inputMode: "text",
+            responseFormat: "json",
+            maxTokens: 300,
+            temperature: 0.4,
+            promptVersion: "generate_mood_color_v1",
+            requestPayload: {
+                mood_name: trimmedName,
+            },
+            postProcess: (rawText: string): AiPostProcessResult => {
+                try {
+                    const cleaned = rawText
+                        .replace(/^```(?:json)?\s*\n?/i, "")
+                        .replace(/\n?```\s*$/i, "")
+                        .trim();
+                    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) {
+                        return {
+                            ok: false,
+                            stage: "parse",
+                            message: "Failed to parse AI color response",
+                            status: 502,
+                        };
+                    }
+                    parsed = JSON.parse(jsonMatch[0]);
+                    return { ok: true, text: jsonMatch[0] };
+                } catch {
+                    return {
+                        ok: false,
+                        stage: "parse",
+                        message: "Failed to parse AI color response",
+                        status: 502,
+                    };
+                }
+            },
+        });
+
+        if (!aiResult.ok || !parsed) {
+            console.error(`[generate-mood-color] [${requestId}] AI routing failed:`, aiResult.ok ? "missing parsed payload" : aiResult.message);
             return new Response(
-                JSON.stringify({ error: "Failed to parse AI color response" }),
-                { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                JSON.stringify({ error: aiResult.ok ? "Failed to parse AI color response" : aiResult.message }),
+                { status: aiResult.ok ? 502 : aiResult.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
 
@@ -148,7 +149,7 @@ serve(async (req: Request) => {
         const gradientTo = parsed.to?.trim();
 
         if (!gradientFrom || !gradientTo || !HEX_RE.test(gradientFrom) || !HEX_RE.test(gradientTo)) {
-            console.error("[generate-mood-color] Invalid hex colors:", { gradientFrom, gradientTo });
+            console.error(`[generate-mood-color] [${requestId}] Invalid hex colors:`, { gradientFrom, gradientTo });
             return new Response(
                 JSON.stringify({ error: "AI returned invalid colors" }),
                 { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }

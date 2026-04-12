@@ -2,7 +2,8 @@
 // Handles daily insight generation via Gemini with strict envelopes, CORS, auth, and rate limiting.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { runAiTextTask } from "../_shared/ai/router.ts";
+import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
 type TimeBucket = "early" | "midday" | "late" | string;
 type DayPart = "Late night" | "Morning" | "Midday" | "Evening" | "Night" | string;
@@ -198,14 +199,6 @@ serve(async (req) => {
   try {
     console.log(`[DAILY_INSIGHT_REQUEST] requestId: ${requestId} | method: ${req.method} | url: ${req.url}`);
 
-    // Guard: ensure environment variables are present
-    if (!Deno.env.get("GEMINI_API_KEY")) {
-      return errorResponse(500, "config", "Missing GEMINI_API_KEY", requestId);
-    }
-    if (!Deno.env.get("SUPABASE_URL") || !Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
-      return errorResponse(500, "config", "Missing Supabase service env vars", requestId);
-    }
-
     // Ensure auth header exists; we require it to match client expectation
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
@@ -252,17 +245,46 @@ serve(async (req) => {
 
     let sanitized = "";
     let moodFlow: any = null;
-    try {
-      const rawText = await callGemini(prompt, requestId);
-      const extractResult = extractTextAndMoodFlow(rawText, requestId);
-      sanitized = sanitizeText(extractResult.text);
-      moodFlow = extractResult.moodFlow;
-    } catch (error: any) {
+    const aiResult = await runAiTextTask({
+      requestId,
+      feature: "generate_daily_insight",
+      task: "daily_insight",
+      prompt,
+      inputMode: "text",
+      responseFormat: "json",
+      maxTokens: 1400,
+      temperature: 0.85,
+      promptVersion: "generate_daily_insight_v1",
+      requestPayload: {
+        tone,
+        has_custom_tone: Boolean(body.customTonePrompt),
+        capture_count: captures.length,
+        date_label: body.dateLabel ?? "Today",
+      },
+      postProcess: (rawText: string): AiPostProcessResult => {
+        const parsed = extractTextAndMoodFlow(rawText, requestId);
+        const text = sanitizeText(parsed.text);
+        if (!text) {
+          return {
+            ok: false,
+            stage: "validate",
+            message: "AI generated empty or invalid response",
+            status: 500,
+          };
+        }
+        moodFlow = parsed.moodFlow;
+        return { ok: true, text };
+      },
+    });
+
+    if (!aiResult.ok) {
       console.error(
-        `[DAILY_INSIGHT_ERROR] requestId: ${requestId} | stage: gemini_api | message: ${error?.message ?? "Gemini call failed"} | stack: ${error?.stack ?? "n/a"}`
+        `[DAILY_INSIGHT_ERROR] requestId: ${requestId} | stage: ai_router | message: ${aiResult.message}`
       );
-      return errorResponse(502, "gemini_api", error?.message || "Gemini call failed", requestId);
+      return errorResponse(aiResult.status, aiResult.stage, aiResult.message, requestId);
     }
+
+    sanitized = aiResult.text;
 
     if (!validateGeminiResponse(sanitized)) {
       console.error(
@@ -280,38 +302,6 @@ serve(async (req) => {
     return errorResponse(500, "unknown", error?.message ?? "Internal server error", requestId);
   }
 });
-
-function getServiceClient(): SupabaseClient {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Missing Supabase environment variables");
-  }
-  return createClient(supabaseUrl, supabaseKey);
-}
-
-async function verifyUser(supabase: SupabaseClient, token: string): Promise<{ userId: string; tier: string }> {
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData?.user) {
-    throw new Error("Invalid or expired token");
-  }
-  const userId = userData.user.id;
-  // Simplify: default to free tier without querying DB (schema varies per project)
-  return { userId, tier: "free" };
-}
-
-async function checkRateLimit(
-  supabase: SupabaseClient,
-  userId: string,
-  tier: string,
-): Promise<{ allowed: boolean; remaining: number }> {
-  // Rate limiting disabled for this project (table not present)
-  return { allowed: true, remaining: Number.POSITIVE_INFINITY };
-}
-
-async function incrementUsage(supabase: SupabaseClient, userId: string, kind: string) {
-  // No-op: rate limiting disabled for this project
-}
 
 function resolveToneStyle(tone: string, customPrompt?: string): string {
   if (customPrompt?.trim()) return wrapCustomTone(customPrompt);
@@ -377,101 +367,30 @@ function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; t
   ].join("\n");
 }
 
-async function callGemini(prompt: string, requestId: string): Promise<string> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
-
-  console.log(
-    `[GEMINI_API_CALL] requestId: ${requestId} | model: gemini-2.5-flash | url: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
-  );
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.85,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error(`[GEMINI_API_ERROR] requestId: ${requestId} | status: ${res.status} | response: ${errText}`);
-    throw new Error(`Gemini request failed: ${res.status} ${errText}`);
-  }
-
-  const data = await res.json();
-  return JSON.stringify(data);
-}
-
-function extractText(raw: string, requestId: string): string {
-  const result = extractTextAndMoodFlow(raw, requestId);
-  return result.text;
-}
-
 function extractTextAndMoodFlow(raw: string, requestId: string): { text: string; moodFlow: any | null } {
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+
   try {
-    const parsed = JSON.parse(raw);
-    const candidate = parsed?.candidates?.[0];
-    // Filter out thinking parts (thought: true) from Gemini 2.5+ models
-    const contentParts = candidate?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
-    const partsText = contentParts.map((p: any) => p?.text).filter(Boolean).join(" ");
-    let parsedFromParts: string | null = null;
+    const insight = JSON.parse(cleaned);
+    const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
+    const moodFlow = insight?.mood_flow ?? null;
 
-    if (partsText) {
-      console.log(`[EXTRACT_TEXT_ATTEMPT_JSON] requestId: ${requestId} | attempting to parse partsText as JSON`);
-
-      // Strip markdown code blocks (```json ... ``` or ``` ... ```)
-      const cleaned = partsText
-        .replace(/^```(?:json)?\s*\n?/i, "")
-        .replace(/\n?```\s*$/i, "")
-        .trim();
-
-      try {
-        const insight = JSON.parse(cleaned);
-        const narrativeText = insight?.narrative?.text ?? insight?.text ?? insight?.insight;
-        const moodFlow = insight?.mood_flow ?? null;
-
-        if (narrativeText && typeof narrativeText === 'string') {
-          console.log(
-            `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text | hasMoodFlow: ${!!moodFlow}`
-          );
-          return { text: narrativeText, moodFlow };
-        } else {
-          console.warn(
-            `[EXTRACT_TEXT_WARNING] requestId: ${requestId} | JSON parsed but narrative.text not found or invalid. Keys: ${Object.keys(insight).join(', ')}`
-          );
-        }
-      } catch (parseError) {
-        console.log(
-          `[EXTRACT_TEXT_PARSE_FAILED] requestId: ${requestId} | partsText is not valid JSON, treating as plain text`
-        );
-        // If it's not JSON, it's probably plain text - return it
-        if (cleaned && !cleaned.startsWith('{') && !cleaned.startsWith('[')) {
-          return { text: cleaned, moodFlow: null };
-        }
-      }
-      parsedFromParts = cleaned; // Use cleaned version, not raw
-    }
-
-    if (candidate?.output_text) return { text: candidate.output_text, moodFlow: null };
-    if (parsed?.narrative?.text) return { text: parsed.narrative.text, moodFlow: parsed?.mood_flow ?? null };
-    if (parsed?.text) return { text: parsed.text, moodFlow: null };
-    if (parsed?.insight) return { text: parsed.insight, moodFlow: null };
-    // Only return parsedFromParts if it doesn't look like JSON
-    if (parsedFromParts && !parsedFromParts.trim().startsWith('{') && !parsedFromParts.trim().startsWith('[')) {
-      return { text: parsedFromParts, moodFlow: null };
+    if (narrativeText && typeof narrativeText === "string") {
+      console.log(
+        `[EXTRACT_TEXT_SUCCESS] requestId: ${requestId} | parsed JSON and extracted narrative text | hasMoodFlow: ${!!moodFlow}`
+      );
+      return { text: narrativeText, moodFlow };
     }
   } catch {
-    // raw might already be plain text
+    if (cleaned && !cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+      return { text: cleaned, moodFlow: null };
+    }
   }
-  return { text: raw, moodFlow: null };
+
+  return { text: "", moodFlow: null };
 }
 
 function sanitizeText(text: string): string {

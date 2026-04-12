@@ -33,10 +33,11 @@ function parseMonthlyContent(content: string | null | undefined): string | null 
 import { Capture } from '@/types/capture';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { callMonthly } from '@/services/monthlyInsightClient';
-import { getCapturesForMonth, MonthSignals } from '@/lib/captureData';
+import { getCapturesForMonth } from '@/lib/captureData';
 import { getMonthSignals } from '@/services/monthlySummaries';
 import { formatMonthKey } from '@/lib/dailyMoodFlows';
 import { fetchInsightHistory, fetchMostRecentMonthlyInsight, upsertInsightHistory } from '@/services/insightHistory';
+import { areAllMoodOnlyEntries, buildMoodOnlyInsight } from '@/lib/moodOnlyInsights';
 
 interface MonthlyInsightState {
     status: 'idle' | 'loading' | 'success' | 'error';
@@ -153,11 +154,18 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
 
             const monthCaptures = getCapturesForMonth(monthStart, allCaptures, throughDate);
 
-            const signals: MonthSignals = getMonthSignals(
+            const signals = getMonthSignals(
                 allCaptures,
                 formatMonthKey(targetMonth),
                 throughDate.toISOString()
             );
+            const aiSignals = {
+                dominantMood: signals.dominantMood,
+                runnerUpMood: signals.runnerUpMood ?? undefined,
+                activeDays: signals.activeDays,
+                volatilityScore: signals.volatilityScore,
+                last7DaysShift: signals.last7DaysShift,
+            };
 
             const eligible = dayOfMonth >= 8;
             if (!eligible && !force) {
@@ -182,9 +190,40 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
                 return;
             }
 
+            if (monthCaptures.length > 0 && areAllMoodOnlyEntries(monthCaptures)) {
+                const simpleInsight = buildMoodOnlyInsight('monthly', monthCaptures);
+                set({
+                    status: 'success',
+                    text: simpleInsight,
+                    requestId: null,
+                    lastUpdated: new Date(),
+                    currentMonth: targetMonth,
+                    error: null,
+                    aiMonthPhrase: null,
+                    aiMonthReasoning: null,
+                });
+
+                const monthEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
+                try {
+                    await upsertInsightHistory(
+                        userId,
+                        'monthly',
+                        monthStart,
+                        monthEnd,
+                        simpleInsight,
+                        undefined,
+                        monthCaptures.map((capture) => capture.id)
+                    );
+                } catch (e) {
+                    console.warn('[MonthlyInsight] Failed to persist mood-only insight:', e);
+                }
+
+                return;
+            }
+
             const monthLabel = format(targetMonth, 'MMMM yyyy');
 
-            const response = await callMonthly(monthLabel, signals, tone, customTonePrompt, monthStart.toISOString());
+            const response = await callMonthly(monthLabel, aiSignals, tone, customTonePrompt, monthStart.toISOString());
 
             if (response.ok && response.text) {
                 const narrativeText = parseMonthlyContent(response.text) ?? response.text;

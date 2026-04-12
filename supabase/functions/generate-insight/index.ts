@@ -9,6 +9,8 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { runAiTextTask } from "../_shared/ai/router.ts";
+import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
 // CORS headers for mobile app
 const corsHeaders = {
@@ -904,7 +906,7 @@ function processInsightResponse(
   rawText: string,
   type: InsightType,
   requestId: string
-): { success: true; result: string } | { success: false; error: Response } {
+): { success: true; result: string } | { success: false; stage: 'parse' | 'validate' | 'extract'; message: string; status: number } {
   // Plain text types - return as-is
   if (type === 'month' || type === 'album' || type === 'tag' || type === 'capture') {
     return { success: true, result: rawText };
@@ -936,12 +938,9 @@ function processInsightResponse(
     console.error(`[generate-insight] [${requestId}] Sanitized text:`, sanitized.substring(0, 200));
     return {
       success: false,
-      error: createErrorResponse(
-        'parse',
-        `Model returned invalid JSON format (sanitized length: ${sanitized.length}, preview: ${sanitized.substring(0, 120)})`,
-        502,
-        requestId
-      )
+      stage: 'parse',
+      message: `Model returned invalid JSON format (sanitized length: ${sanitized.length}, preview: ${sanitized.substring(0, 120)})`,
+      status: 502
     };
   }
 
@@ -957,12 +956,9 @@ function processInsightResponse(
       console.error(`[generate-insight] [${requestId}] Weekly extraction failed. Available keys:`, Object.keys(parsed));
       return {
         success: false,
-        error: createErrorResponse(
-          'extract',
-          `Could not extract text from JSON. Available keys: ${Object.keys(parsed).join(', ')}`,
-          502,
-          requestId
-        )
+        stage: 'extract',
+        message: `Could not extract text from JSON. Available keys: ${Object.keys(parsed).join(', ')}`,
+        status: 502
       };
     }
 
@@ -974,12 +970,9 @@ function processInsightResponse(
       console.error(`[generate-insight] [${requestId}] Daily JSON missing narrative.text. Available keys:`, Object.keys(parsed));
       return {
         success: false,
-        error: createErrorResponse(
-          'validate',
-          'Daily insight missing required narrative.text field',
-          502,
-          requestId
-        )
+        stage: 'validate',
+        message: 'Daily insight missing required narrative.text field',
+        status: 502
       };
     }
 
@@ -988,6 +981,40 @@ function processInsightResponse(
 
   // Fallback for unknown JSON types
   return { success: true, result: JSON.stringify(parsed) };
+}
+
+function getResponseFormat(type: InsightType): "json" | "text" {
+    return type === "daily" || type === "weekly" ? "json" : "text";
+}
+
+function getMaxTokens(type: InsightType): number {
+    switch (type) {
+        case "month":
+        case "album":
+            return 1400;
+        case "daily":
+        case "weekly":
+            return 1200;
+        case "capture":
+        case "tag":
+            return 500;
+        default:
+            return 900;
+    }
+}
+
+function mapAiStageToResponseStage(stage: "config" | "fetch" | "model" | "parse" | "validate" | "unknown"): 'fetch' | 'model' | 'parse' | 'validate' | 'unknown' {
+    switch (stage) {
+        case "fetch":
+        case "model":
+        case "parse":
+        case "validate":
+            return stage;
+        case "config":
+        case "unknown":
+        default:
+            return "unknown";
+    }
 }
 
 // ============================================
@@ -1132,53 +1159,62 @@ serve(async (req: Request) => {
                 return createErrorResponse('validate', `Unknown insight type: ${type}`, 400, requestId);
         }
 
-        // 5. Call Gemini API (server-side key!)
-        const geminiKey = Deno.env.get("GEMINI_API_KEY");
-        if (!geminiKey) {
-            console.error(`[generate-insight] [${requestId}] GEMINI_API_KEY not configured`);
-            return createErrorResponse('unknown', 'AI service not configured', 500, requestId);
+        // 5. Route through Claude primary, Gemini fallback
+        const aiResult = await runAiTextTask({
+            requestId,
+            userId: user.id,
+            feature: "generate_insight",
+            task: type,
+            prompt,
+            inputMode: "text",
+            responseFormat: getResponseFormat(type),
+            maxTokens: getMaxTokens(type),
+            temperature: 0.7,
+            promptVersion: "generate_insight_v1",
+            requestPayload: {
+                tone,
+                has_custom_tone: Boolean(customTonePrompt),
+                capture_count: data.captures?.length ?? 0,
+                album_entry_count: data.albumContext?.length ?? 0,
+                has_month_signals: Boolean(data.signals),
+                has_tag: Boolean(data.tag),
+                has_date_label: Boolean(data.dateLabel),
+                has_week_label: Boolean(data.weekLabel),
+                has_month_label: Boolean(data.monthLabel),
+            },
+            postProcess: (rawText: string): AiPostProcessResult => {
+                const processed = processInsightResponse(rawText, type, requestId);
+                if (!processed.success) {
+                    return {
+                        ok: false,
+                        stage: processed.stage,
+                        message: processed.message,
+                        status: processed.status,
+                    };
+                }
+
+                return {
+                    ok: true,
+                    text: processed.result,
+                };
+            },
+        });
+
+        if (!aiResult.ok) {
+            console.error(
+                `[generate-insight] [${requestId}] AI routing failed after ${aiResult.attempts.length} attempt(s):`,
+                aiResult.message
+            );
+            return createErrorResponse(
+                mapAiStageToResponseStage(aiResult.stage),
+                aiResult.message,
+                aiResult.status,
+                requestId
+            );
         }
 
-        const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        thinkingConfig: { thinkingBudget: 0 },
-                    },
-                }),
-            }
-        );
-
-        let geminiData;
-        try {
-            geminiData = await geminiResponse.json();
-        } catch (jsonError) {
-            console.error(`[generate-insight] [${requestId}] Gemini response parse error:`, jsonError);
-            return createErrorResponse('parse', 'Invalid model response', 502, requestId);
-        }
-
-        if (!geminiResponse.ok) {
-            console.error(`[generate-insight] [${requestId}] Gemini API error:`, geminiData);
-            return createErrorResponse('model', 'AI generation failed', 502, requestId);
-        }
-
-        // Filter out thinking parts (thought: true) from Gemini 2.5+ models
-        const contentParts = geminiData.candidates?.[0]?.content?.parts?.filter((p: any) => !p?.thought) ?? [];
-        const generatedText = contentParts[0]?.text || "";
-
-        // 7. Process and validate response based on insight type
-        const processed = processInsightResponse(generatedText, type, requestId);
-
-        if (!processed.success) {
-            return processed.error;
-        }
-
-        // 7b. Sanitize dashes from the result text
-        const sanitizedResult = sanitizeDashes(processed.result);
+        // 6. Sanitize dashes from the result text
+        const sanitizedResult = sanitizeDashes(aiResult.text);
 
         // 8. Increment usage counter
         try {
@@ -1188,12 +1224,15 @@ serve(async (req: Request) => {
             // Don't fail the request for usage tracking errors, just log it
         }
 
-        // 9. Return result
+        // 8. Return result
         return new Response(
             JSON.stringify({
                 ok: true,
                 result: sanitizedResult,
-                requestId
+                requestId,
+                providerUsed: aiResult.providerUsed,
+                modelUsed: aiResult.modelUsed,
+                fallbackUsed: aiResult.fallbackUsed,
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
