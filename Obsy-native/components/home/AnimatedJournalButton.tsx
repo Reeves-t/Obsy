@@ -65,7 +65,7 @@ export function AnimatedJournalButton({
       >
         <View style={[styles.borderRing, { borderRadius: size / 2 }]} />
         <LinearGradient
-          colors={['rgba(255,255,255,0.05)', 'rgba(0,0,0,0.2)']}
+          colors={['rgba(255,255,255,0.07)', 'rgba(0,0,0,0.14)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(180,180,180,0.3)',
   },
   button: {
-    backgroundColor: '#0D0D0D',
+    backgroundColor: '#171717',
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',

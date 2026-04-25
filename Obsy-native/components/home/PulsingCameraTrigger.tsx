@@ -89,13 +89,13 @@ export function PulsingCameraTrigger({ onPress, size = DEFAULT_SIZE, disabled = 
         onPress={handlePress}
         style={[styles.wrapper, { width: orbSize, height: orbSize }]}
       >
-        <View style={[styles.orb, { width: orbSize, height: orbSize, borderRadius: orbSize / 2, backgroundColor: isLight ? '#C2AE8A' : '#0D0D0D' }]}>
+        <View style={[styles.orb, { width: orbSize, height: orbSize, borderRadius: orbSize / 2, backgroundColor: isLight ? '#C2AE8A' : '#171717' }]}>
           <View style={[styles.borderRing, { borderRadius: orbSize / 2 }]} />
 
           <LinearGradient
             colors={isLight
               ? ['rgba(255,255,255,0.15)', 'rgba(0,0,0,0.08)']
-              : ['rgba(255,255,255,0.05)', 'rgba(0,0,0,0.2)']}
+              : ['rgba(255,255,255,0.07)', 'rgba(0,0,0,0.14)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
