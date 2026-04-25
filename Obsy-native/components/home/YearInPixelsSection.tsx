@@ -13,6 +13,7 @@ const CANVAS_MAX_WIDTH = 420;
 const LEGEND_WIDTH = 80;
 const GRID_LEGEND_GAP = 16;
 const VERTICAL_LABEL_WIDTH = 20;
+const SHOW_SECTION_LABEL = false;
 
 export const YearInPixelsSection: React.FC = () => {
     const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -48,7 +49,9 @@ export const YearInPixelsSection: React.FC = () => {
                 <View style={styles.contentRow}>
                     {/* Vertical "Year in Pixels" label - readable when phone is rotated */}
                     <View style={[styles.verticalLabelContainer, { width: VERTICAL_LABEL_WIDTH }]}>
-                        <ThemedText style={[styles.verticalLabel, { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)' }]}>Year in Pixels</ThemedText>
+                        {SHOW_SECTION_LABEL && (
+                            <ThemedText style={[styles.verticalLabel, { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)' }]}>Year in Pixels</ThemedText>
+                        )}
                     </View>
 
                     <View style={[styles.gridContainer, { width: gridWidth }]}>

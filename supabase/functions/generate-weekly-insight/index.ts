@@ -50,34 +50,32 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT =
-  `ROLE: You are writing a weekly mood insight for a journaling app. You have access to this person's mood captures for the past 7 days, grouped by day.
+  `ROLE: You are writing a weekly mood insight as a direct reflection of the user's emotional weather across the past 7 days.
 
-WHAT TO DO: Identify the 2-3 most notable patterns, contrasts, or shifts from this week. What's surprising? What repeats? What mood keeps showing up in unexpected places? What contrast stands out, a sharp shift, a streak that broke, a mood that only appears at certain times?
+WHAT TO DO: Identify the 2-3 most notable patterns, contrasts, or shifts from the week. Focus on mood patterns, fluctuations, and emotional undercurrents such as resistance versus acceptance, craving intensity, relational tension, avoidance versus reality, steadiness versus volatility.
 
 Do NOT narrate the week chronologically. Do NOT list what happened day by day. Synthesize what the data reveals about this person's emotional week. Connect dots they might not have noticed.
+Do NOT directly quote journal entries or name specific chores, errands, or literal actions. Speak indirectly about what brought the moods and how the week felt.
 
-End with a single closing observation, one sentence that reframes the insight with a slightly wry, unexpected, or cleverly observational angle. This line should reference a specific pattern from their data, not be a generic statement. Think of it as the line that makes someone smirk and think "yeah, actually." Match the closing to the active tone.
+End with one crisp closing observation or gentle nudge. It should feel specific to the week's mood arc, not generic. Match the closing to the active tone.
 
-LENGTH — scales strictly with capture count. Do NOT pad sparse data.
-- 1-3 captures: 1 short paragraph, 50-80 words max. Be sharp and direct.
-- 4-7 captures: 2 short paragraphs, 100-130 words max.
-- 8-14 captures: 2-3 paragraphs, 150-180 words max.
-- 15+ captures: 3 paragraphs, 180 words max.
-The closing observation is always the final sentence of the last paragraph regardless of length.
-CRITICAL: If the data is sparse, do not stretch. A week with 2 captures deserves 3-4 punchy sentences, not an essay. Say less, say it well.
+LENGTH:
+- Maximum 220 words for the full narrative.
+- Highlight 2-3 key patterns or shifts.
+- If the data is sparse, stay brief and sharp instead of padding.
 
 VOICE RULES:
-- Third person only. Never "you" or "your."
+- Second person only. Use "you", "your", and "your week" naturally.
+- Never use third person pronouns for the user: he, she, him, her, his, they, them, their, theirs.
 - No therapy language (healing, journey, growth, self-care, boundaries).
 - No exclamation marks, no question marks, no dashes (em dash, en dash, hyphen as punctuation). Only use periods, commas, colons, semicolons, parentheses, apostrophes.
 - No markdown formatting, no emojis.
-- No mood label verbatim leakage in isolation, always contextualize moods with counts, dates, or transitions.
-- First word from approved set: "The", "A", or time references.
 - Continuous prose. No bullet points or lists.
 - Apply the user's selected tone throughout, including the closing observation.
 - BANNED starters: "Ah", "Oh", "Well", "So", "Hmm". Never use these.
 - No AI self-reference. Never acknowledge being an AI or narrator.
 - Never reference the app, captures, data, or the act of recording.
+- Keep the writing concise, wise, non-literal, and natural.
 
 EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.`;
 
@@ -169,11 +167,13 @@ This tone must dominate the voice completely. Shape everything through it:
 - Emotional temperature must match this tone
 
 Core constraints (maintain while fully inhabiting the tone):
-- Write in third person (never "you", "your")
+- Write in second person using "you" and "your"
+- Never use third person pronouns for the user
 - No markdown, emojis, or list formatting
 - No questions of any kind
 - No date or calendar references
-- Match length to capture count (sparse data = shorter output)
+- Keep the narrative under 220 words
+- Avoid directly naming literal journal actions or quoting journal text
 
 Do not dilute the tone. Lean into it fully. The reader chose this voice for a reason.`;
 }
@@ -235,7 +235,7 @@ serve(async (req) => {
       responseFormat: "json",
       maxTokens: 1200,
       temperature: 0.85,
-      promptVersion: "generate_weekly_insight_v1",
+      promptVersion: "generate_weekly_insight_v2",
       requestPayload: {
         tone,
         has_custom_tone: Boolean(body.customTonePrompt),
@@ -253,7 +253,7 @@ serve(async (req) => {
             status: 500,
           };
         }
-        return { ok: true, text };
+        return validateInsightNarrative(text, 220);
       },
     });
 
@@ -311,9 +311,12 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
     "CAPTURES BY DAY (chronological):",
     dayLines,
     "",
-    "Identify the 2-3 most notable patterns, contrasts, or shifts. Do NOT narrate day by day.",
-    "Synthesize what the data reveals. Connect dots they might not have noticed.",
-    "End with a single closing observation: one sentence that reframes the insight with a slightly wry, unexpected, or cleverly observational angle referencing a specific pattern from the data.",
+    "Identify the 2-3 most notable mood patterns, contrasts, or shifts. Do NOT narrate day by day.",
+    "Speak to the user directly about your week and how it felt.",
+    "Focus on emotional undercurrents rather than literal play by play details.",
+    "Do not directly quote or name specific journal actions or chores. Refer to them indirectly through the mood they created.",
+    "End with one crisp closing observation or gentle nudge tied to the week's emotional arc.",
+    "Keep the narrative under 220 words.",
     "Do not mention specific dates or day names in the narrative.",
     "Use \\n\\n (double newlines) between paragraphs.",
     "",
@@ -388,6 +391,54 @@ function sanitizeText(text: string): string {
     .replace(/[\u2013\u2014]/g, ",")          // En dash / em dash → comma
     .replace(/---?/g, ",")                    // ASCII double/triple hyphens used as dashes → comma
     .trim();
+}
+
+function validateInsightNarrative(text: string, maxWords: number): AiPostProcessResult {
+  const wordCount = countWords(text);
+  if (wordCount > maxWords) {
+    return {
+      ok: false,
+      stage: "validate",
+      message: `Narrative exceeds ${maxWords} words`,
+      status: 502,
+    };
+  }
+
+  if (containsThirdPersonPronouns(text)) {
+    return {
+      ok: false,
+      stage: "validate",
+      message: "Narrative used forbidden third-person pronouns",
+      status: 502,
+    };
+  }
+
+  if (!containsSecondPerson(text)) {
+    return {
+      ok: false,
+      stage: "validate",
+      message: "Narrative must address the user in second person",
+      status: 502,
+    };
+  }
+
+  return { ok: true, text };
+}
+
+function countWords(text: string): number {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .length;
+}
+
+function containsThirdPersonPronouns(text: string): boolean {
+  return /\b(he|she|him|her|his|hers|they|them|their|theirs|himself|herself|themselves)\b/i.test(text);
+}
+
+function containsSecondPerson(text: string): boolean {
+  return /\b(you|your|yours|you're|you've|you'll)\b/i.test(text);
 }
 
 function okResponse(text: string, requestId: string): Response {

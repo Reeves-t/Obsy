@@ -1,31 +1,43 @@
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/i18n/config';
 
-const TAB_BAR_FOREGROUND = '#000000';
-
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof Ionicons>['name'];
   color: string;
+  focused: boolean;
 }) {
-  return <Ionicons size={28} style={{ marginBottom: -3 }} {...props} />;
+  return (
+    <View style={styles.iconFrame}>
+      {props.focused && (
+        <>
+          <View style={styles.activeHaloGlow} />
+          <View style={styles.activeHaloCore} />
+        </>
+      )}
+      <Ionicons size={26} style={styles.iconGlyph} {...props} />
+    </View>
+  );
 }
 
 export default function TabLayout() {
   const { t } = useI18n();
+  const { usesTimeTheme } = useObsyTheme();
+
+  const tabBarActiveTintColor = '#FFFFFF';
+  const tabBarInactiveTintColor = usesTimeTheme ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.62)';
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: TAB_BAR_FOREGROUND,
-        tabBarInactiveTintColor: TAB_BAR_FOREGROUND,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
+        tabBarActiveTintColor,
+        tabBarInactiveTintColor,
         headerShown: useClientOnlyValue(false, false),
         tabBarStyle: {
           backgroundColor: 'transparent',
@@ -36,8 +48,13 @@ export default function TabLayout() {
           shadowOpacity: 0,
           position: 'absolute',
         },
+        tabBarItemStyle: {
+          paddingTop: 8,
+        },
         tabBarLabelStyle: {
-          color: TAB_BAR_FOREGROUND,
+          fontSize: 11,
+          fontWeight: '600',
+          marginBottom: 8,
         },
       }}>
       <Tabs.Screen
@@ -45,31 +62,38 @@ export default function TabLayout() {
         options={{
           title: t('navigation.home'),
           headerShown: false,
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="gallery"
         options={{
           title: t('navigation.gallery'),
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'images' : 'images-outline'} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'images' : 'images-outline'} color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
           title: t('navigation.insights'),
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: t('navigation.settings'),
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? 'settings' : 'settings-outline'} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'settings' : 'settings-outline'} color={color} focused={focused} />
+          ),
         }}
       />
-      {/* Hide the 'two' screen from the tab bar if it still exists in the file system but shouldn't be a tab */}
       <Tabs.Screen
         name="two"
         options={{
@@ -79,3 +103,36 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconFrame: {
+    width: 68,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
+  iconGlyph: {
+    marginBottom: -2,
+  },
+  activeHaloGlow: {
+    position: 'absolute',
+    top: -16,
+    width: 64,
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.72,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -1 },
+  },
+  activeHaloCore: {
+    position: 'absolute',
+    top: -8,
+    width: 48,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+});

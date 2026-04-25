@@ -12,22 +12,21 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { useAuth } from '@/contexts/AuthContext';
-import { useObsyTheme } from '@/contexts/ThemeContext';
+import { type ThemeMode, type TimeThemeSelection, useObsyTheme } from '@/contexts/ThemeContext';
 import { getProfile, updateProfile, Profile } from '@/services/profile';
 import { AI_TONES, getToneDefinition } from '@/lib/aiTone';
 import { supabase } from '@/lib/supabase';
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { useTimeFormatStore, TimeFormat } from '@/lib/timeFormatStore';
+import { useTimeFormatStore } from '@/lib/timeFormatStore';
 import { useFloatingBackgroundStore } from '@/lib/floatingBackgroundStore';
 import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
+import { useHorizonStarsStore } from '@/lib/horizonStarsStore';
 import { useI18n } from '@/i18n/config';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +39,33 @@ interface UserProfile {
   friend_code: string | null;
   updated_at: string | null;
 }
+
+const APP_THEME_OPTIONS: Array<{
+  id: ThemeMode;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+}> = [
+  {
+    id: 'dark',
+    icon: 'moon-outline',
+    title: 'Dark Theme',
+    subtitle: 'Use the Obsy dark background across the app',
+  },
+  {
+    id: 'pack1',
+    icon: 'sparkles-outline',
+    title: 'Obsy Theme Pack 1',
+    subtitle: 'Use the time-based Obsy gradient across every tab',
+  },
+];
+
+const TIME_THEME_OPTION_LABELS: Record<TimeThemeSelection, string> = {
+  auto: 'Auto',
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  evening: 'Evening',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings Row Component
@@ -67,7 +93,7 @@ const SettingRow: React.FC<SettingRowProps> = ({
   rightElement,
   isLast = false,
 }) => {
-  const { colors, isLight } = useObsyTheme();
+  const { isLight } = useObsyTheme();
 
   // Theme-aware colors for settings rows (directly on background, not in cards)
   const iconColor = danger ? '#EF4444' : (isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)');
@@ -239,26 +265,54 @@ const AmbientMoodFieldInline: React.FC = () => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Horizon Stars Inline Component
+// ─────────────────────────────────────────────────────────────────────────────
+const HorizonStarsInline: React.FC = () => {
+  const { isLight } = useObsyTheme();
+  const { enabled, toggleEnabled } = useHorizonStarsStore();
+  const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+
+  return (
+    <View style={styles.floatingInlineContainer}>
+      <SettingRow
+        icon="star-outline"
+        title="Horizon Stars"
+        subtitle="Subtle particles rising from the horizon"
+        showChevron={false}
+        isLast
+        rightElement={
+          <Switch
+            value={enabled}
+            onValueChange={toggleEnabled}
+            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
+            thumbColor="#fff"
+          />
+        }
+      />
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Profile Screen
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
-  const { user, session, isGuest, signOut } = useAuth();
-  const { isLight, toggleTheme, colors } = useObsyTheme();
+  const { user, isGuest, signOut } = useAuth();
+  const { isLight, colors, theme, setTheme, timeThemeSelection, setTimeThemeSelection } = useObsyTheme();
   const { timeFormat, setTimeFormat } = useTimeFormatStore();
   const { t, languageLabel } = useI18n();
   const router = useRouter();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [toneModalVisible, setToneModalVisible] = useState(false);
+  const [timeThemeModalVisible, setTimeThemeModalVisible] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Load Profile Data
   // ─────────────────────────────────────────────────────────────────────────
   const loadProfile = useCallback(async () => {
-    setLoading(true);
     try {
       // Load settings profile (AI tone, etc.)
       const settingsData = await getProfile();
@@ -278,8 +332,6 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-    } finally {
-      setLoading(false);
     }
   }, [user]);
 
@@ -464,9 +516,26 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleSelectAppTheme = useCallback((nextTheme: ThemeMode) => {
+    setTheme(nextTheme);
+  }, [setTheme]);
+
+  const handleSelectTimeTheme = useCallback((selection: TimeThemeSelection) => {
+    setTimeThemeSelection(selection);
+    setTheme('pack1');
+    setTimeThemeModalVisible(false);
+  }, [setTheme, setTimeThemeSelection]);
+
   const currentTone = getToneDefinition(profile?.ai_tone);
   const avatarUrl = getAvatarUrl(userProfile?.avatar_url || null);
   const displayName = userProfile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest';
+  const themePickerLabel = TIME_THEME_OPTION_LABELS[timeThemeSelection];
+  const themeOptionBg = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)';
+  const themeOptionBorder = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+  const themeOptionActiveBg = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)';
+  const themeOptionActiveBorder = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)';
+  const themeOptionIconBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)';
+  const themeOptionMuted = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)';
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render Tone Item
@@ -598,20 +667,68 @@ export default function ProfileScreen() {
         {/* APPEARANCE */}
         <SectionHeader title={t('settings.appearance')} flat />
         <View style={styles.flatSection}>
-          <SettingRow
-            icon="sunny-outline"
-            title="Light Mode"
-            subtitle="Cream journal-style theme"
-            showChevron={false}
-            rightElement={
-              <Switch
-                value={isLight}
-                onValueChange={toggleTheme}
-                trackColor={{ false: colors.glass, true: Colors.obsy.silver }}
-                thumbColor="#fff"
-              />
-            }
-          />
+          <View style={styles.themePickerSection}>
+            {APP_THEME_OPTIONS.map((option) => {
+              const isSelected = theme === option.id;
+              const isPack1 = option.id === 'pack1';
+
+              return (
+                <View
+                  key={option.id}
+                  style={[
+                    styles.themeOptionRow,
+                    !isPack1 ? { marginBottom: 12 } : null,
+                    isPack1 ? styles.themePackRow : null,
+                  ]}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => handleSelectAppTheme(option.id)}
+                    style={[
+                      styles.themeOptionButton,
+                      isPack1 ? styles.themePackMainButton : null,
+                      {
+                        backgroundColor: isSelected ? themeOptionActiveBg : themeOptionBg,
+                        borderColor: isSelected ? themeOptionActiveBorder : themeOptionBorder,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.themeOptionIcon, { backgroundColor: themeOptionIconBg }]}>
+                      <Ionicons name={option.icon} size={18} color={colors.text} />
+                    </View>
+                    <View style={styles.themeOptionCopy}>
+                      <ThemedText style={styles.themeOptionTitle}>{option.title}</ThemedText>
+                      <ThemedText style={[styles.themeOptionSubtitle, { color: themeOptionMuted }]}>
+                        {option.subtitle}
+                      </ThemedText>
+                    </View>
+                    <Ionicons
+                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={20}
+                      color={isSelected ? Colors.obsy.silver : themeOptionMuted}
+                    />
+                  </TouchableOpacity>
+
+                  {isPack1 && (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => setTimeThemeModalVisible(true)}
+                      style={[
+                        styles.themePackDropdown,
+                        {
+                          backgroundColor: theme === 'pack1' ? themeOptionActiveBg : themeOptionBg,
+                          borderColor: theme === 'pack1' ? themeOptionActiveBorder : themeOptionBorder,
+                        },
+                      ]}
+                    >
+                      <ThemedText style={styles.themePackDropdownLabel}>{themePickerLabel}</ThemedText>
+                      <Ionicons name="chevron-down" size={16} color={themeOptionMuted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </View>
           <SettingRow
             icon="language-outline"
             title={t('settings.languageTitle')}
@@ -694,6 +811,7 @@ export default function ProfileScreen() {
         <View style={styles.flatSection}>
           <FloatingBackgroundsInline />
           <AmbientMoodFieldInline />
+          <HorizonStarsInline />
         </View>
 
         {/* FEATURES */}
@@ -831,6 +949,53 @@ export default function ProfileScreen() {
             contentContainerStyle={styles.toneList}
             showsVerticalScrollIndicator={false}
           />
+        </BlurView>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={timeThemeModalVisible}
+        onRequestClose={() => setTimeThemeModalVisible(false)}
+      >
+        <BlurView intensity={90} tint="dark" style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <View>
+              <ThemedText style={styles.modalTitle}>Obsy Theme Pack 1</ThemedText>
+              <ThemedText style={styles.modalSubtitle}>
+                Keep it automatic or lock the app to one time-of-day scene.
+              </ThemedText>
+            </View>
+            <TouchableOpacity onPress={() => setTimeThemeModalVisible(false)}>
+              <Ionicons name="close-circle" size={32} color={Colors.obsy.silver} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.themeModalList}>
+            {(Object.keys(TIME_THEME_OPTION_LABELS) as TimeThemeSelection[]).map((selection) => {
+              const isSelected = timeThemeSelection === selection;
+              return (
+                <TouchableOpacity
+                  key={selection}
+                  activeOpacity={0.8}
+                  onPress={() => handleSelectTimeTheme(selection)}
+                  style={[
+                    styles.themeModalItem,
+                    isSelected && styles.themeModalItemActive,
+                  ]}
+                >
+                  <View style={styles.themeModalCopy}>
+                    <ThemedText style={styles.themeModalLabel}>{TIME_THEME_OPTION_LABELS[selection]}</ThemedText>
+                    <ThemedText style={styles.themeModalDescription}>
+                      {selection === 'auto'
+                        ? 'Switch between morning, afternoon, and evening automatically.'
+                        : `Keep Obsy Theme Pack 1 fixed on ${TIME_THEME_OPTION_LABELS[selection].toLowerCase()}.`}
+                    </ThemedText>
+                  </View>
+                  {isSelected && <View style={styles.toneIndicator} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </BlurView>
       </Modal>
     </ScreenWrapper >
@@ -1169,41 +1334,61 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
 
-  // Theme Section
-  themeSection: {
-    padding: 16,
+  // Theme Picker
+  themePickerSection: {
+    marginBottom: 12,
   },
-  themeLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+  themeOptionRow: {
+    width: '100%',
   },
-  themeButtons: {
+  themePackRow: {
     flexDirection: 'row',
     gap: 10,
   },
-  themeButton: {
-    flex: 1,
+  themeOptionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    gap: 6,
   },
-  themeButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderColor: 'rgba(255,255,255,0.3)',
+  themePackMainButton: {
+    flex: 1,
   },
-  themeButtonText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
+  themeOptionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  themeButtonTextActive: {
-    color: '#fff',
+  themeOptionCopy: {
+    flex: 1,
+  },
+  themeOptionTitle: {
+    fontSize: 14,
     fontWeight: '500',
+  },
+  themeOptionSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  themePackDropdown: {
+    minWidth: 108,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  themePackDropdownLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 
   // Footer
@@ -1244,6 +1429,41 @@ const styles = StyleSheet.create({
   toneList: {
     padding: 20,
     paddingBottom: 40,
+  },
+  themeModalList: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 12,
+  },
+  themeModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  themeModalItemActive: {
+    backgroundColor: 'rgba(255,255,255,0.09)',
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  themeModalCopy: {
+    flex: 1,
+  },
+  themeModalLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  themeModalDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 4,
   },
   toneItem: {
     flexDirection: 'row',

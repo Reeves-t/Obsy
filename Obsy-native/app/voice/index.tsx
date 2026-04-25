@@ -1,71 +1,267 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    StyleSheet,
-    View,
-    TouchableOpacity,
-    Alert,
     ActivityIndicator,
-    TextInput,
-    ScrollView,
+    Alert,
     Platform,
-    useWindowDimensions,
+    ScrollView,
+    StyleSheet,
     Switch,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
-import Svg, { Path } from 'react-native-svg';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
-import { ThemedText } from '@/components/ui/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
-import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
-import { useCaptureStore } from '@/lib/captureStore';
-import { useAuth } from '@/contexts/AuthContext';
-import { useCustomMoodStore } from '@/lib/customMoodStore';
-import { MOODS } from '@/constants/Moods';
-import { supabase } from '@/lib/supabase';
-import Colors from '@/constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withRepeat,
-    withTiming,
     Easing,
     cancelAnimation,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming,
 } from 'react-native-reanimated';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
+import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { ThemedText } from '@/components/ui/ThemedText';
+import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
+import Colors from '@/constants/Colors';
+import { MOODS } from '@/constants/Moods';
+import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
-import { getProfile, type Profile } from '@/services/profile';
+import { useCaptureStore } from '@/lib/captureStore';
+import { supabase } from '@/lib/supabase';
+import { useCustomMoodStore } from '@/lib/customMoodStore';
 import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 type Step = 'recording' | 'review';
 
 const MAX_DURATION_SECONDS = 180;
-const SVG_HEIGHT = 80;
-const WAVE_AMP = 32; // max displacement in px
-const CENTER_Y = 40; // all 3 strings share the same vertical centre
-// Different oscillation frequencies per string — looks independent
-const LINE_FREQS = [3.1, 4.7, 6.3];
-// Different amplitude multipliers — each string has different strength
-const LINE_AMPS = [1.0, 0.72, 0.50];
-
-function buildStringPath(width: number, centerY: number, amplitude: number): string {
-    if (amplitude < 0.5) return `M 0 ${centerY} L ${width} ${centerY}`;
-    const steps = 100;
-    let d = `M 0 ${centerY}`;
-    for (let i = 1; i <= steps; i++) {
-        const x = (i / steps) * width;
-        // Standing wave: peaks at centre of the string, zero at edges
-        const y = centerY - amplitude * Math.sin((i / steps) * Math.PI);
-        d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
-    }
-    return d;
-}
+const PLAYBACK_BAR_COUNT = 56;
+const MONO_FONT = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' });
 
 function formatTime(seconds: number) {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+    const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${secs}`;
+}
+
+function normalizeMetering(db: number) {
+    return Math.max(0, Math.min(1, (db + 60) / 60));
+}
+
+function buildFallbackBars(count: number) {
+    return Array.from({ length: count }, (_, index) => {
+        const raw = ((index * 37) % 100) / 140;
+        return Math.max(0.2, 0.25 + raw);
+    });
+}
+
+function buildWaveformBars(samples: number[], count: number) {
+    if (!samples.length) {
+        return buildFallbackBars(count);
+    }
+
+    const bars: number[] = [];
+    const bucketSize = Math.max(1, Math.floor(samples.length / count));
+
+    for (let i = 0; i < count; i += 1) {
+        const start = i * bucketSize;
+        const end = i === count - 1 ? samples.length : Math.min(samples.length, start + bucketSize);
+        const slice = samples.slice(start, end);
+        if (!slice.length) {
+            bars.push(0.18);
+            continue;
+        }
+        const avg = slice.reduce((sum, sample) => sum + sample, 0) / slice.length;
+        bars.push(Math.max(0.14, Math.min(1, 0.16 + avg * 0.92)));
+    }
+
+    return bars;
+}
+
+function CounterDigit({
+    value,
+    color,
+}: {
+    value: string;
+    color: string;
+}) {
+    return (
+        <ThemedText style={[styles.counterDigits, { color }]}>
+            {value}
+        </ThemedText>
+    );
+}
+
+function TapeStrip({
+    width,
+    moving,
+    baseColor,
+    tickColor,
+    animatedStyle,
+}: {
+    width: number;
+    moving: boolean;
+    baseColor: string;
+    tickColor: string;
+    animatedStyle: any;
+}) {
+    const tickCount = Math.ceil((width + 32) / 16);
+
+    return (
+        <View style={[styles.tapeBase, { width, backgroundColor: baseColor }]}>
+            <Animated.View
+                style={[
+                    styles.tapeTicksLayer,
+                    { width: width + 32 },
+                    moving ? animatedStyle : null,
+                ]}
+            >
+                {Array.from({ length: tickCount }).map((_, index) => (
+                    <View
+                        key={index}
+                        style={[
+                            styles.tapeTick,
+                            {
+                                left: index * 16,
+                                backgroundColor: tickColor,
+                            },
+                        ]}
+                    />
+                ))}
+            </Animated.View>
+        </View>
+    );
+}
+
+function TransportButton({
+    label,
+    onPress,
+    disabled = false,
+    active = false,
+    accent = false,
+    textColor,
+    idleBorder,
+    idleSurface,
+    children,
+}: {
+    label: string;
+    onPress: () => void;
+    disabled?: boolean;
+    active?: boolean;
+    accent?: boolean;
+    textColor: string;
+    idleBorder: string;
+    idleSurface: string;
+    children: React.ReactNode;
+}) {
+    const captionColor = accent && active
+        ? 'rgba(220,140,160,0.9)'
+        : textColor;
+
+    return (
+        <TouchableOpacity
+            style={[styles.transportCell, disabled && styles.transportCellDisabled]}
+            activeOpacity={0.82}
+            onPress={onPress}
+            disabled={disabled}
+        >
+            {accent && active ? (
+                <LinearGradient
+                    colors={['#B03058', '#7B1535', '#4A0D22']}
+                    start={{ x: 0.15, y: 0.08 }}
+                    end={{ x: 0.82, y: 1 }}
+                    style={[
+                        styles.transportIconCircle,
+                        styles.transportIconCircleAccent,
+                    ]}
+                >
+                    {children}
+                </LinearGradient>
+            ) : (
+                <View
+                    style={[
+                        styles.transportIconCircle,
+                        {
+                            backgroundColor: active ? 'rgba(255,255,255,0.18)' : idleSurface,
+                            borderColor: accent ? 'rgba(176,48,88,0.24)' : idleBorder,
+                        },
+                    ]}
+                >
+                    {children}
+                </View>
+            )}
+
+            <ThemedText style={[styles.transportCaption, { color: captionColor }]}>
+                {label}
+            </ThemedText>
+        </TouchableOpacity>
+    );
+}
+
+function PlaybackStrip({
+    bars,
+    progress,
+    duration,
+    isPlaying,
+    onPlayPause,
+    cardBg,
+    borderColor,
+    durationColor,
+    playedColor,
+    unplayedColor,
+    playButtonBg,
+}: {
+    bars: number[];
+    progress: number;
+    duration: string;
+    isPlaying: boolean;
+    onPlayPause: () => void;
+    cardBg: string;
+    borderColor: string;
+    durationColor: string;
+    playedColor: string;
+    unplayedColor: string;
+    playButtonBg: string;
+}) {
+    return (
+        <View style={[styles.playbackStrip, { backgroundColor: cardBg, borderColor }]}>
+            <TouchableOpacity onPress={onPlayPause} style={[styles.playButton, { backgroundColor: playButtonBg }]}>
+                <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.waveformWrap}>
+                <View style={styles.waveformBars}>
+                    {bars.map((bar, index) => {
+                        const isPlayed = index / bars.length < progress;
+                        return (
+                            <View
+                                key={`${index}-${bar.toFixed(3)}`}
+                                style={[
+                                    styles.waveformBar,
+                                    {
+                                        height: `${Math.max(14, bar * 100)}%`,
+                                        backgroundColor: isPlayed ? playedColor : unplayedColor,
+                                        marginRight: index === bars.length - 1 ? 0 : 2,
+                                    },
+                                ]}
+                            />
+                        );
+                    })}
+                </View>
+
+                <View style={[styles.waveformPlayhead, { left: `${progress * 100}%` }]} />
+            </View>
+
+            <ThemedText style={[styles.playbackDuration, { color: durationColor }]}>
+                {duration}
+            </ThemedText>
+        </View>
+    );
 }
 
 export default function VoiceNoteScreen() {
@@ -73,109 +269,144 @@ export default function VoiceNoteScreen() {
     const { createVoiceEntry } = useCaptureStore();
     const { user } = useAuth();
     const { getMoodById } = useCustomMoodStore();
-    const { colors } = useObsyTheme();
+    const { colors, isLight } = useObsyTheme();
     const { width: screenWidth } = useWindowDimensions();
-    const svgWidth = screenWidth - 48;
+    const { aiFreeMode } = useAiFreeMode();
 
-    // Mood state
+    const [step, setStep] = useState<Step>('recording');
     const [moodId, setMoodId] = useState<string | null>(null);
     const [moodName, setMoodName] = useState('');
     const [moodModalVisible, setMoodModalVisible] = useState(false);
 
-    const [step, setStep] = useState<Step>('recording');
-
-    // Recording state
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [elapsed, setElapsed] = useState(0);
     const [audioDuration, setAudioDuration] = useState(0);
-    const recordingRef = useRef<Audio.Recording | null>(null);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const meteringTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const elapsedRef = useRef(0);
-    const isPausedRef = useRef(false);
-    const phaseRef = useRef(0);
-    // Tracks whether strings were animating last frame so we only call
-    // resetWaves() once when transitioning from sound → silence
-    const wasAnimatingRef = useRef(false);
-
-    // Wave visualization state — all strings share CENTER_Y
-    const flatPath = `M 0 ${CENTER_Y} L ${svgWidth} ${CENTER_Y}`;
-    const [wavePaths, setWavePaths] = useState<[string, string, string]>([
-        flatPath, flatPath, flatPath,
-    ]);
-
-    // Playback
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [playbackProgress, setPlaybackProgress] = useState(0);
 
-    // Transcription
     const [audioStorageUrl, setAudioStorageUrl] = useState<string | null>(null);
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [transcriptError, setTranscriptError] = useState(false);
-
     const [isSaving, setIsSaving] = useState(false);
     const [includeInInsights, setIncludeInInsights] = useState(true);
-    const [profile, setProfile] = useState<Profile | null>(null);
-    const { aiFreeMode } = useAiFreeMode();
+    const [waveformBars, setWaveformBars] = useState<number[]>(() => buildFallbackBars(PLAYBACK_BAR_COUNT));
 
-    const pulseScale = useSharedValue(1);
-    const pulseStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: pulseScale.value }],
+    const recordingRef = useRef<Audio.Recording | null>(null);
+    const soundRef = useRef<Audio.Sound | null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const meteringTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const elapsedRef = useRef(0);
+    const isPausedRef = useRef(false);
+    const meteringSamplesRef = useRef<number[]>([]);
+
+    const ledOpacity = useSharedValue(0.35);
+    const tapeTranslate = useSharedValue(0);
+
+    const tapeAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: tapeTranslate.value }],
     }));
 
-    useEffect(() => {
-        getProfile().then(setProfile).catch(() => setProfile(null));
-    }, []);
+    const ledAnimatedStyle = useAnimatedStyle(() => ({
+        opacity: ledOpacity.value,
+    }));
 
     useEffect(() => {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
             if (meteringTimerRef.current) clearInterval(meteringTimerRef.current);
             recordingRef.current?.stopAndUnloadAsync().catch(() => {});
-            sound?.unloadAsync().catch(() => {});
+            soundRef.current?.unloadAsync().catch(() => {});
         };
-    }, [sound]);
+    }, []);
+
+    useEffect(() => {
+        const activelyRecording = step === 'recording' && isRecording && !isPaused;
+
+        cancelAnimation(ledOpacity);
+        cancelAnimation(tapeTranslate);
+
+        if (activelyRecording) {
+            ledOpacity.value = 1;
+            ledOpacity.value = withRepeat(
+                withTiming(0.3, { duration: 550, easing: Easing.inOut(Easing.ease) }),
+                -1,
+                true
+            );
+            tapeTranslate.value = 0;
+            tapeTranslate.value = withRepeat(
+                withTiming(-16, { duration: 1600, easing: Easing.linear }),
+                -1,
+                false
+            );
+            return;
+        }
+
+        ledOpacity.value = withTiming(isPaused ? 0.35 : 0.2, { duration: 180 });
+        tapeTranslate.value = withTiming(0, { duration: 180 });
+    }, [isPaused, isRecording, ledOpacity, step, tapeTranslate]);
+
+    const onBackgroundPrimary = colors.text;
+    const onBackgroundSecondary = colors.textSecondary;
+    const recordingCardBg = isLight ? colors.cardBackground : 'rgba(255,255,255,0.04)';
+    const recordingCardBgAlt = isLight ? colors.cardBackground : 'rgba(255,255,255,0.05)';
+    const idleSurface = isLight ? 'rgba(20,20,22,0.94)' : 'rgba(255,255,255,0.06)';
+    const idleBorder = isLight ? colors.cardBorder : 'rgba(255,255,255,0.12)';
+    const surfaceBorder = isLight ? colors.cardBorder : 'rgba(255,255,255,0.08)';
+    const cardText = isLight ? colors.cardText : '#FFFFFF';
+    const cardTextSecondary = isLight ? colors.cardTextSecondary : 'rgba(255,255,255,0.55)';
+    const tapeBase = isLight ? 'rgba(20,20,22,0.14)' : 'rgba(255,255,255,0.1)';
+    const tapeTick = isLight ? 'rgba(20,20,22,0.3)' : 'rgba(255,255,255,0.35)';
+    const publishDockEnd = isLight ? 'rgba(210,194,166,0.96)' : 'rgba(5,6,8,0.92)';
+    const transcriptPlaceholder = isLight ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.3)';
+    const transcriptBg = isLight ? colors.cardBackground : 'rgba(255,255,255,0.04)';
+    const transcriptBorder = isLight ? colors.cardBorder : 'rgba(255,255,255,0.08)';
+    const moodPlaceholderColor = isLight ? colors.cardTextSecondary : 'rgba(255,255,255,0.55)';
+    const moodIdleBg = isLight ? 'rgba(20,20,22,0.94)' : 'rgba(255,255,255,0.08)';
+    const remaining = MAX_DURATION_SECONDS - elapsed;
+    const currentDurationLabel = formatTime(audioDuration || elapsed);
+    const playbackBars = waveformBars.length ? waveformBars : buildFallbackBars(PLAYBACK_BAR_COUNT);
+    const tapeWidth = Math.max(0, screenWidth - 56);
 
     const handleMoodSelect = (id: string) => {
         const mood = getMoodById(id);
         setMoodId(id);
-        setMoodName(mood?.name || MOODS.find(m => m.id === id)?.label || id);
+        setMoodName(mood?.name || MOODS.find((item) => item.id === id)?.label || id);
     };
 
-    const resetWaves = () => {
-        const flat = `M 0 ${CENTER_Y} L ${svgWidth} ${CENTER_Y}`;
-        setWavePaths([flat, flat, flat]);
-    };
-
-    const updateWaves = (meteringDb: number) => {
-        // Normalize dBFS: map -60..0 → 0..1
-        const raw = Math.max(0, Math.min(1, (meteringDb + 60) / 60));
-
-        // Dead zone: below 0.25 raw (~-45 dBFS) treat as silence.
-        // Background noise typically sits at -50 to -55 dBFS (raw ≈ 0.08–0.17),
-        // well below this threshold, so strings stay flat in silence.
-        if (raw < 0.25) {
-            if (wasAnimatingRef.current) {
-                wasAnimatingRef.current = false;
-                resetWaves();
+    const beginMeteringCapture = () => {
+        meteringSamplesRef.current = [];
+        meteringTimerRef.current = setInterval(async () => {
+            if (!recordingRef.current || isPausedRef.current) return;
+            try {
+                const status = await recordingRef.current.getStatusAsync();
+                if (status.isRecording && status.metering !== undefined) {
+                    meteringSamplesRef.current.push(normalizeMetering(status.metering));
+                    if (meteringSamplesRef.current.length > 360) {
+                        meteringSamplesRef.current.shift();
+                    }
+                }
+            } catch {
+                // Ignore sampling errors while recording.
             }
-            return;
-        }
+        }, 120);
+    };
 
-        // Square-root gamma: boosts mid-level speech response
-        wasAnimatingRef.current = true;
-        const level = Math.sqrt(raw);
-        phaseRef.current += 0.22;
-        const t = phaseRef.current;
-        const p1 = buildStringPath(svgWidth, CENTER_Y, level * WAVE_AMP * LINE_AMPS[0] * Math.cos(t * LINE_FREQS[0]));
-        const p2 = buildStringPath(svgWidth, CENTER_Y, level * WAVE_AMP * LINE_AMPS[1] * Math.cos(t * LINE_FREQS[1]));
-        const p3 = buildStringPath(svgWidth, CENTER_Y, level * WAVE_AMP * LINE_AMPS[2] * Math.cos(t * LINE_FREQS[2]));
-        setWavePaths([p1, p2, p3]);
+    const clearRecordingTimers = () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+        if (meteringTimerRef.current) {
+            clearInterval(meteringTimerRef.current);
+            meteringTimerRef.current = null;
+        }
     };
 
     const startRecording = async () => {
+        if (isRecording) return;
+
         const { granted } = await Audio.requestPermissionsAsync();
         if (!granted) {
             Alert.alert(
@@ -195,96 +426,51 @@ export default function VoiceNoteScreen() {
             ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
             isMeteringEnabled: true,
         });
+
         recordingRef.current = recording;
         elapsedRef.current = 0;
-        phaseRef.current = 0;
         isPausedRef.current = false;
+
+        setElapsed(0);
+        setAudioDuration(0);
         setIsRecording(true);
         setIsPaused(false);
-        setElapsed(0);
-
-        pulseScale.value = withRepeat(
-            withTiming(1.08, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-            -1,
-            true
-        );
 
         timerRef.current = setInterval(() => {
-            if (!isPausedRef.current) {
-                elapsedRef.current += 1;
-                setElapsed(elapsedRef.current);
-                if (elapsedRef.current >= MAX_DURATION_SECONDS) stopRecording();
+            if (isPausedRef.current) return;
+            elapsedRef.current += 1;
+            setElapsed(elapsedRef.current);
+            if (elapsedRef.current >= MAX_DURATION_SECONDS) {
+                stopRecording();
             }
         }, 1000);
 
-        meteringTimerRef.current = setInterval(async () => {
-            if (recordingRef.current && !isPausedRef.current) {
-                try {
-                    const status = await recordingRef.current.getStatusAsync();
-                    if (status.isRecording && status.metering !== undefined) {
-                        updateWaves(status.metering);
-                    }
-                } catch { /* ignore */ }
-            }
-        }, 100);
+        beginMeteringCapture();
     };
 
     const pauseRecording = async () => {
         if (!recordingRef.current || isPaused) return;
+
         try {
             await recordingRef.current.pauseAsync();
             isPausedRef.current = true;
             setIsPaused(true);
-            cancelAnimation(pulseScale);
-            pulseScale.value = withTiming(1, { duration: 200 });
-            resetWaves();
-        } catch (err) {
-            console.error('[VoiceNote] Pause error:', err);
+        } catch (error) {
+            console.error('[VoiceNote] Pause error:', error);
         }
     };
 
     const resumeRecording = async () => {
         if (!recordingRef.current || !isPaused) return;
+
         try {
             await recordingRef.current.startAsync();
             isPausedRef.current = false;
             setIsPaused(false);
-            pulseScale.value = withRepeat(
-                withTiming(1.08, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-                -1,
-                true
-            );
-        } catch (err) {
-            console.error('[VoiceNote] Resume error:', err);
+        } catch (error) {
+            console.error('[VoiceNote] Resume error:', error);
         }
     };
-
-    const stopRecording = useCallback(async () => {
-        if (!recordingRef.current) return;
-
-        cancelAnimation(pulseScale);
-        pulseScale.value = withTiming(1, { duration: 200 });
-
-        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-        if (meteringTimerRef.current) { clearInterval(meteringTimerRef.current); meteringTimerRef.current = null; }
-
-        setIsRecording(false);
-        setIsPaused(false);
-        isPausedRef.current = false;
-
-        try {
-            await recordingRef.current.stopAndUnloadAsync();
-            const uri = recordingRef.current.getURI();
-            recordingRef.current = null;
-            if (!uri) throw new Error('Recording URI is null');
-
-            setAudioDuration(elapsedRef.current);
-            setStep('review');
-            transcribeRecording(uri);
-        } catch (err) {
-            console.error('[VoiceNote] Stop recording error:', err);
-        }
-    }, [pulseScale]);
 
     const transcribeRecording = async (uri: string) => {
         setIsTranscribing(true);
@@ -320,66 +506,137 @@ export default function VoiceNoteScreen() {
 
             if (error) throw error;
             setTranscript(data?.transcript ?? '');
-        } catch (err) {
-            console.error('[VoiceNote] Transcription failed:', err);
+        } catch (error) {
+            console.error('[VoiceNote] Transcription failed:', error);
             setTranscriptError(true);
         } finally {
             setIsTranscribing(false);
         }
     };
 
+    const stopRecording = useCallback(async () => {
+        if (!recordingRef.current) return;
+
+        clearRecordingTimers();
+        setIsRecording(false);
+        setIsPaused(false);
+        isPausedRef.current = false;
+
+        try {
+            await recordingRef.current.stopAndUnloadAsync();
+            const uri = recordingRef.current.getURI();
+            recordingRef.current = null;
+            if (!uri) throw new Error('Recording URI is null');
+
+            const capturedDuration = elapsedRef.current;
+            setAudioDuration(capturedDuration);
+            setWaveformBars(buildWaveformBars(meteringSamplesRef.current, PLAYBACK_BAR_COUNT));
+            setStep('review');
+            setPlaybackProgress(0);
+            transcribeRecording(uri);
+        } catch (error) {
+            console.error('[VoiceNote] Stop recording error:', error);
+        }
+    }, []);
+
+    const handlePlaybackStatus = useCallback((status: any) => {
+        if (!status?.isLoaded) return;
+
+        const durationMillis = status.durationMillis ?? 0;
+        const positionMillis = status.positionMillis ?? 0;
+        const progress = durationMillis > 0 ? positionMillis / durationMillis : 0;
+        setPlaybackProgress(Math.max(0, Math.min(1, progress)));
+
+        if (status.didJustFinish) {
+            setIsPlaying(false);
+            setPlaybackProgress(1);
+        }
+    }, []);
+
     const handlePlayPause = async () => {
         if (!audioStorageUrl) return;
-        if (sound) {
-            if (isPlaying) { await sound.pauseAsync(); setIsPlaying(false); }
-            else { await sound.playAsync(); setIsPlaying(true); }
+
+        if (soundRef.current) {
+            if (isPlaying) {
+                await soundRef.current.pauseAsync();
+                setIsPlaying(false);
+                return;
+            }
+
+            if (playbackProgress >= 0.999) {
+                await soundRef.current.setPositionAsync(0);
+                setPlaybackProgress(0);
+            }
+
+            await soundRef.current.playAsync();
+            setIsPlaying(true);
             return;
         }
-        const { sound: newSound } = await Audio.Sound.createAsync(
+
+        const { sound } = await Audio.Sound.createAsync(
             { uri: audioStorageUrl },
-            { shouldPlay: true },
-            (status) => { if (status.isLoaded && status.didJustFinish) setIsPlaying(false); }
+            { shouldPlay: true, progressUpdateIntervalMillis: 250 },
+            handlePlaybackStatus
         );
-        setSound(newSound);
+
+        soundRef.current = sound;
         setIsPlaying(true);
     };
 
     const handleReRecord = async () => {
-        await sound?.unloadAsync();
-        setSound(null);
+        await soundRef.current?.unloadAsync().catch(() => {});
+        soundRef.current = null;
+
         setIsPlaying(false);
+        setPlaybackProgress(0);
         setAudioStorageUrl(null);
         setTranscript('');
         setTranscriptError(false);
         setElapsed(0);
+        setAudioDuration(0);
         elapsedRef.current = 0;
-        resetWaves();
+        meteringSamplesRef.current = [];
+        setWaveformBars(buildFallbackBars(PLAYBACK_BAR_COUNT));
         setStep('recording');
     };
 
     const handleSave = async () => {
         if (!moodId || isSaving) return;
+
         setIsSaving(true);
         try {
-            await createVoiceEntry(user, moodId, moodName, transcript, audioStorageUrl ?? '', [], includeInInsights && !aiFreeMode);
+            await createVoiceEntry(
+                user,
+                moodId,
+                moodName,
+                transcript,
+                audioStorageUrl ?? '',
+                [],
+                includeInInsights && !aiFreeMode
+            );
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
-        } catch (err) {
-            console.error('[VoiceNote] Save failed:', err);
+        } catch (error) {
+            console.error('[VoiceNote] Save failed:', error);
             setIsSaving(false);
         }
     };
 
-    // audioStorageUrl is NOT required — if storage upload fails (e.g. RLS),
-    // the user can still save with the manually-typed transcript
     const canSave = !!moodId && !isTranscribing && !isSaving;
-    const remaining = MAX_DURATION_SECONDS - elapsed;
+    const recordingStatusLabel = isPaused ? 'PAUSED' : isRecording ? 'RECORDING' : 'READY';
 
     const MoodTrigger = () => (
         <TouchableOpacity
-            activeOpacity={0.7}
+            activeOpacity={0.75}
             onPress={() => setMoodModalVisible(true)}
-            style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
+            style={[
+                styles.moodTrigger,
+                {
+                    backgroundColor: moodId ? '#FFFFFF' : moodIdleBg,
+                    borderColor: moodId ? 'transparent' : surfaceBorder,
+                },
+                moodId && styles.moodTriggerSelected,
+            ]}
         >
             {moodId ? (
                 <>
@@ -388,8 +645,10 @@ export default function VoiceNoteScreen() {
                 </>
             ) : (
                 <>
-                    <Ionicons name="add" size={16} color="rgba(255,255,255,0.6)" />
-                    <ThemedText style={styles.moodTriggerPlaceholder}>How are you feeling?</ThemedText>
+                    <Ionicons name="add" size={14} color={moodPlaceholderColor} />
+                    <ThemedText style={[styles.moodTriggerPlaceholder, { color: moodPlaceholderColor }]}>
+                        How are you feeling?
+                    </ThemedText>
                 </>
             )}
         </TouchableOpacity>
@@ -397,321 +656,541 @@ export default function VoiceNoteScreen() {
 
     return (
         <ScreenWrapper>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    onPress={step === 'review' ? handleReRecord : () => router.back()}
-                    style={styles.headerButton}
-                >
-                    <Ionicons name="chevron-back" size={28} color="white" />
-                </TouchableOpacity>
-                <ThemedText style={styles.headerTitle}>Voice Note</ThemedText>
-                {step === 'review' ? (
-                    <TouchableOpacity onPress={handleSave} disabled={!canSave} style={styles.headerButton}>
-                        <ThemedText style={[styles.doneText, !canSave && styles.doneTextDisabled]}>
-                            {isSaving ? 'Saving…' : 'Done'}
-                        </ThemedText>
+            <View style={styles.flex}>
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        onPress={step === 'review' ? handleReRecord : () => router.back()}
+                        style={styles.headerSide}
+                    >
+                        <Ionicons name="chevron-back" size={26} color={onBackgroundPrimary} />
                     </TouchableOpacity>
-                ) : (
-                    <View style={styles.headerButton} />
-                )}
-            </View>
 
-            {/* ── Recording step ── */}
-            {step === 'recording' && (
-                <View style={styles.recorderContainer}>
-                    {/* Timer */}
-                    <ThemedText style={styles.timerText}>
-                        {formatTime(elapsed)}
-                    </ThemedText>
-                    {isRecording && remaining <= 30 && (
-                        <ThemedText style={styles.remainingText}>{remaining}s remaining</ThemedText>
-                    )}
-
-                    {/* Guitar-string wave visualization */}
-                    <View style={styles.waveContainer}>
-                        <Svg width={svgWidth} height={SVG_HEIGHT}>
-                            <Path d={wavePaths[0]} stroke="rgba(255,255,255,0.9)" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-                            <Path d={wavePaths[1]} stroke="#4A90E2" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-                            <Path d={wavePaths[2]} stroke="#7B1535" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-                        </Svg>
-                    </View>
-
-                    {/* Controls row */}
-                    <View style={styles.controlsRow}>
-                        {isRecording ? (
-                            <>
-                                {/* Pause / Resume */}
-                                <TouchableOpacity
-                                    activeOpacity={0.7}
-                                    onPress={isPaused ? resumeRecording : pauseRecording}
-                                    style={styles.controlButton}
-                                >
-                                    <Ionicons
-                                        name={isPaused ? 'play' : 'pause'}
-                                        size={20}
-                                        color="rgba(255,255,255,0.7)"
-                                    />
-                                    <ThemedText style={styles.controlButtonText}>
-                                        {isPaused ? 'Resume' : 'Pause'}
-                                    </ThemedText>
-                                </TouchableOpacity>
-
-                                {/* Done — stops recording and goes to review */}
-                                <TouchableOpacity
-                                    activeOpacity={0.7}
-                                    onPress={stopRecording}
-                                    style={[styles.controlButton, styles.controlButtonDone]}
-                                >
-                                    <Ionicons name="checkmark" size={20} color="white" />
-                                    <ThemedText style={[styles.controlButtonText, { color: 'white' }]}>
-                                        Done
-                                    </ThemedText>
-                                </TouchableOpacity>
-                            </>
-                        ) : (
-                            /* Record button — shown when idle */
-                            <Animated.View style={pulseStyle}>
-                                <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    onPress={startRecording}
-                                    style={styles.recordButton}
-                                >
-                                    <View style={styles.recordDot} />
-                                </TouchableOpacity>
-                            </Animated.View>
-                        )}
-                    </View>
-
-                    <ThemedText style={styles.recordHint}>
-                        {isPaused ? 'Paused' : isRecording ? '' : 'Tap to record'}
+                    <ThemedText style={[styles.headerTitle, { color: onBackgroundPrimary }]}>
+                        Voice Note
                     </ThemedText>
 
-                    {/* Mood picker */}
-                    <View style={[styles.moodBarRecording, { borderTopColor: colors.cardBorder }]}>
-                        <MoodTrigger />
-                        <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
-                            <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
-                            <Switch
-                                value={includeInInsights && !aiFreeMode}
-                                disabled={aiFreeMode}
-                                onValueChange={setIncludeInInsights}
-                                trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
-                                thumbColor="#fff"
-                            />
-                        </View>
-                    </View>
-                </View>
-            )}
-
-            {/* ── Review step ── */}
-            {step === 'review' && (
-                <ScrollView
-                    style={styles.flex}
-                    contentContainerStyle={styles.reviewContent}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    <View style={styles.playbackBar}>
-                        <TouchableOpacity onPress={handlePlayPause} style={styles.playButton}>
-                            <Ionicons name={isPlaying ? 'pause' : 'play'} size={22} color="white" />
-                        </TouchableOpacity>
-                        <View style={styles.playbackInfo}>
-                            <ThemedText style={styles.playbackDuration}>{formatTime(audioDuration)}</ThemedText>
-                            <ThemedText style={styles.playbackLabel}>voice note</ThemedText>
-                        </View>
-                        <TouchableOpacity onPress={handleReRecord} style={styles.reRecordButton}>
-                            <Ionicons name="refresh" size={16} color="rgba(255,255,255,0.5)" />
-                            <ThemedText style={styles.reRecordText}>Re-record</ThemedText>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.transcriptContainer}>
-                        {isTranscribing ? (
-                            <View style={styles.transcribingRow}>
-                                <ActivityIndicator color={Colors.obsy.silver} size="small" />
-                                <ThemedText style={styles.transcribingText}>Transcribing…</ThemedText>
-                            </View>
-                        ) : transcriptError ? (
-                            <ThemedText style={styles.transcriptErrorText}>
-                                Transcription failed — you can type your notes below.
+                    {step === 'review' ? (
+                        <TouchableOpacity onPress={handleReRecord} style={styles.headerSideRight}>
+                            <Ionicons name="refresh" size={12} color={onBackgroundSecondary} />
+                            <ThemedText style={[styles.reRecordHeaderText, { color: onBackgroundSecondary }]}>
+                                Re-record
                             </ThemedText>
-                        ) : null}
-                        <TextInput
-                            style={styles.transcriptInput}
-                            value={transcript}
-                            onChangeText={setTranscript}
-                            multiline
-                            placeholder={isTranscribing ? '' : 'Transcript will appear here…'}
-                            placeholderTextColor="rgba(255,255,255,0.3)"
-                            editable={!isTranscribing}
-                        />
-                    </View>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.headerSide} />
+                    )}
+                </View>
 
-                    <View style={[styles.moodBarReview, { borderTopColor: colors.cardBorder }]}>
-                        <MoodTrigger />
-                        <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
-                            <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
-                            <Switch
-                                value={includeInInsights && !aiFreeMode}
-                                disabled={aiFreeMode}
-                                onValueChange={setIncludeInInsights}
-                                trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
-                                thumbColor="#fff"
-                            />
+                {step === 'recording' ? (
+                    <View style={styles.recordingStep}>
+                        <View style={styles.recordingInner}>
+                            <View style={styles.recordingIndicatorRow}>
+                                <Animated.View
+                                    style={[
+                                        styles.recordingDot,
+                                        { backgroundColor: '#B03058' },
+                                        ledAnimatedStyle,
+                                    ]}
+                                />
+                                <ThemedText style={[styles.recordingIndicatorText, { color: onBackgroundSecondary }]}>
+                                    {recordingStatusLabel}
+                                </ThemedText>
+                            </View>
+
+                            <View style={styles.counterBlock}>
+                                <View style={styles.counterRow}>
+                                    <CounterDigit value={formatTime(elapsed).slice(0, 2)} color={onBackgroundPrimary} />
+                                    <ThemedText style={[styles.counterColon, { color: onBackgroundPrimary }]}>
+                                        :
+                                    </ThemedText>
+                                    <CounterDigit value={formatTime(elapsed).slice(3, 5)} color={onBackgroundPrimary} />
+                                </View>
+                                <ThemedText style={[styles.counterCaption, { color: onBackgroundSecondary }]}>
+                                    TAPE COUNTER
+                                </ThemedText>
+                            </View>
+
+                            <View style={styles.tapeBlock}>
+                                <TapeStrip
+                                    width={tapeWidth}
+                                    moving={isRecording && !isPaused}
+                                    baseColor={tapeBase}
+                                    tickColor={tapeTick}
+                                    animatedStyle={tapeAnimatedStyle}
+                                />
+                                <ThemedText style={[styles.remainingCaption, { color: onBackgroundSecondary }]}>
+                                    {formatTime(Math.max(0, remaining))} REMAINING
+                                </ThemedText>
+                            </View>
+
+                            <View style={[styles.transportRow, { backgroundColor: recordingCardBg, borderColor: surfaceBorder }]}>
+                                <TransportButton
+                                    label="Rec"
+                                    onPress={startRecording}
+                                    disabled={isRecording}
+                                    active={isRecording && !isPaused}
+                                    accent
+                                    textColor={cardTextSecondary}
+                                    idleBorder={idleBorder}
+                                    idleSurface={idleSurface}
+                                >
+                                    <View style={styles.recInnerDot} />
+                                </TransportButton>
+
+                                <TransportButton
+                                    label={isPaused ? 'Resume' : 'Pause'}
+                                    onPress={isPaused ? resumeRecording : pauseRecording}
+                                    disabled={!isRecording && !isPaused}
+                                    active={isPaused}
+                                    textColor={cardTextSecondary}
+                                    idleBorder={idleBorder}
+                                    idleSurface={idleSurface}
+                                >
+                                    {isPaused ? (
+                                        <Ionicons name="play" size={16} color={cardText} />
+                                    ) : (
+                                        <View style={styles.pauseGlyph}>
+                                            <View style={[styles.pauseBar, { backgroundColor: cardText }]} />
+                                            <View style={[styles.pauseBar, { backgroundColor: cardText }]} />
+                                        </View>
+                                    )}
+                                </TransportButton>
+
+                                <TransportButton
+                                    label="Stop"
+                                    onPress={stopRecording}
+                                    disabled={!isRecording && !isPaused}
+                                    textColor={cardTextSecondary}
+                                    idleBorder={idleBorder}
+                                    idleSurface={idleSurface}
+                                >
+                                    <View style={[styles.stopGlyph, { backgroundColor: cardText }]} />
+                                </TransportButton>
+                            </View>
+                        </View>
+
+                        <View style={[styles.recordingBottomDock, { borderTopColor: surfaceBorder }]}>
+                            <MoodTrigger />
+                            <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                                <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
+                                    Include in insights
+                                </ThemedText>
+                                <Switch
+                                    value={includeInInsights && !aiFreeMode}
+                                    disabled={aiFreeMode}
+                                    onValueChange={setIncludeInInsights}
+                                    trackColor={{
+                                        false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
+                                        true: Colors.obsy.silver,
+                                    }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
                         </View>
                     </View>
-                </ScrollView>
-            )}
+                ) : (
+                    <View style={styles.reviewStep}>
+                        <ScrollView
+                            style={styles.flex}
+                            contentContainerStyle={styles.reviewContent}
+                            keyboardShouldPersistTaps="handled"
+                            showsVerticalScrollIndicator={false}
+                        >
+                            <PlaybackStrip
+                                bars={playbackBars}
+                                progress={playbackProgress}
+                                duration={currentDurationLabel}
+                                isPlaying={isPlaying}
+                                onPlayPause={handlePlayPause}
+                                cardBg={recordingCardBgAlt}
+                                borderColor={isLight ? colors.cardBorder : 'rgba(255,255,255,0.1)'}
+                                durationColor={cardTextSecondary}
+                                playedColor={Colors.obsy.silver}
+                                unplayedColor={isLight ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.25)'}
+                                playButtonBg={isLight ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.12)'}
+                            />
 
-            <MoodSelectionModal
-                visible={moodModalVisible}
-                selectedMood={moodId}
-                onSelect={handleMoodSelect}
-                onClose={() => setMoodModalVisible(false)}
-            />
+                            <ThemedText style={[styles.sectionCaption, { color: onBackgroundSecondary }]}>
+                                TRANSCRIPT
+                            </ThemedText>
+
+                            <View style={[styles.transcriptCard, { backgroundColor: transcriptBg, borderColor: transcriptBorder }]}>
+                                {isTranscribing ? (
+                                    <View style={styles.transcribingRow}>
+                                        <ActivityIndicator color={Colors.obsy.silver} size="small" />
+                                        <ThemedText style={[styles.transcribingText, { color: cardTextSecondary }]}>
+                                            Transcribing…
+                                        </ThemedText>
+                                    </View>
+                                ) : transcriptError ? (
+                                    <ThemedText style={styles.transcriptErrorText}>
+                                        Transcription failed — you can type your notes below.
+                                    </ThemedText>
+                                ) : null}
+
+                                <TextInput
+                                    style={[
+                                        styles.transcriptInput,
+                                        {
+                                            color: cardText,
+                                        },
+                                    ]}
+                                    value={transcript}
+                                    onChangeText={setTranscript}
+                                    multiline
+                                    placeholder={isTranscribing ? '' : 'Transcript will appear here…'}
+                                    placeholderTextColor={transcriptPlaceholder}
+                                    editable={!isTranscribing}
+                                />
+                            </View>
+
+                            <MoodTrigger />
+
+                            <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                                <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
+                                    Include in insights
+                                </ThemedText>
+                                <Switch
+                                    value={includeInInsights && !aiFreeMode}
+                                    disabled={aiFreeMode}
+                                    onValueChange={setIncludeInInsights}
+                                    trackColor={{
+                                        false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
+                                        true: Colors.obsy.silver,
+                                    }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
+                        </ScrollView>
+
+                        <View pointerEvents="box-none" style={styles.publishDockWrap}>
+                            <LinearGradient
+                                pointerEvents="none"
+                                colors={['transparent', publishDockEnd]}
+                                locations={[0, 0.4]}
+                                style={styles.publishDockFade}
+                            />
+                            <View style={styles.publishDock}>
+                                <TouchableOpacity
+                                    activeOpacity={0.88}
+                                    onPress={handleSave}
+                                    disabled={!canSave}
+                                    style={[styles.publishButton, !canSave && styles.publishButtonDisabled]}
+                                >
+                                    <Ionicons name="arrow-up" size={14} color="#0A0A0A" />
+                                    <ThemedText style={styles.publishButtonText}>
+                                        {isSaving ? 'Publishing…' : 'Publish recording'}
+                                    </ThemedText>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                <MoodSelectionModal
+                    visible={moodModalVisible}
+                    selectedMood={moodId}
+                    onSelect={handleMoodSelect}
+                    onClose={() => setMoodModalVisible(false)}
+                />
+            </View>
         </ScreenWrapper>
     );
 }
 
-const RECORD_BTN_SIZE = 72;
-
 const styles = StyleSheet.create({
-    flex: { flex: 1 },
+    flex: {
+        flex: 1,
+    },
     header: {
+        height: 44,
+        paddingHorizontal: 16,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 60,
-        paddingBottom: 16,
     },
-    headerButton: { minWidth: 60 },
-    headerTitle: { fontSize: 17, fontWeight: '600', color: 'white' },
-    doneText: { color: Colors.obsy.silver, fontSize: 17, fontWeight: '600', textAlign: 'right' },
-    doneTextDisabled: { opacity: 0.3 },
-
-    // ── Recording ────────────────────────────────────────────────────
-    recorderContainer: {
-        flex: 1,
-        alignItems: 'center',
+    headerSide: {
+        minWidth: 60,
         justifyContent: 'center',
-        gap: 28,
+        alignItems: 'flex-start',
     },
-    timerText: {
-        fontSize: 40,
-        fontWeight: '300',
-        color: 'white',
-        letterSpacing: 3,
-        lineHeight: 52,
-        includeFontPadding: false,
-    },
-    remainingText: {
-        fontSize: 14,
-        color: '#8B2252',
-        fontWeight: '500',
-        marginTop: -16,
-    },
-    waveContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-    },
-
-    // Controls
-    controlsRow: {
+    headerSideRight: {
+        minWidth: 60,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 16,
+        justifyContent: 'flex-end',
+        gap: 4,
     },
-    controlButton: {
+    headerTitle: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        textAlign: 'center',
+        fontSize: 17,
+        fontWeight: '600',
+    },
+    reRecordHeaderText: {
+        fontSize: 14,
+    },
+    recordingStep: {
+        flex: 1,
+    },
+    recordingInner: {
+        paddingTop: 40,
+        paddingHorizontal: 28,
+        alignItems: 'center',
+    },
+    recordingIndicatorRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        paddingHorizontal: 22,
-        paddingVertical: 12,
-        borderRadius: 100,
-        backgroundColor: 'rgba(255,255,255,0.08)',
     },
-    controlButtonDone: {
-        backgroundColor: 'rgba(255,255,255,0.15)',
+    recordingDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        shadowColor: '#B03058',
+        shadowOpacity: 0.75,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 4,
     },
-    controlButtonText: {
-        fontSize: 15,
-        color: 'rgba(255,255,255,0.7)',
-        fontWeight: '500',
+    recordingIndicatorText: {
+        fontSize: 10,
+        letterSpacing: 3,
+        textTransform: 'uppercase',
+        fontFamily: MONO_FONT,
     },
-    recordButton: {
-        width: RECORD_BTN_SIZE,
-        height: RECORD_BTN_SIZE,
-        borderRadius: RECORD_BTN_SIZE / 2,
-        backgroundColor: 'rgba(200,200,200,0.12)',
-        borderWidth: 2,
-        borderColor: 'rgba(200,200,200,0.35)',
-        justifyContent: 'center',
+    counterBlock: {
+        paddingTop: 36,
+        paddingBottom: 20,
         alignItems: 'center',
     },
-    recordDot: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        backgroundColor: '#C8C8C8',
+    counterRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
     },
-    recordHint: { fontSize: 15, color: 'rgba(255,255,255,0.45)' },
-
-    moodBarRecording: {
+    counterDigits: {
+        fontSize: 84,
+        fontWeight: '200',
+        letterSpacing: 4,
+        lineHeight: 84,
+        fontFamily: MONO_FONT,
+        fontVariant: ['tabular-nums'],
+    },
+    counterColon: {
+        fontSize: 84,
+        fontWeight: '200',
+        lineHeight: 84,
+        opacity: 0.4,
+        marginHorizontal: 4,
+        fontFamily: MONO_FONT,
+    },
+    counterCaption: {
+        marginTop: 12,
+        fontSize: 10,
+        letterSpacing: 4,
+        textTransform: 'uppercase',
+        fontFamily: MONO_FONT,
+    },
+    tapeBlock: {
+        width: '100%',
+        alignItems: 'center',
+        gap: 8,
+    },
+    tapeBase: {
+        height: StyleSheet.hairlineWidth,
+        position: 'relative',
+        overflow: 'hidden',
+    },
+    tapeTicksLayer: {
         position: 'absolute',
+        top: 0,
         bottom: 0,
         left: 0,
-        right: 0,
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderTopWidth: 1,
     },
-
-    // ── Review ───────────────────────────────────────────────────────
-    reviewContent: { padding: 20, gap: 16, paddingBottom: 40 },
-    playbackBar: {
+    tapeTick: {
+        position: 'absolute',
+        top: 0,
+        width: 1,
+        bottom: 0,
+    },
+    remainingCaption: {
+        fontSize: 11,
+        letterSpacing: 3,
+        textTransform: 'uppercase',
+        fontFamily: MONO_FONT,
+    },
+    transportRow: {
+        width: '100%',
+        marginTop: 20,
+        paddingHorizontal: 10,
+        paddingVertical: 14,
+        borderRadius: 14,
+        borderWidth: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderRadius: 16,
-        padding: 16,
+        gap: 8,
+    },
+    transportCell: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 6,
+    },
+    transportCellDisabled: {
+        opacity: 0.45,
+    },
+    transportIconCircle: {
+        width: 54,
+        height: 54,
+        borderRadius: 27,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    transportIconCircleAccent: {
+        borderColor: 'rgba(176,48,88,0.55)',
+        shadowColor: 'rgba(176,48,88,0.45)',
+        shadowOpacity: 1,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 8,
+    },
+    transportCaption: {
+        fontSize: 10,
+        letterSpacing: 1.6,
+        textTransform: 'uppercase',
+        fontFamily: MONO_FONT,
+    },
+    recInnerDot: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#FFFFFF',
+    },
+    pauseGlyph: {
+        flexDirection: 'row',
+        gap: 2,
+    },
+    pauseBar: {
+        width: 4,
+        height: 14,
+        borderRadius: 1,
+    },
+    stopGlyph: {
+        width: 14,
+        height: 14,
+        borderRadius: 1.5,
+    },
+    recordingBottomDock: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingTop: 14,
+        paddingHorizontal: 24,
+        paddingBottom: 28,
+        borderTopWidth: 1,
         gap: 12,
     },
-    playButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
+    reviewStep: {
+        flex: 1,
     },
-    playbackInfo: { flex: 1 },
-    playbackDuration: { fontSize: 16, fontWeight: '600', color: 'white' },
-    playbackLabel: { fontSize: 12, color: 'rgba(255,255,255,0.4)' },
-    reRecordButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    reRecordText: { fontSize: 13, color: 'rgba(255,255,255,0.5)' },
-    transcriptContainer: { gap: 8 },
-    transcribingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    transcribingText: { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
-    transcriptErrorText: { fontSize: 13, color: 'rgba(255,100,100,0.7)' },
-    transcriptInput: {
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderRadius: 16,
-        padding: 16,
-        minHeight: 140,
+    reviewContent: {
+        paddingHorizontal: 20,
+        paddingTop: 8,
+        paddingBottom: 180,
+        gap: 14,
+    },
+    playbackStrip: {
+        borderRadius: 14,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        color: 'white',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+    },
+    playButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    waveformWrap: {
+        flex: 1,
+        height: 36,
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    waveformBars: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+    },
+    waveformBar: {
+        flex: 1,
+        minWidth: 1.5,
+        borderRadius: 0.5,
+    },
+    waveformPlayhead: {
+        position: 'absolute',
+        top: -4,
+        bottom: -4,
+        width: 2,
+        backgroundColor: '#FFFFFF',
+        shadowColor: 'rgba(255,255,255,0.6)',
+        shadowOpacity: 1,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 4,
+    },
+    playbackDuration: {
+        fontSize: 12,
+        fontFamily: MONO_FONT,
+        fontVariant: ['tabular-nums'],
+    },
+    sectionCaption: {
+        fontSize: 11,
+        letterSpacing: 2,
+        textTransform: 'uppercase',
+        fontFamily: MONO_FONT,
+    },
+    transcriptCard: {
+        minHeight: 160,
+        borderRadius: 14,
+        borderWidth: 1,
+        padding: 18,
+    },
+    transcribingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 12,
+    },
+    transcribingText: {
+        fontSize: 14,
+    },
+    transcriptErrorText: {
+        fontSize: 13,
+        color: 'rgba(255,100,100,0.7)',
+        marginBottom: 12,
+    },
+    transcriptInput: {
+        minHeight: 120,
         fontSize: 16,
         lineHeight: 24,
-        ...Platform.select({ android: { textAlignVertical: 'top' as const } }),
+        padding: 0,
+        ...Platform.select({
+            android: {
+                textAlignVertical: 'top' as const,
+            },
+        }),
     },
-    moodBarReview: { paddingVertical: 8, borderTopWidth: 1 },
     includeRow: {
-        marginTop: 10,
+        width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -721,21 +1200,65 @@ const styles = StyleSheet.create({
     },
     includeLabel: {
         fontSize: 13,
-        color: 'rgba(255,255,255,0.6)',
     },
-
-    // ── Mood trigger ─────────────────────────────────────────────────
     moodTrigger: {
+        alignSelf: 'flex-start',
         flexDirection: 'row',
         alignItems: 'center',
-        alignSelf: 'flex-start',
         gap: 6,
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 100,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
     },
-    moodTriggerSelected: { backgroundColor: '#FFFFFF' },
-    moodTriggerText: { fontSize: 14, fontWeight: '600', color: '#000000' },
-    moodTriggerPlaceholder: { fontSize: 14, color: 'rgba(255,255,255,0.55)' },
+    moodTriggerSelected: {
+        backgroundColor: '#FFFFFF',
+    },
+    moodTriggerText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#000000',
+    },
+    moodTriggerPlaceholder: {
+        fontSize: 14,
+    },
+    publishDockWrap: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    publishDockFade: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    publishDock: {
+        paddingTop: 14,
+        paddingHorizontal: 20,
+        paddingBottom: 26,
+    },
+    publishButton: {
+        width: '100%',
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        shadowColor: 'rgba(255,255,255,0.12)',
+        shadowOpacity: 1,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 6,
+    },
+    publishButtonDisabled: {
+        opacity: 0.3,
+        shadowOpacity: 0,
+        elevation: 0,
+    },
+    publishButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#0A0A0A',
+    },
 });

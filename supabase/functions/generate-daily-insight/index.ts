@@ -59,10 +59,12 @@ const RATE_LIMITS: Record<string, number> = {
 };
 
 const SYSTEM_PROMPT =
-  `You are a narrator observing someone's day through their emotional captures. Your job is to render their day as lived experience, not as a summary.
+  `You are writing a daily insight as a direct reflection of the user's day. Your job is to mirror the day back to them in a concise, personal way.
 
 VOICE RULES:
-- Third person only. Never use "you", "your", "you're", "we", "I".
+- Second person only. Use "you" and "your" naturally.
+- Never use third person pronouns for the user: he, she, him, her, his, they, them, their, theirs.
+- Keep the writing concise, natural, and emotionally direct.
 - Never use emojis, markdown, bullets, or list formatting.
 - NEVER start with or reference dates, days of the week, or calendar information. No "The day is...", "Today was...", "On Thursday...", or any date stamping. The reader already knows when this happened.
 - Never use question marks. No rhetorical questions. No direct questions of any kind.
@@ -75,16 +77,16 @@ VOICE RULES:
 
 NARRATIVE RULES:
 - Follow capture timestamps exactly. Morning events come first, evening events come last. Never reverse chronology.
-- Reflect mood shifts accurately. If the mood changed, the narrative must show that transition.
-- Weave notes, tags, and mood together into cohesive prose. Do not list them separately.
-- With only 1-2 captures, still generate meaningful depth. Find the texture in what exists.
-- Separate paragraphs with double newlines. Let rhythm determine paragraph breaks naturally.
-- Write as observation, not analysis. Show the day, do not explain it.
-- PARAGRAPH STRUCTURE: Each paragraph must be exactly 2-3 sentences. Never write a paragraph longer than 3 sentences.
-- BLENDING: When many captures share similar moods or routine moments, blend them into a single flowing observation rather than narrating each one individually. Only spotlight specific captures when they carry notable detail (a unique note, a strong mood shift, or meaningful tags).
+- Reflect mood shifts accurately. If the mood changed, the insight must show that transition.
+- Focus on the day's captures and mood entries. Briefly reference the key moments or moods from the day.
+- For each major mood or capture cluster, give one short punchy reflective statement in the chosen tone. Each beat should be 1 to 2 sentences.
+- Make it feel like an intimate emotional mirror, not a full summary and not a play by play recap.
+- End with one crisp closing line if space allows.
+- Separate paragraphs with double newlines.
+- Maximum 120 words for the full narrative text. Never exceed 120 words.
 
 IMMERSION GUIDELINES:
-- You may use subtle atmospheric framing tied directly to captures (e.g., if someone is working late, the environment can hum with quiet focus).
+- You may use subtle atmospheric framing tied directly to what happened.
 - Never invent events that did not happen.
 - Never introduce unrelated metaphors or fantasy.
 - Keep immersion elegant, never theatrical or performative.
@@ -179,11 +181,13 @@ This tone must dominate the voice completely. Shape everything through it:
 - Emotional temperature must match this tone
 
 Core constraints (maintain while fully inhabiting the tone):
-- Write in third person (never "you", "your")
+- Write in second person using "you" and "your"
+- Never use third person pronouns for the user
 - No markdown, emojis, or list formatting
 - No questions of any kind
 - No date or calendar references
-- Each paragraph must be 2-3 sentences max. Blend similar captures together rather than narrating each one.
+- Keep the narrative under 120 words
+- Make each reflective beat short and punchy
 - Return the requested JSON structure
 
 Do not dilute the tone. Lean into it fully. The reader chose this voice for a reason.`;
@@ -254,7 +258,7 @@ serve(async (req) => {
       responseFormat: "json",
       maxTokens: 1400,
       temperature: 0.85,
-      promptVersion: "generate_daily_insight_v1",
+      promptVersion: "generate_daily_insight_v2",
       requestPayload: {
         tone,
         has_custom_tone: Boolean(body.customTonePrompt),
@@ -271,6 +275,10 @@ serve(async (req) => {
             message: "AI generated empty or invalid response",
             status: 500,
           };
+        }
+        const narrativeValidation = validateInsightNarrative(text, 120, true);
+        if (!narrativeValidation.ok) {
+          return narrativeValidation;
         }
         moodFlow = parsed.moodFlow;
         return { ok: true, text };
@@ -320,10 +328,10 @@ function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; t
 
   const captureCount = input.captures.length;
   const paragraphGuidance = captureCount <= 2
-    ? "Write 1-2 short paragraphs (2-3 sentences each). Even with few captures, find depth and texture in what exists."
+    ? "Write 1-2 compact paragraphs. Give each major beat 1-2 sentences. Keep the full narrative under 120 words."
     : captureCount <= 4
-    ? "Write 2 paragraphs (2-3 sentences each). Let the day unfold naturally through its emotional shifts."
-    : "Write exactly 3 paragraphs, each 2-3 sentences long, separated by double newlines. Blend similar moods and routine captures together rather than describing each one. Only spotlight a specific capture when it carries notable detail or a clear mood shift. The result should feel like a cohesive reflection, not a play-by-play.";
+    ? "Write 2 compact paragraphs. Let each paragraph capture one major emotional beat in 1-2 sentences. Keep the full narrative under 120 words."
+    : "Write 2-4 compact paragraphs separated by double newlines. Each paragraph should contain one short reflective beat in 1-2 sentences about a major capture cluster or mood shift. Blend similar routine moments together. Keep the full narrative under 120 words.";
 
   return [
     SYSTEM_PROMPT,
@@ -337,6 +345,10 @@ function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; t
     lines.join("\n"),
     "",
     paragraphGuidance,
+    "Focus on the day's key moments and moods, not a complete recap.",
+    "Each major mood or capture cluster should get one short reflective observation painted in the chosen tone.",
+    "End with one crisp closing line if space allows.",
+    "Write like an intimate emotional mirror of the day.",
     "Use \\n\\n (double newlines) between paragraphs in the narrative text.",
     "REMINDER: Do NOT open with or reference the date, day of the week, or any calendar information.",
     "",
@@ -400,6 +412,70 @@ function sanitizeText(text: string): string {
     .replace(/[\u2013\u2014]/g, ",")          // En dash / em dash → comma
     .replace(/---?/g, ",")                    // ASCII double/triple hyphens used as dashes → comma
     .trim();
+}
+
+function validateInsightNarrative(
+  text: string,
+  maxWords: number,
+  requireClosingLine: boolean,
+): AiPostProcessResult {
+  const wordCount = countWords(text);
+  if (wordCount > maxWords) {
+    return {
+      ok: false,
+      stage: "validate",
+      message: `Narrative exceeds ${maxWords} words`,
+      status: 502,
+    };
+  }
+
+  if (containsThirdPersonPronouns(text)) {
+    return {
+      ok: false,
+      stage: "validate",
+      message: "Narrative used forbidden third-person pronouns",
+      status: 502,
+    };
+  }
+
+  if (!containsSecondPerson(text)) {
+    return {
+      ok: false,
+      stage: "validate",
+      message: "Narrative must address the user in second person",
+      status: 502,
+    };
+  }
+
+  if (requireClosingLine) {
+    const paragraphs = text.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+    if (paragraphs.length === 0) {
+      return {
+        ok: false,
+        stage: "validate",
+        message: "Narrative is empty after paragraph parsing",
+        status: 502,
+      };
+    }
+  }
+
+  return { ok: true, text };
+}
+
+function countWords(text: string): number {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .length;
+}
+
+function containsThirdPersonPronouns(text: string): boolean {
+  return /\b(he|she|him|her|his|hers|they|them|their|theirs|himself|herself|themselves)\b/i.test(text);
+}
+
+function containsSecondPerson(text: string): boolean {
+  return /\b(you|your|yours|you're|you've|you'll)\b/i.test(text);
 }
 
 function validateCaptures(captures: CaptureData[]): { valid: boolean; error: string | null } {

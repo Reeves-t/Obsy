@@ -18,6 +18,8 @@ const TAB_BAR_HEIGHT = 50;
 const SECTION_VERTICAL_PADDING = 40;
 const CONTAINER_PADDING = 16;
 const SAFETY_BUFFER = 10;
+const SHOW_DAY_VIEW_LABEL = false;
+const SHOW_MONTH_VIEW_LABEL = false;
 
 export const DailyMonthlyPixelsSection: React.FC = () => {
     const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -117,9 +119,11 @@ export const DailyMonthlyPixelsSection: React.FC = () => {
                     <GestureHandlerRootView style={styles.dayLayout}>
                         {/* Vertical date label */}
                         <View style={styles.verticalLabelContainer}>
-                            <ThemedText style={[styles.verticalLabel, { color: mutedColor }]}>
-                                {dayLabel}
-                            </ThemedText>
+                            {SHOW_DAY_VIEW_LABEL && (
+                                <ThemedText style={[styles.verticalLabel, { color: mutedColor }]}>
+                                    {dayLabel}
+                                </ThemedText>
+                            )}
                         </View>
 
                         {/* Canvas */}
@@ -140,9 +144,13 @@ export const DailyMonthlyPixelsSection: React.FC = () => {
                             >
                                 <Ionicons name="chevron-back" size={20} color={canGoBack ? activeText : mutedColor} />
                             </TouchableOpacity>
-                            <ThemedText style={[styles.monthHeader, { color: activeText }]}>
-                                {monthName}
-                            </ThemedText>
+                            {SHOW_MONTH_VIEW_LABEL ? (
+                                <ThemedText style={[styles.monthHeader, { color: activeText }]}>
+                                    {monthName}
+                                </ThemedText>
+                            ) : (
+                                <View style={styles.monthHeaderSpacer} />
+                            )}
                             <TouchableOpacity
                                 onPress={goToNextMonth}
                                 style={styles.monthNavBtn}
@@ -227,5 +235,8 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         minWidth: 140,
         textAlign: 'center',
+    },
+    monthHeaderSpacer: {
+        minWidth: 140,
     },
 });

@@ -14,6 +14,7 @@ const ENABLE_FUTURE_EDITING = false; // Dev flag for testing
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CANVAS_SIZE = SCREEN_WIDTH - 40;
 const DAY_LABEL_WIDTH = 24;
+const SHOW_GRID_MONTH_HEADER = false;
 
 interface PixelGridProps {
     availableHeight: number;
@@ -28,7 +29,7 @@ export const PixelGrid: React.FC<PixelGridProps> = ({ availableHeight }) => {
     const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
     // Calculate row height dynamically - month header takes ~20px, rest divided by 31
-    const MONTH_HEADER_HEIGHT = 20;
+    const MONTH_HEADER_HEIGHT = SHOW_GRID_MONTH_HEADER ? 20 : 0;
     const rowHeight = useMemo(() => {
         const gridBodyHeight = availableHeight - MONTH_HEADER_HEIGHT;
         return PixelRatio.roundToNearestPixel(gridBodyHeight / 31);
@@ -77,16 +78,18 @@ export const PixelGrid: React.FC<PixelGridProps> = ({ availableHeight }) => {
     return (
         <View style={styles.container}>
             {/* Month Header */}
-            <View style={[styles.monthHeader, { height: MONTH_HEADER_HEIGHT }]}>
-                <View style={[styles.dayLabelSpacer, { width: DAY_LABEL_WIDTH }]} />
-                <View style={styles.monthLabelsRow}>
-                    {months.map((m, i) => (
-                        <View key={i} style={styles.monthLabelContainer}>
-                            <ThemedText style={[styles.monthLabel, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>{m}</ThemedText>
-                        </View>
-                    ))}
+            {SHOW_GRID_MONTH_HEADER && (
+                <View style={[styles.monthHeader, { height: MONTH_HEADER_HEIGHT }]}>
+                    <View style={[styles.dayLabelSpacer, { width: DAY_LABEL_WIDTH }]} />
+                    <View style={styles.monthLabelsRow}>
+                        {months.map((m, i) => (
+                            <View key={i} style={styles.monthLabelContainer}>
+                                <ThemedText style={[styles.monthLabel, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>{m}</ThemedText>
+                            </View>
+                        ))}
+                    </View>
                 </View>
-            </View>
+            )}
 
             {/* Grid Content - flex: 1 to fill remaining space */}
             <View style={styles.gridBody}>

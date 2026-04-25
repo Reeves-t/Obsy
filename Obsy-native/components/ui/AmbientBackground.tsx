@@ -3,6 +3,8 @@ import { StyleSheet, View, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useObsyTheme } from '@/contexts/ThemeContext';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
+import { getGradientEndpoints } from '@/lib/timeThemes';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -121,22 +123,24 @@ interface ScreenSettings {
     overlayOpacity: number;
     // Boost to gradient visibility in light mode (0 = normal, 0.2 = 20% stronger)
     lightModeBoost: number;
+    // Small readability scrim for the time-based theme on denser content screens
+    timeThemeOverlayOpacity: number;
 }
 
 const SCREEN_SETTINGS: Record<ScreenName | 'default', ScreenSettings> = {
     // Focus screens: ghosted gradient (calm, content-first)
-    home: { overlayOpacity: 0.80, lightModeBoost: 0 },
-    albums: { overlayOpacity: 0.80, lightModeBoost: 0 },
+    home: { overlayOpacity: 0.80, lightModeBoost: 0, timeThemeOverlayOpacity: 0 },
+    albums: { overlayOpacity: 0.80, lightModeBoost: 0, timeThemeOverlayOpacity: 0.06 },
 
     // Atmospheric screens: full gradient (enhanced visibility in light mode)
-    gallery: { overlayOpacity: 0, lightModeBoost: 0.20 },
-    insights: { overlayOpacity: 0, lightModeBoost: 0.20 },
-    profile: { overlayOpacity: 0, lightModeBoost: 0.20 },
+    gallery: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
+    insights: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
+    profile: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
 
     // Other screens: default behavior
-    archive: { overlayOpacity: 0, lightModeBoost: 0 },
-    onboarding: { overlayOpacity: 0, lightModeBoost: 0 },
-    default: { overlayOpacity: 0, lightModeBoost: 0 },
+    archive: { overlayOpacity: 0, lightModeBoost: 0, timeThemeOverlayOpacity: 0.06 },
+    onboarding: { overlayOpacity: 0, lightModeBoost: 0, timeThemeOverlayOpacity: 0.04 },
+    default: { overlayOpacity: 0, lightModeBoost: 0, timeThemeOverlayOpacity: 0.06 },
 };
 
 interface AmbientBackgroundProps {
@@ -144,20 +148,24 @@ interface AmbientBackgroundProps {
 }
 
 export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName }) => {
-    const { theme } = useObsyTheme();
+    const { theme, isLight, usesTimeTheme, activeGradient } = useObsyTheme();
     const isOnboarding = screenName === 'onboarding';
-    const themeSettings = THEME_SETTINGS[theme];
     const screenSettings = SCREEN_SETTINGS[screenName || 'default'];
+    const themeSettings = isLight ? THEME_SETTINGS.light : THEME_SETTINGS.dark;
+    const gradientEndpoints = useMemo(() => {
+        if (!activeGradient) return null;
+        return getGradientEndpoints(activeGradient.deg);
+    }, [activeGradient]);
 
     // Calculate effective corner opacity with light mode boost
     const effectiveCornerOpacity = useMemo(() => {
         let opacity: number = themeSettings.cornerOpacity;
         // Apply light mode boost for atmospheric screens
-        if (theme === 'light' && screenSettings.lightModeBoost > 0) {
+        if (isLight && screenSettings.lightModeBoost > 0) {
             opacity = Math.min(1, opacity * (1 + screenSettings.lightModeBoost));
         }
         return opacity;
-    }, [themeSettings.cornerOpacity, theme, screenSettings.lightModeBoost]);
+    }, [themeSettings.cornerOpacity, isLight, screenSettings.lightModeBoost]);
 
     // Memoize corner wash colors based on theme and screen
     const themedCorners = useMemo(() => {
@@ -178,7 +186,60 @@ export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName
     // Determine overlay opacity (for ghosted gradient effect on focus screens)
     const overlayOpacity = screenSettings.overlayOpacity;
 
-    if (!isOnboarding) {
+    if (usesTimeTheme && activeGradient && gradientEndpoints) {
+        return (
+            <View style={styles.container} pointerEvents="none">
+                <Svg width={SCREEN_WIDTH} height={SCREEN_HEIGHT} style={styles.baseLayer}>
+                    <Defs>
+                        <SvgLinearGradient
+                            id="ambientTimeTheme"
+                            x1={`${gradientEndpoints.x1 * 100}%`}
+                            y1={`${gradientEndpoints.y1 * 100}%`}
+                            x2={`${gradientEndpoints.x2 * 100}%`}
+                            y2={`${gradientEndpoints.y2 * 100}%`}
+                        >
+                            {activeGradient.locations.map((loc, index) => (
+                                <Stop
+                                    key={`${loc}-${index}`}
+                                    offset={`${loc * 100}%`}
+                                    stopColor={activeGradient.colors[index]}
+                                    stopOpacity="1"
+                                />
+                            ))}
+                        </SvgLinearGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width={SCREEN_WIDTH} height={SCREEN_HEIGHT} fill="url(#ambientTimeTheme)" />
+                </Svg>
+
+                <LinearGradient
+                    colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.015)', 'transparent']}
+                    locations={[0, 0.3, 1]}
+                    start={{ x: 0.12, y: 0 }}
+                    end={{ x: 0.88, y: 0.82 }}
+                    style={styles.timeThemeBloom}
+                />
+
+                <LinearGradient
+                    colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.2)']}
+                    locations={[0, 0.48, 1]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={styles.timeThemeDepth}
+                />
+
+                {screenSettings.timeThemeOverlayOpacity > 0 && (
+                    <View
+                        style={[
+                            styles.dimmingOverlay,
+                            { backgroundColor: `rgba(0,0,0,${screenSettings.timeThemeOverlayOpacity})` },
+                        ]}
+                    />
+                )}
+            </View>
+        );
+    }
+
+    if (!isOnboarding && theme === 'dark') {
         return (
             <View style={styles.container} pointerEvents="none">
                 {/* Base steel fallback under the image treatment */}
@@ -264,7 +325,7 @@ export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName
             ))}
 
             {/* Dimming overlay for focus screens (Home, Albums) in DARK MODE ONLY - creates "ghosted gradient" effect */}
-            {theme === 'dark' && overlayOpacity > 0 && (
+            {!isLight && overlayOpacity > 0 && (
                 <View
                     style={[
                         styles.dimmingOverlay,
@@ -315,6 +376,13 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
     },
     edgeVignette: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    timeThemeBloom: {
+        ...StyleSheet.absoluteFillObject,
+        opacity: 0.4,
+    },
+    timeThemeDepth: {
         ...StyleSheet.absoluteFillObject,
     },
 });

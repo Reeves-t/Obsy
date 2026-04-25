@@ -6,71 +6,66 @@ import {
     ScrollView,
     Platform,
 } from 'react-native';
-import { useObsyTheme, type ThemeMode } from '@/contexts/ThemeContext';
-
-// ── Theme config ─────────────────────────────────────────────────────────────
+import { LinearGradient } from 'expo-linear-gradient';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface JournalThemeColors {
-    lineColor: string;
+    lineStart: string;
+    lineMid: string;
     textColor: string;
     placeholderColor: string;
 }
 
-const JOURNAL_THEMES: Record<ThemeMode, JournalThemeColors> = {
-    dark: {
-        lineColor: 'rgba(255, 255, 255, 0.15)',
-        textColor: '#FFFFFF',
-        placeholderColor: 'rgba(255, 255, 255, 0.4)',
-    },
-    light: {
-        lineColor: 'rgba(101, 67, 33, 0.30)',
-        textColor: '#2C1810',
-        placeholderColor: 'rgba(44, 24, 16, 0.4)',
-    },
+const DARK_JOURNAL_THEME: JournalThemeColors = {
+    lineStart: 'rgba(218, 180, 130, 0)',
+    lineMid: 'rgba(218, 180, 130, 0.22)',
+    textColor: 'rgba(255, 248, 235, 0.96)',
+    placeholderColor: 'rgba(255, 230, 190, 0.32)',
 };
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+const LIGHT_JOURNAL_THEME: JournalThemeColors = {
+    lineStart: 'rgba(101, 67, 33, 0)',
+    lineMid: 'rgba(101, 67, 33, 0.30)',
+    textColor: '#2C1810',
+    placeholderColor: 'rgba(44, 24, 16, 0.45)',
+};
 
-const LINE_HEIGHT = 28;
-const PADDING = 20;
-
-// Pre-render 120 lines (120 × 28 = 3360 px) — enough for any realistic entry.
-// Lines are absolutely positioned at compile-time pixel offsets.
-// No onLayout, no scroll sync, no transforms — renders correctly on frame 1.
+const LINE_HEIGHT = 36;
+const PADDING_X = 24;
+const TOP_SPACE = 40;
 const TOTAL_LINES = 120;
-const TOTAL_HEIGHT = PADDING + TOTAL_LINES * LINE_HEIGHT;
+const TOTAL_HEIGHT = TOP_SPACE + TOTAL_LINES * LINE_HEIGHT;
 
 const LINE_TOPS = Array.from(
     { length: TOTAL_LINES },
-    (_, i) => PADDING + (i + 1) * LINE_HEIGHT
+    (_, i) => TOP_SPACE + (i + 1) * LINE_HEIGHT
 );
 
-// ── Component ─────────────────────────────────────────────────────────────────
+const SERIF_FONT = Platform.select({
+    ios: 'Georgia',
+    android: 'serif',
+    default: 'serif',
+});
 
 interface LinedJournalInputProps {
     value: string;
     onChangeText: (text: string) => void;
     placeholder?: string;
-    /** Default false — caller decides if keyboard should open immediately */
     autoFocus?: boolean;
 }
 
-/**
- * forwardRef so the parent can hold a TextInput ref and call .blur()
- * to programmatically dismiss the keyboard without Keyboard.dismiss() quirks.
- */
 export const LinedJournalInput = forwardRef<TextInput, LinedJournalInputProps>(
     (
         {
             value,
             onChangeText,
-            placeholder = 'Write anything about this moment...',
+            placeholder = 'Write anything about this moment…',
             autoFocus = false,
         },
         ref
     ) => {
-        const { theme } = useObsyTheme();
-        const { lineColor, textColor, placeholderColor } = JOURNAL_THEMES[theme];
+        const { isLight } = useObsyTheme();
+        const theme = isLight ? LIGHT_JOURNAL_THEME : DARK_JOURNAL_THEME;
 
         return (
             <ScrollView
@@ -79,27 +74,27 @@ export const LinedJournalInput = forwardRef<TextInput, LinedJournalInputProps>(
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
             >
-                {/*
-                 * Single fixed-height container.
-                 * Lines are absolutely positioned — they exist from the first
-                 * render with no measurement required.
-                 * TextInput fills the same container with scrollEnabled=false
-                 * so the outer ScrollView drives all scrolling.
-                 */}
                 <View style={styles.contentContainer}>
                     {LINE_TOPS.map((top, i) => (
-                        <View
+                        <LinearGradient
                             key={i}
                             pointerEvents="none"
-                            style={[styles.line, { top, backgroundColor: lineColor }]}
+                            colors={[theme.lineStart, theme.lineMid, theme.lineMid, theme.lineStart]}
+                            locations={[0, 0.18, 0.82, 1]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={[styles.line, { top }]}
                         />
                     ))}
 
                     <TextInput
                         ref={ref}
-                        style={[styles.textInput, { color: textColor }]}
+                        style={[
+                            styles.textInput,
+                            { color: theme.textColor, fontFamily: SERIF_FONT },
+                        ]}
                         placeholder={placeholder}
-                        placeholderTextColor={placeholderColor}
+                        placeholderTextColor={theme.placeholderColor}
                         multiline
                         scrollEnabled={false}
                         autoFocus={autoFocus}
@@ -114,31 +109,27 @@ export const LinedJournalInput = forwardRef<TextInput, LinedJournalInputProps>(
     }
 );
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
     scrollView: {
         flex: 1,
     },
     contentContainer: {
-        // minHeight keeps all 120 lines visible even when the typed text is short.
-        // TextInput is normal flow (not absolute), so the space below the text
-        // is a non-interactive surface: tapping it with "handled" dismisses keyboard.
         minHeight: TOTAL_HEIGHT,
         position: 'relative',
     },
     line: {
         position: 'absolute',
-        left: PADDING,
-        right: PADDING,
+        left: PADDING_X,
+        right: PADDING_X,
         height: StyleSheet.hairlineWidth,
     },
     textInput: {
-        // Normal flow — grows with content from the top.
-        // No position:absolute so the area below typed text is not a TextInput.
-        padding: PADDING,
-        fontSize: 18,
+        paddingTop: TOP_SPACE,
+        paddingHorizontal: PADDING_X,
+        paddingBottom: PADDING_X,
+        fontSize: 17,
         lineHeight: LINE_HEIGHT,
+        letterSpacing: 0.1,
         backgroundColor: 'transparent',
         ...Platform.select({
             android: { textAlignVertical: 'top' as const },
