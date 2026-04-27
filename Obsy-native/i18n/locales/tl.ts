@@ -5,6 +5,7 @@ export const tl: TranslationDictionary = {
     home: 'Home',
     gallery: 'Gallery',
     insights: 'Insights',
+    topics: 'Topics',
     settings: 'Settings',
   },
   common: {

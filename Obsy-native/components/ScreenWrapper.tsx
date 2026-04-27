@@ -14,7 +14,7 @@ interface ScreenWrapperProps {
     hideFloatingBackground?: boolean;
     bottomInset?: number;
     edges?: Edge[];
-    screenName?: 'home' | 'gallery' | 'insights' | 'profile' | 'archive' | 'onboarding' | 'albums';
+    screenName?: 'home' | 'gallery' | 'insights' | 'topics' | 'profile' | 'archive' | 'onboarding' | 'albums';
 }
 
 export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({

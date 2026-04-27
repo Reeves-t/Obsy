@@ -1,25 +1,25 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { CTAOrbShell } from '@/components/home/CTAOrbShell';
 
 interface AnimatedJournalButtonProps {
   size?: number;
   disabled?: boolean;
   onPress?: () => void;
+  dim?: boolean;
 }
 
 const DEFAULT_SIZE = 44;
-const RING_PADDING = 8;
 
 export function AnimatedJournalButton({
   size = DEFAULT_SIZE,
   disabled = false,
   onPress,
+  dim = false,
 }: AnimatedJournalButtonProps) {
   const router = useRouter();
-  const ringSize = size + RING_PADDING;
   const iconSize = size * 0.46;
 
   const handlePress = () => {
@@ -32,58 +32,17 @@ export function AnimatedJournalButton({
   };
 
   return (
-    <View style={[styles.outerContainer, { width: ringSize, height: ringSize }]}>
-      <View
-        style={[
-          styles.metallicRingShell,
-          { width: ringSize, height: ringSize, borderRadius: ringSize / 2 },
-        ]}
-      >
-        <LinearGradient
-          colors={['rgba(200,200,200,0.25)', 'rgba(120,120,120,0.15)', 'rgba(200,200,200,0.25)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[
-            styles.ringGradient,
-            { borderRadius: ringSize / 2 },
-          ]}
-        />
-      </View>
-
-      <TouchableOpacity
-        activeOpacity={disabled ? 1 : 0.8}
-        disabled={disabled}
-        onPress={handlePress}
-        style={[
-          styles.button,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-          },
-        ]}
-      >
-        <View style={[styles.borderRing, { borderRadius: size / 2 }]} />
-        <LinearGradient
-          colors={['rgba(255,255,255,0.07)', 'rgba(0,0,0,0.14)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <LinearGradient
-          colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.05)', 'transparent']}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={[
-            styles.glassShine,
-            { borderTopLeftRadius: size / 2, borderTopRightRadius: size / 2 },
-          ]}
-        />
-        <View style={[styles.innerGlint, { borderRadius: size / 2 }]} />
+    <TouchableOpacity
+      activeOpacity={disabled ? 1 : 0.84}
+      disabled={disabled}
+      onPress={handlePress}
+      style={styles.touchable}
+    >
+      <CTAOrbShell size={size} dim={dim}>
         <View style={styles.iconContainer}>
           <Svg width={iconSize} height={iconSize} viewBox="0 0 24 24">
             <Path
-              d="M7 3.5h6.8l3.7 3.8V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"
+              d="M3.5 5.8c2.6-.9 5.4-.9 8 0v13c-2.6-.9-5.4-.9-8 0v-13Z"
               stroke="#FFFFFF"
               strokeWidth={1.5}
               fill="none"
@@ -91,82 +50,68 @@ export function AnimatedJournalButton({
               strokeLinejoin="round"
             />
             <Path
-              d="M13.8 3.8V7.2H17.2"
+              d="M20.5 5.8c-2.6-.9-5.4-.9-8 0v13c2.6-.9 5.4-.9 8 0v-13Z"
               stroke="#FFFFFF"
-              strokeWidth={1.3}
+              strokeWidth={1.5}
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             <Path
-              d="M8.5 10.5h5.5"
+              d="M11.5 5.8v13"
+              stroke="#FFFFFF"
+              strokeWidth={1.1}
+              strokeLinecap="round"
+              opacity={0.55}
+            />
+            <Path
+              d="M5.6 9.1c1.3-.35 2.6-.4 3.9-.15"
               stroke="#FFFFFF"
               strokeWidth={1.2}
               strokeLinecap="round"
+              opacity={0.6}
             />
             <Path
-              d="M8.5 13.3h4.4"
+              d="M5.6 11.4c1.3-.35 2.6-.4 3.9-.15"
               stroke="#FFFFFF"
               strokeWidth={1.2}
               strokeLinecap="round"
+              opacity={0.6}
             />
             <Path
-              d="M11.8 16.8l4.9-4.9 1.4 1.4-4.9 4.9-2.3.9z"
+              d="M19.4 7.6 14 13l-1.05 2.85 2.85-1.05 5.4-5.4-1.8-1.8Z"
+              fill="#FFFFFF"
+              stroke="none"
+            />
+            <Path
+              d="M18.1 8.9l1.8 1.8"
+              stroke="#0D0D0C"
+              strokeWidth={1}
+              strokeLinecap="round"
+              opacity={0.5}
+            />
+            <Path
+              d="m12.95 15.85 1.05-2.85"
               stroke="#FFFFFF"
-              strokeWidth={1.4}
+              strokeWidth={1.2}
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </Svg>
         </View>
-      </TouchableOpacity>
-    </View>
+      </CTAOrbShell>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  outerContainer: {
+  touchable: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  metallicRingShell: {
-    position: 'absolute',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ringGradient: {
-    ...StyleSheet.absoluteFillObject,
-    borderWidth: 2,
-    borderColor: 'rgba(180,180,180,0.3)',
-  },
-  button: {
-    backgroundColor: '#171717',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  borderRing: {
-    ...StyleSheet.absoluteFillObject,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  glassShine: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '33%',
-  },
-  innerGlint: {
-    ...StyleSheet.absoluteFillObject,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
   },
   iconContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1,
   },
 });

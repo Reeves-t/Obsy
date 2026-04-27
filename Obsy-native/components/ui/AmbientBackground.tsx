@@ -116,7 +116,7 @@ const THEME_SETTINGS = {
 // Screen-specific settings for gradient behavior
 // Focus screens (home, albums): ghosted gradient with dark overlay
 // Atmospheric screens (gallery, insights, profile): full strength (enhanced in light mode)
-type ScreenName = 'home' | 'gallery' | 'insights' | 'profile' | 'archive' | 'onboarding' | 'albums';
+type ScreenName = 'home' | 'gallery' | 'insights' | 'topics' | 'profile' | 'archive' | 'onboarding' | 'albums';
 
 interface ScreenSettings {
     // Opacity of black overlay above gradients (0 = no overlay, 0.8 = ghosted)
@@ -135,6 +135,7 @@ const SCREEN_SETTINGS: Record<ScreenName | 'default', ScreenSettings> = {
     // Atmospheric screens: full gradient (enhanced visibility in light mode)
     gallery: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
     insights: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
+    topics: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
     profile: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
 
     // Other screens: default behavior
