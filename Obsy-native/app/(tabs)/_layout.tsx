@@ -10,6 +10,33 @@ import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/i18n/config';
 import { TopicsTabIcon } from '@/components/topics/TopicsTabIcon';
 
+function ActiveHalo() {
+  return (
+    <View style={styles.activeHaloWrap} pointerEvents="none">
+      {/* Soft spotlight beam falling down from top edge */}
+      <LinearGradient
+        colors={[
+          'rgba(255,255,255,0.22)',
+          'rgba(255,255,255,0.08)',
+          'rgba(255,255,255,0.02)',
+          'transparent',
+        ]}
+        locations={[0, 0.28, 0.58, 1]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.activeHaloGlow}
+      />
+      {/* Bright top-edge pill — the main visible indicator */}
+      <LinearGradient
+        colors={['transparent', 'rgba(255,255,255,0.85)', 'transparent']}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={styles.activeHaloCore}
+      />
+    </View>
+  );
+}
+
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof Ionicons>['name'];
   color: string;
@@ -17,28 +44,7 @@ function TabBarIcon(props: {
 }) {
   return (
     <View style={styles.iconFrame}>
-      {props.focused && (
-        <View style={styles.activeHaloWrap}>
-          <LinearGradient
-            colors={[
-              'rgba(255,255,255,0.14)',
-              'rgba(255,255,255,0.06)',
-              'rgba(255,255,255,0.015)',
-              'transparent',
-            ]}
-            locations={[0, 0.34, 0.62, 1]}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={styles.activeHaloGlow}
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(255,255,255,0.55)', 'transparent']}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={styles.activeHaloCore}
-          />
-        </View>
-      )}
+      {props.focused && <ActiveHalo />}
       <Ionicons size={26} style={styles.iconGlyph} {...props} />
     </View>
   );
@@ -49,7 +55,7 @@ export default function TabLayout() {
   const { usesTimeTheme } = useObsyTheme();
 
   const tabBarActiveTintColor = '#FFFFFF';
-  const tabBarInactiveTintColor = usesTimeTheme ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.55)';
+  const tabBarInactiveTintColor = usesTimeTheme ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.38)';
 
   return (
     <Tabs
@@ -117,28 +123,7 @@ export default function TabLayout() {
           title: t('navigation.topics'),
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconFrame}>
-              {focused && (
-                <View style={styles.activeHaloWrap}>
-                  <LinearGradient
-                    colors={[
-                      'rgba(255,255,255,0.14)',
-                      'rgba(255,255,255,0.06)',
-                      'rgba(255,255,255,0.015)',
-                      'transparent',
-                    ]}
-                    locations={[0, 0.34, 0.62, 1]}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={styles.activeHaloGlow}
-                  />
-                  <LinearGradient
-                    colors={['transparent', 'rgba(255,255,255,0.55)', 'transparent']}
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={styles.activeHaloCore}
-                  />
-                </View>
-              )}
+              {focused && <ActiveHalo />}
               <TopicsTabIcon color={color} focused={focused} />
             </View>
           ),
@@ -177,31 +162,32 @@ const styles = StyleSheet.create({
   activeHaloWrap: {
     position: 'absolute',
     top: -4,
-    width: 180,
-    height: 56,
+    // Width matches roughly one tab — keeps glow contained and non-blobby
+    width: 72,
+    height: 46,
     alignItems: 'center',
     overflow: 'visible',
   },
   activeHaloGlow: {
     position: 'absolute',
-    top: -4,
-    width: 180,
-    height: 56,
-    borderRadius: 999,
+    top: 0,
+    width: 72,
+    height: 46,
+    borderRadius: 36,
     shadowColor: '#FFFFFF',
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: -1 },
   },
   activeHaloCore: {
     position: 'absolute',
     top: 0,
-    width: 80,
-    height: 1.5,
+    width: 40,
+    height: 2,
     borderRadius: 2,
     shadowColor: '#FFFFFF',
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
+    shadowOpacity: 0.6,
+    shadowRadius: 5,
     shadowOffset: { width: 0, height: 0 },
   },
 });
