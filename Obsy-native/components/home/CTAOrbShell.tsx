@@ -28,9 +28,9 @@ export function CTAOrbShell({ size, dim = false, children }: CTAOrbShellProps) {
     >
       <LinearGradient
         colors={[
-          'rgba(200,200,200,0.45)',
-          'rgba(140,140,140,0.30)',
-          'rgba(90,90,90,0.25)',
+          'rgba(230,230,230,0.60)',
+          'rgba(180,180,180,0.44)',
+          'rgba(140,140,140,0.36)',
         ]}
         locations={[0, 0.45, 1]}
         start={{ x: 0.15, y: 0.08 }}
@@ -61,13 +61,6 @@ export function CTAOrbShell({ size, dim = false, children }: CTAOrbShellProps) {
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFillObject}
-        />
-        <LinearGradient
-          colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.05)', 'transparent']}
-          locations={[0, 0.45, 0.75]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.topHighlight}
         />
         <View style={styles.innerRim} />
         <View style={styles.content}>{children}</View>
@@ -101,15 +94,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  topHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: '8%',
-    right: '8%',
-    height: '42%',
-    borderBottomLeftRadius: 999,
-    borderBottomRightRadius: 999,
   },
   innerRim: {
     ...StyleSheet.absoluteFillObject,

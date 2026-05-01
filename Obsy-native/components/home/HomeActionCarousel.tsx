@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import MaskedView from '@react-native-masked-view/masked-view';
 import Animated, {
   Easing,
+  SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedMicButton } from '@/components/home/AnimatedMicButton';
 import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
@@ -62,10 +61,6 @@ const CONTAINER_HEIGHT = 300;
 const CAPTION_SWAP_OUT_DURATION = 130;
 const CAPTION_SWAP_DELAY = 140;
 const ORBIT_ANIMATION_DURATION = 820;
-const CTA_SHIMMER_DURATION = 3200;
-const CAPTION_REVEAL_DELAY = CTA_SHIMMER_DURATION * 0.35;
-const CAPTION_REVEAL_MID_DURATION = CTA_SHIMMER_DURATION * 0.2;
-const CAPTION_REVEAL_END_DURATION = CTA_SHIMMER_DURATION * 0.2;
 const SWIPE_THRESHOLD = 36;
 
 const SLOT_LAYOUTS: Record<OrbitSlotName, OrbitLayout> = {
@@ -136,6 +131,307 @@ const CTA_DESCRIPTIONS: Record<ActionKey, string> = {
   voice: "say what's on your mind out loud",
   'quick-mood': 'no words needed, just log the mood',
 };
+
+// ─── Per-action caption animations ───────────────────────────────────
+
+function splitTextToWords(text: string): { char: string; index: number }[][] {
+  const words = text.split(' ');
+  let idx = 0;
+  return words.map((word, wi) => {
+    const chars = word.split('').map(c => ({ char: c, index: idx++ }));
+    if (wi < words.length - 1) {
+      chars.push({ char: ' ', index: idx++ });
+    }
+    return chars;
+  });
+}
+
+function VoiceWaveChar({
+  char,
+  index,
+  progress,
+  totalChars,
+}: {
+  char: string;
+  index: number;
+  progress: SharedValue<number>;
+  totalChars: number;
+}) {
+  const animStyle = useAnimatedStyle(() => {
+    const p = progress.value;
+    const waveCenter = p * (totalChars + 10) - 5;
+    const dist = index - waveCenter;
+    const spread = 5;
+    let y = 0;
+    if (Math.abs(dist) < spread) {
+      const normalized = dist / spread;
+      y = -7 * (1 + Math.cos(normalized * Math.PI)) / 2;
+    }
+    return {
+      transform: [{ translateY: y }],
+      opacity: Math.min(1, p * 3),
+    };
+  });
+
+  return (
+    <Animated.View style={animStyle}>
+      <Text style={styles.captionCharText}>{char}</Text>
+    </Animated.View>
+  );
+}
+
+function VoiceWaveCaption({
+  text,
+  animKey,
+}: {
+  text: string;
+  animKey: number;
+}) {
+  const progress = useSharedValue(0);
+  const totalChars = text.length;
+  const wordGroups = useMemo(() => splitTextToWords(text), [text]);
+
+  useEffect(() => {
+    progress.value = 0;
+    progress.value = withDelay(
+      280,
+      withTiming(1, {
+        duration: 2200,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      })
+    );
+  }, [animKey, progress]);
+
+  return (
+    <View style={styles.captionCharRow}>
+      {wordGroups.map((group, gi) => (
+        <View key={gi} style={styles.captionWordGroup}>
+          {group.map(({ char, index }) => (
+            <VoiceWaveChar
+              key={index}
+              char={char}
+              index={index}
+              progress={progress}
+              totalChars={totalChars}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function CaptureFlashCaption({
+  text,
+  animKey,
+}: {
+  text: string;
+  animKey: number;
+}) {
+  const baseProgress = useSharedValue(0);
+  const flashIntensity = useSharedValue(0);
+
+  useEffect(() => {
+    baseProgress.value = 0;
+    flashIntensity.value = 0;
+
+    flashIntensity.value = withDelay(
+      600,
+      withSequence(
+        withTiming(1, { duration: 100, easing: Easing.out(Easing.cubic) }),
+        withTiming(0, { duration: 400, easing: Easing.out(Easing.cubic) })
+      )
+    );
+
+    baseProgress.value = withDelay(
+      650,
+      withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) })
+    );
+  }, [animKey, baseProgress, flashIntensity]);
+
+  const baseStyle = useAnimatedStyle(() => ({
+    opacity: 0.35 + baseProgress.value * 0.65,
+  }));
+
+  const flashStyle = useAnimatedStyle(() => ({
+    opacity: flashIntensity.value * 0.85,
+  }));
+
+  return (
+    <View style={styles.captionRevealWrap}>
+      <Animated.Text style={[styles.captionText, baseStyle]}>
+        {text}
+      </Animated.Text>
+      <Animated.Text
+        style={[styles.captionText, styles.captionFlashOverlay, flashStyle]}
+      >
+        {text}
+      </Animated.Text>
+    </View>
+  );
+}
+
+function JournalTypewriterChar({
+  char,
+  index,
+  progress,
+  totalChars,
+}: {
+  char: string;
+  index: number;
+  progress: SharedValue<number>;
+  totalChars: number;
+}) {
+  const animStyle = useAnimatedStyle(() => {
+    const threshold = index / totalChars;
+    const fadeWidth = 1.5 / totalChars;
+    return {
+      opacity: Math.min(1, Math.max(0, (progress.value - threshold) / fadeWidth)),
+    };
+  });
+
+  return <Animated.Text style={animStyle}>{char}</Animated.Text>;
+}
+
+function JournalTypewriterCaption({
+  text,
+  animKey,
+}: {
+  text: string;
+  animKey: number;
+}) {
+  const progress = useSharedValue(0);
+  const totalChars = text.length;
+  const chars = useMemo(() => text.split(''), [text]);
+
+  useEffect(() => {
+    progress.value = 0;
+    progress.value = withDelay(
+      280,
+      withTiming(1, {
+        duration: 1600,
+        easing: Easing.bezier(0.2, 0, 0.35, 1),
+      })
+    );
+  }, [animKey, progress]);
+
+  return (
+    <View style={styles.captionRevealWrap}>
+      <Text style={styles.captionText}>
+        {chars.map((char, i) => (
+          <JournalTypewriterChar
+            key={i}
+            char={char}
+            index={i}
+            progress={progress}
+            totalChars={totalChars}
+          />
+        ))}
+      </Text>
+    </View>
+  );
+}
+
+const ORB_CONFIGS = [
+  { xPct: 0.12, yPct: 0.3, size: 6, delay: 0 },
+  { xPct: 0.38, yPct: 0.65, size: 5, delay: 0.12 },
+  { xPct: 0.68, yPct: 0.2, size: 7, delay: 0.18 },
+  { xPct: 0.88, yPct: 0.55, size: 4, delay: 0.28 },
+];
+
+function FloatingOrb({
+  xPct,
+  yPct,
+  size,
+  delay,
+  progress,
+  width,
+  height,
+}: {
+  xPct: number;
+  yPct: number;
+  size: number;
+  delay: number;
+  progress: SharedValue<number>;
+  width: number;
+  height: number;
+}) {
+  const animStyle = useAnimatedStyle(() => {
+    const raw = progress.value;
+    const p = Math.max(0, Math.min(1, (raw - delay) / (1 - delay)));
+    let opacity: number;
+    if (p < 0.3) {
+      opacity = p / 0.3;
+    } else if (p < 0.55) {
+      opacity = 1;
+    } else {
+      opacity = 1 - (p - 0.55) / 0.45;
+    }
+    return {
+      opacity: Math.max(0, opacity) * 0.55,
+      transform: [{ translateY: -10 * p }],
+    };
+  });
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          left: width * xPct - size / 2,
+          top: height * yPct - size / 2,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: 'rgba(255,255,255,0.5)',
+        },
+        animStyle,
+      ]}
+    />
+  );
+}
+
+function QuickMoodOrbCaption({
+  text,
+  width,
+  height,
+  animKey,
+}: {
+  text: string;
+  width: number;
+  height: number;
+  animKey: number;
+}) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = 0;
+    progress.value = withDelay(
+      100,
+      withTiming(1, {
+        duration: 1400,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      })
+    );
+  }, [animKey, progress]);
+
+  return (
+    <View style={styles.captionRevealWrap}>
+      {ORB_CONFIGS.map((orb, i) => (
+        <FloatingOrb
+          key={i}
+          {...orb}
+          progress={progress}
+          width={width}
+          height={height}
+        />
+      ))}
+      <Text style={styles.captionText}>{text}</Text>
+    </View>
+  );
+}
+
+// ─── Carousel helpers ────────────────────────────────────────────────
 
 function wrapIndex(index: number): number {
   const length = ACTIONS.length;
@@ -305,35 +601,7 @@ export function HomeActionCarousel() {
   const animationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionOpacity = useSharedValue(1);
-  const captionBaseOpacity = useSharedValue(0);
-  const captionShimmerProgress = useSharedValue(0);
-
-  const restartCaptionAnimation = useCallback(() => {
-    captionBaseOpacity.value = 0;
-    captionBaseOpacity.value = withSequence(
-      withDelay(
-        CAPTION_REVEAL_DELAY,
-        withTiming(0.55, {
-          duration: CAPTION_REVEAL_MID_DURATION,
-          easing: Easing.bezier(0.4, 0, 0.2, 1),
-        })
-      ),
-      withTiming(1, {
-        duration: CAPTION_REVEAL_END_DURATION,
-        easing: Easing.bezier(0.4, 0, 0.2, 1),
-      })
-    );
-
-    captionShimmerProgress.value = 0;
-    captionShimmerProgress.value = withTiming(1, {
-      duration: CTA_SHIMMER_DURATION,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-    });
-  }, [captionBaseOpacity, captionShimmerProgress]);
-
-  useEffect(() => {
-    restartCaptionAnimation();
-  }, [restartCaptionAnimation]);
+  const [captionAnimKey, setCaptionAnimKey] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -363,37 +631,14 @@ export function HomeActionCarousel() {
     captionTimeoutRef.current = setTimeout(() => {
       setDisplayedActionKey(nextActionKey);
       captionOpacity.value = withTiming(1, { duration: 0 });
-      restartCaptionAnimation();
+      setCaptionAnimKey(k => k + 1);
       captionTimeoutRef.current = null;
     }, CAPTION_SWAP_DELAY);
-  }, [activeIndex, captionOpacity, displayedActionKey, restartCaptionAnimation]);
+  }, [activeIndex, captionOpacity, displayedActionKey]);
 
   const captionStyle = useAnimatedStyle(() => ({
     opacity: captionOpacity.value,
   }));
-
-  const captionBaseStyle = useAnimatedStyle(() => ({
-    opacity: captionBaseOpacity.value,
-  }));
-
-  const captionSweepStyle = useAnimatedStyle(() => {
-    const width = Math.max(captionLayout.width, 1);
-    const height = Math.max(captionLayout.height, 1);
-
-    return {
-      opacity: captionOpacity.value,
-      transform: [
-        {
-          translateX:
-            width * 1.3 + (-width * 1.6) * captionShimmerProgress.value,
-        },
-        {
-          translateY:
-            height * 1.3 + (-height * 1.6) * captionShimmerProgress.value,
-        },
-      ],
-    };
-  });
 
   const handleCaptionLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -464,50 +709,36 @@ export function HomeActionCarousel() {
 
       <View style={styles.captionWrap}>
         <Animated.View style={[styles.captionInner, captionStyle]}>
-          <Animated.Text onLayout={handleCaptionLayout} style={[styles.captionText, captionBaseStyle]}>
+          <Text
+            onLayout={handleCaptionLayout}
+            style={[styles.captionText, { opacity: 0 }]}
+          >
             {CTA_DESCRIPTIONS[displayedActionKey]}
-          </Animated.Text>
+          </Text>
           {captionLayout.width > 0 && captionLayout.height > 0 ? (
-            <MaskedView
-              pointerEvents="none"
-              style={[
-                styles.captionMaskView,
-                {
-                  width: captionLayout.width,
-                  height: captionLayout.height,
-                },
-              ]}
-              maskElement={
-                <View style={styles.captionMask}>
-                  <Text style={styles.captionText}>{CTA_DESCRIPTIONS[displayedActionKey]}</Text>
-                </View>
-              }
-            >
-              <Animated.View
-                style={[
-                  styles.captionSweep,
-                  {
-                    width: Math.max(captionLayout.width * 2.6, 140),
-                    height: Math.max(captionLayout.height * 2.6, 80),
-                  },
-                  captionSweepStyle,
-                ]}
-              >
-                <LinearGradient
-                  colors={[
-                    'transparent',
-                    'rgba(255,255,255,0.95)',
-                    '#FFFFFF',
-                    'rgba(255,255,255,0.95)',
-                    'transparent',
-                  ]}
-                  locations={[0.44, 0.49, 0.5, 0.51, 0.56]}
-                  start={{ x: 0.12, y: 1 }}
-                  end={{ x: 0.88, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              </Animated.View>
-            </MaskedView>
+            displayedActionKey === 'voice' ? (
+              <VoiceWaveCaption
+                text={CTA_DESCRIPTIONS.voice}
+                animKey={captionAnimKey}
+              />
+            ) : displayedActionKey === 'capture' ? (
+              <CaptureFlashCaption
+                text={CTA_DESCRIPTIONS.capture}
+                animKey={captionAnimKey}
+              />
+            ) : displayedActionKey === 'journal' ? (
+              <JournalTypewriterCaption
+                text={CTA_DESCRIPTIONS.journal}
+                animKey={captionAnimKey}
+              />
+            ) : (
+              <QuickMoodOrbCaption
+                text={CTA_DESCRIPTIONS['quick-mood']}
+                width={captionLayout.width}
+                height={captionLayout.height}
+                animKey={captionAnimKey}
+              />
+            )
           ) : null}
         </Animated.View>
       </View>
@@ -561,7 +792,6 @@ const styles = StyleSheet.create({
     minHeight: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     position: 'relative',
   },
   captionText: {
@@ -576,19 +806,33 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 12,
   },
-  captionMaskView: {
-    position: 'absolute',
+  captionRevealWrap: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  captionMask: {
-    alignItems: 'center',
+  captionCharRow: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
+    alignContent: 'center',
   },
-  captionSweep: {
+  captionWordGroup: {
+    flexDirection: 'row',
+  },
+  captionCharText: {
+    color: 'rgba(210,212,218,0.72)',
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(180,190,210,0.18)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+  captionFlashOverlay: {
     position: 'absolute',
-    left: 0,
-    top: 0,
+    color: '#FFFFFF',
   },
 });
