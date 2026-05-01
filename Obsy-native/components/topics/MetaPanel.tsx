@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -9,8 +9,12 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle as SvgCircle, Polyline } from 'react-native-svg';
 import type { Topic, TopicStats } from '@/lib/topicStore';
+import { useTopicStore } from '@/lib/topicStore';
 import type { MoodSegment } from '@/lib/dailyMoodFlows';
 import { getMoodTheme } from '@/lib/moods';
+import { AiToneId, getToneDefinition, isPresetTone } from '@/lib/aiTone';
+import { ToneSelector } from '@/components/insights/ToneSelector';
+import { useCustomTones } from '@/hooks/useCustomTones';
 
 interface MetaPanelProps {
     topic: Topic;
@@ -230,6 +234,15 @@ export function MetaPanel({ topic, stats, onClose }: MetaPanelProps) {
     const mostFeltDisplay = stats.mostFelt === '—' ? 'Not enough entries' : stats.mostFelt;
     const lastLoggedDisplay = stats.lastLogged === 'Never' ? 'No entries yet' : stats.lastLogged;
 
+    // ── Tone ─────────────────────────────────────────────────────
+    const updateTopicTone = useTopicStore(s => s.updateTopicTone);
+    const { tones: customTones } = useCustomTones();
+    const [toneSelectorVisible, setToneSelectorVisible] = useState(false);
+    const activeToneId = (topic.toneId ?? 'neutral') as AiToneId;
+    const activeToneName = isPresetTone(activeToneId)
+        ? getToneDefinition(activeToneId).label
+        : (customTones.find(t => t.id === activeToneId)?.name ?? 'Custom');
+
     const translateY = useSharedValue(8);
     const opacity = useSharedValue(0);
 
@@ -271,6 +284,15 @@ export function MetaPanel({ topic, stats, onClose }: MetaPanelProps) {
                         <Text style={styles.closeBtnText}>{'✕'}</Text>
                     </Pressable>
                 </View>
+
+                {/* ── Tone row ── */}
+                <Pressable style={styles.toneRow} onPress={() => setToneSelectorVisible(true)}>
+                    <Text style={styles.toneRowLabel}>TONE</Text>
+                    <View style={styles.toneRowRight}>
+                        <Text style={styles.toneRowValue}>{activeToneName}</Text>
+                        <Text style={styles.toneRowChevron}>›</Text>
+                    </View>
+                </Pressable>
 
                 {/* ── Stat row 1: Mood avg · Streak · Active ── */}
                 <View style={styles.statsRow}>
@@ -351,10 +373,22 @@ export function MetaPanel({ topic, stats, onClose }: MetaPanelProps) {
                             </View>
                             <Text style={styles.ctaPrimaryLabel}>Generate insight</Text>
                         </View>
-                        <Text style={[styles.ctaPrimaryCaption, { zIndex: 1 }]}>from your reflections</Text>
+                        <Text style={[styles.ctaPrimaryCaption, { zIndex: 1 }]}>
+                            {activeToneName !== 'Neutral' ? `${activeToneName} · ` : ''}from your reflections
+                        </Text>
                     </Pressable>
                 </View>
             </ScrollView>
+
+            <ToneSelector
+                visible={toneSelectorVisible}
+                onClose={() => setToneSelectorVisible(false)}
+                currentToneId={activeToneId}
+                onSelectTone={(toneId) => {
+                    updateTopicTone(topic.id, toneId);
+                    setToneSelectorVisible(false);
+                }}
+            />
         </Animated.View>
     );
 }
@@ -430,6 +464,42 @@ const styles = StyleSheet.create({
     closeBtnText: {
         color: 'rgba(255,255,255,0.7)',
         fontSize: 14,
+    },
+
+    // ── Tone row ───────────────────────────────────────────────
+    toneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    toneRowLabel: {
+        fontSize: 10,
+        fontWeight: '600',
+        letterSpacing: 1.0,
+        textTransform: 'uppercase',
+        color: 'rgba(255,255,255,0.38)',
+    },
+    toneRowRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    toneRowValue: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.75)',
+        letterSpacing: -0.1,
+    },
+    toneRowChevron: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.3)',
+        marginTop: -1,
     },
 
     // ── Stat row 1 ─────────────────────────────────────────────

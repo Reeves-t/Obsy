@@ -14,6 +14,7 @@ export type Topic = {
     description: string;
     hue: number;        // 0-360, tints the orb
     createdAt: string;  // ISO timestamp
+    toneId?: string;    // preset AiToneId or custom tone UUID
 };
 
 export type TopicStats = {
@@ -218,6 +219,7 @@ type TopicState = {
     topics: Topic[];
     addTopic: (title: string, description: string) => string;
     removeTopic: (id: string) => void;
+    updateTopicTone: (topicId: string, toneId: string) => void;
     getStats: (topicId: string) => TopicStats;
 };
 
@@ -241,6 +243,14 @@ export const useTopicStore = create<TopicState>()(
 
             removeTopic: (id) => {
                 set(state => ({ topics: state.topics.filter(t => t.id !== id) }));
+            },
+
+            updateTopicTone: (topicId, toneId) => {
+                set(state => ({
+                    topics: state.topics.map(t =>
+                        t.id === topicId ? { ...t, toneId } : t
+                    ),
+                }));
             },
 
             getStats: (topicId) => {
