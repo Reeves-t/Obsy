@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import { useCaptureStore } from './captureStore';
+import { getMoodTheme } from './moods';
+import { MoodSegment } from './dailyMoodFlows';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -12,16 +14,18 @@ export type Topic = {
     description: string;
     hue: number;        // 0-360, tints the orb
     createdAt: string;  // ISO timestamp
+    toneId?: string;    // preset AiToneId or custom tone UUID
 };
 
 export type TopicStats = {
     streak: number;
     totalEntries: number;
-    moodAvg: number;              // 1.0–5.0
+    moodAvg: number;              // 1.0–10.0
     moodTrend: number;            // -1..1
     activeDaysThisWeek: number;   // 0..7
     weekTotal: number;            // always 7
-    spark: number[];              // last 14 mood values
+    spark: number[];              // last 14 daily mood averages (0 = no data)
+    moodSegments: MoodSegment[];  // for topic mood flow bar
     mostFelt: string;
     lastLogged: string;
     impact: string;
@@ -39,11 +43,61 @@ function pickImpact(trend: number): string {
     return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// ── Mood scoring (1–10 valence scale) ────────────────────────
+
+const MOOD_SCORES: Record<string, number> = {
+    joyful: 9, enthusiastic: 8.5, inspired: 8.5, confident: 8.5,
+    hopeful: 8, grateful: 8, playful: 7.5, creative: 7.5,
+    productive: 7.5, social: 7, peaceful: 7.5, calm: 7,
+    relaxed: 7, safe: 7, focused: 7, curious: 7,
+    tender: 6.5, hyped: 7, busy: 5,
+    neutral: 5, reflective: 5.5, unbothered: 5.5, nostalgic: 5,
+    restless: 4.5, scattered: 4, awkward: 4, tired: 4,
+    bored: 4, melancholy: 4, annoyed: 3.5, lonely: 3.5,
+    stressed: 3, anxious: 3, pressured: 3, drained: 3, numb: 3,
+    overwhelmed: 2.5, depressed: 2.5, angry: 2.5, manic: 3.5,
+};
+
+function getMoodScore(moodName: string): number {
+    return MOOD_SCORES[(moodName || '').toLowerCase().trim()] ?? 5;
+}
+
+// ── Mood segment computation ──────────────────────────────────
+
+function computeMoodSegments(linked: any[]): MoodSegment[] {
+    if (!linked.length) return [];
+
+    const moodCounts: Record<string, number> = {};
+    const moodSnapshots: Record<string, string> = {};
+
+    linked.forEach(c => {
+        const moodId = c.mood_id || 'neutral';
+        moodCounts[moodId] = (moodCounts[moodId] || 0) + 1;
+        if (c.mood_name_snapshot) moodSnapshots[moodId] = c.mood_name_snapshot;
+    });
+
+    const total = linked.length;
+
+    return Object.entries(moodCounts)
+        .map(([moodId, count]) => {
+            const theme = getMoodTheme(moodId);
+            return {
+                mood: moodSnapshots[moodId] || moodId,
+                percentage: (count / total) * 100,
+                color: theme.solid,
+                moodId,
+                gradientFrom: theme.gradient.primary,
+                gradientMid: theme.gradient.mid,
+                gradientTo: theme.gradient.secondary,
+            };
+        })
+        .sort((a, b) => b.percentage - a.percentage);
+}
+
 // ── Stat computation from captures ───────────────────────────
 
 function computeStatsForTopic(topicId: string): TopicStats {
     const captures = useCaptureStore.getState().captures;
-    // Filter captures that are linked to this topic
     const linked = captures.filter(c => c.tags?.includes(`topic:${topicId}`));
 
     if (linked.length === 0) {
@@ -55,6 +109,7 @@ function computeStatsForTopic(topicId: string): TopicStats {
             activeDaysThisWeek: 0,
             weekTotal: 7,
             spark: [],
+            moodSegments: [],
             mostFelt: '—',
             lastLogged: 'Never',
             impact: 'Just planted',
@@ -62,7 +117,6 @@ function computeStatsForTopic(topicId: string): TopicStats {
         };
     }
 
-    // Sort by date descending
     const sorted = [...linked].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
@@ -70,7 +124,7 @@ function computeStatsForTopic(topicId: string): TopicStats {
     const totalEntries = sorted.length;
     const lastNote = sorted[0]?.note || '';
 
-    // Last logged (human readable)
+    // Last logged
     const now = new Date();
     const lastDate = new Date(sorted[0].created_at);
     const diffDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -89,34 +143,35 @@ function computeStatsForTopic(topicId: string): TopicStats {
             .map(c => new Date(c.created_at).toDateString())
     ).size;
 
-    // Streak (consecutive days ending today or yesterday)
+    // Streak
     const daySet = new Set(sorted.map(c => {
         const d = new Date(c.created_at);
         return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     }));
     let streak = 0;
     const check = new Date(now);
-    // Allow starting from today or yesterday
     const todayKey = `${check.getFullYear()}-${check.getMonth()}-${check.getDate()}`;
-    if (!daySet.has(todayKey)) {
-        check.setDate(check.getDate() - 1);
-    }
+    if (!daySet.has(todayKey)) check.setDate(check.getDate() - 1);
     for (let i = 0; i < 365; i++) {
         const key = `${check.getFullYear()}-${check.getMonth()}-${check.getDate()}`;
-        if (daySet.has(key)) {
-            streak++;
-            check.setDate(check.getDate() - 1);
-        } else {
-            break;
-        }
+        if (daySet.has(key)) { streak++; check.setDate(check.getDate() - 1); }
+        else break;
     }
 
-    // Mood avg + trend (using mood_name_snapshot mapped to approximate numeric)
-    // For now, use a simple 1-5 scale based on position. Real mapping can come later.
-    const moodAvg = Math.min(5, Math.max(1, 2.5 + Math.random() * 2));
-    const moodTrend = totalEntries > 3 ? (Math.random() - 0.5) * 0.6 : 0;
+    // Mood avg (real, 1-10 scale)
+    const moodAvg = linked.reduce((sum, c) => sum + getMoodScore(c.mood_name_snapshot || ''), 0) / linked.length;
 
-    // Most felt mood
+    // Mood trend: compare recent half vs older half
+    const half = Math.max(1, Math.ceil(sorted.length / 2));
+    const recentEntries = sorted.slice(0, half);
+    const olderEntries = sorted.slice(half);
+    const recentAvg = recentEntries.reduce((sum, c) => sum + getMoodScore(c.mood_name_snapshot || ''), 0) / recentEntries.length;
+    const olderAvg = olderEntries.length > 0
+        ? olderEntries.reduce((sum, c) => sum + getMoodScore(c.mood_name_snapshot || ''), 0) / olderEntries.length
+        : recentAvg;
+    const moodTrend = Math.max(-1, Math.min(1, (recentAvg - olderAvg) / 4));
+
+    // Most felt
     const moodCounts: Record<string, number> = {};
     linked.forEach(c => {
         const name = c.mood_name_snapshot || 'Unknown';
@@ -124,15 +179,23 @@ function computeStatsForTopic(topicId: string): TopicStats {
     });
     const mostFelt = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
-    // Sparkline: last 14 days
+    // Sparkline: last 14 days with real mood averages
     const spark: number[] = [];
     for (let i = 13; i >= 0; i--) {
         const d = new Date(now);
         d.setDate(d.getDate() - i);
         const dayKey = d.toDateString();
         const dayEntries = linked.filter(c => new Date(c.created_at).toDateString() === dayKey);
-        spark.push(dayEntries.length > 0 ? 3 + Math.random() * 1.5 : 0);
+        if (dayEntries.length > 0) {
+            const avg = dayEntries.reduce((sum, c) => sum + getMoodScore(c.mood_name_snapshot || ''), 0) / dayEntries.length;
+            spark.push(avg);
+        } else {
+            spark.push(0);
+        }
     }
+
+    // Mood segments for mood flow bar
+    const moodSegments = computeMoodSegments(linked);
 
     return {
         streak,
@@ -142,6 +205,7 @@ function computeStatsForTopic(topicId: string): TopicStats {
         activeDaysThisWeek: daysThisWeek,
         weekTotal: 7,
         spark,
+        moodSegments,
         mostFelt,
         lastLogged,
         impact: pickImpact(moodTrend),
@@ -155,6 +219,7 @@ type TopicState = {
     topics: Topic[];
     addTopic: (title: string, description: string) => string;
     removeTopic: (id: string) => void;
+    updateTopicTone: (topicId: string, toneId: string) => void;
     getStats: (topicId: string) => TopicStats;
 };
 
@@ -178,6 +243,14 @@ export const useTopicStore = create<TopicState>()(
 
             removeTopic: (id) => {
                 set(state => ({ topics: state.topics.filter(t => t.id !== id) }));
+            },
+
+            updateTopicTone: (topicId, toneId) => {
+                set(state => ({
+                    topics: state.topics.map(t =>
+                        t.id === topicId ? { ...t, toneId } : t
+                    ),
+                }));
             },
 
             getStats: (topicId) => {
