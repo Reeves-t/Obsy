@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
         top: 96 + 168 + 26,
         left: 18,
         right: 18,
-        bottom: 96,
+        bottom: 0,
     },
     scroll: {
         flex: 1,

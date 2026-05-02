@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, Pressable, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, Pressable, Dimensions, LayoutChangeEvent } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -36,9 +36,14 @@ export default function TopicsScreen() {
     const [showHint, setShowHint] = useState(true);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [, setTick] = useState(0);
+    const [screenHeight, setScreenHeight] = useState(0);
+
+    // Derived layout: garden top in screen coords + focus ring center
+    const gardenTop = screenHeight - GARDEN_LAYOUT.bottom - GARDEN_LAYOUT.height;
+    const focusCenter = { x: SCREEN_W / 2, y: FOCUS_RING.topOffset + FOCUS_RING.size / 2 };
 
     // Physics
-    const { stateRef, setForceRender } = useGardenPhysics(
+    const { stateRef, setForceRender, markReleased } = useGardenPhysics(
         topics.map(t => t.id),
         focusedId,
         draggingId,
@@ -83,8 +88,6 @@ export default function TopicsScreen() {
 
     const dragInfo = useRef<{
         id: string;
-        offsetX: number;
-        offsetY: number;
         startAbsX: number;
         startAbsY: number;
         moved: boolean;
@@ -125,120 +128,117 @@ export default function TopicsScreen() {
         </View>
     );
 
-    const renderGarden = () => (
-        <View
-            style={[styles.gardenArea, {
-                bottom: GARDEN_LAYOUT.bottom,
-                height: GARDEN_LAYOUT.height,
-            }]}
-        >
-            {topics.map(t => {
-                const p = stateRef.current.get(t.id);
-                if (!p) return null;
+    const renderOrbs = () => {
+        if (screenHeight === 0) return null;
+        return topics.map(t => {
+            const p = stateRef.current.get(t.id);
+            if (!p) return null;
 
-                return (
-                    <Pressable
-                        key={t.id}
-                        onPressIn={(e) => {
-                            if (focusedId) return;
-                            dragInfo.current = {
-                                id: t.id,
-                                offsetX: p.x - (p.x),
-                                offsetY: p.y - (p.y),
-                                startAbsX: e.nativeEvent.pageX,
-                                startAbsY: e.nativeEvent.pageY,
-                                moved: false,
-                            };
-                            setDraggingId(t.id);
-                            velocityTracker.current = [{
-                                t: Date.now(),
-                                x: p.x,
-                                y: p.y,
-                            }];
-                        }}
-                        onPressOut={() => {
-                            const d = dragInfo.current;
-                            if (!d || d.id !== t.id) return;
-                            const pp = stateRef.current.get(d.id);
-                            dragInfo.current = null;
-                            setDraggingId(null);
-                            if (!pp) return;
+            return (
+                <Pressable
+                    key={t.id}
+                    onPressIn={(e) => {
+                        if (focusedId) return;
+                        dragInfo.current = {
+                            id: t.id,
+                            startAbsX: e.nativeEvent.pageX,
+                            startAbsY: e.nativeEvent.pageY,
+                            moved: false,
+                        };
+                        setDraggingId(t.id);
+                        velocityTracker.current = [{
+                            t: Date.now(),
+                            x: p.x,
+                            y: p.y,
+                        }];
+                    }}
+                    onPressOut={() => {
+                        const d = dragInfo.current;
+                        if (!d || d.id !== t.id) return;
+                        const pp = stateRef.current.get(d.id);
+                        dragInfo.current = null;
+                        setDraggingId(null);
+                        if (!pp) return;
 
-                            // Compute velocity
-                            const samples = velocityTracker.current;
-                            let vx = 0, vy = 0;
-                            if (samples.length >= 2) {
-                                const first = samples[0];
-                                const last = samples[samples.length - 1];
-                                const dt = Math.max(1, last.t - first.t);
-                                vx = ((last.x - first.x) / dt) * 16;
-                                vy = ((last.y - first.y) / dt) * 16;
-                            }
+                        // Pause drift for this orb so momentum isn't fought
+                        markReleased(d.id);
 
-                            // Tap (no movement)
-                            if (!d.moved) {
-                                setFocusedId(d.id);
-                                return;
-                            }
+                        // Compute velocity from recent samples
+                        const samples = velocityTracker.current;
+                        let vx = 0, vy = 0;
+                        if (samples.length >= 2) {
+                            const first = samples[0];
+                            const last = samples[samples.length - 1];
+                            const dt = Math.max(1, last.t - first.t);
+                            vx = ((last.x - first.x) / dt) * 16;
+                            vy = ((last.y - first.y) / dt) * 16;
+                        }
 
-                            // Flick up
-                            const speed = Math.hypot(vx, vy);
-                            if (vy < -2.2 && speed > 2.5) {
-                                setFocusedId(d.id);
-                                return;
-                            }
+                        // Check if orb overlaps the focus ring
+                        const orbScreenY = gardenTop + pp.y;
+                        const dx = pp.x - focusCenter.x;
+                        const dy = orbScreenY - focusCenter.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist < FOCUS_RING.size / 2) {
+                            setFocusedId(d.id);
+                            return;
+                        }
 
-                            // Hand momentum back
-                            pp.vx = Math.max(-2, Math.min(2, vx * 0.6));
-                            pp.vy = Math.max(-2, Math.min(2, vy * 0.6));
-                        }}
-                        onTouchMove={(e) => {
-                            const d = dragInfo.current;
-                            if (!d || d.id !== t.id) return;
-                            const pp = stateRef.current.get(d.id);
-                            if (!pp) return;
+                        // Tap with no drag: give a small nudge
+                        if (!d.moved) {
+                            pp.vx += (Math.random() - 0.5) * 3;
+                            pp.vy += (Math.random() - 0.5) * 3;
+                            return;
+                        }
 
-                            const dx = e.nativeEvent.pageX - d.startAbsX;
-                            const dy = e.nativeEvent.pageY - d.startAbsY;
+                        // Hand momentum back for flick feel
+                        pp.vx = Math.max(-5, Math.min(5, vx * 0.8));
+                        pp.vy = Math.max(-5, Math.min(5, vy * 0.8));
+                    }}
+                    onTouchMove={(e) => {
+                        const d = dragInfo.current;
+                        if (!d || d.id !== t.id) return;
+                        const pp = stateRef.current.get(d.id);
+                        if (!pp) return;
 
-                            if (Math.abs(dx) + Math.abs(dy) > 6) d.moved = true;
+                        const dx = e.nativeEvent.pageX - d.startAbsX;
+                        const dy = e.nativeEvent.pageY - d.startAbsY;
 
-                            const origP = stateRef.current.get(d.id);
-                            if (origP) {
-                                origP.x += dx;
-                                origP.y += dy;
-                                origP.vx = 0;
-                                origP.vy = 0;
-                                d.startAbsX = e.nativeEvent.pageX;
-                                d.startAbsY = e.nativeEvent.pageY;
-                            }
+                        if (Math.abs(dx) + Math.abs(dy) > 6) d.moved = true;
 
-                            const now = Date.now();
-                            velocityTracker.current.push({ t: now, x: pp.x, y: pp.y });
-                            velocityTracker.current = velocityTracker.current.filter(
-                                s => now - s.t < 120
-                            );
-                        }}
-                        style={{
-                            position: 'absolute',
-                            left: p.x - p.size / 2,
-                            top: p.y - p.size / 2,
-                            width: p.size,
-                            height: p.size,
-                        }}
-                    >
-                        <TopicOrb size={p.size} title={t.title} />
-                    </Pressable>
-                );
-            })}
-        </View>
-    );
+                        pp.x += dx;
+                        pp.y += dy;
+                        pp.vx = 0;
+                        pp.vy = 0;
+                        d.startAbsX = e.nativeEvent.pageX;
+                        d.startAbsY = e.nativeEvent.pageY;
+
+                        const now = Date.now();
+                        velocityTracker.current.push({ t: now, x: pp.x, y: pp.y });
+                        velocityTracker.current = velocityTracker.current.filter(
+                            s => now - s.t < 120
+                        );
+                    }}
+                    style={{
+                        position: 'absolute',
+                        left: p.x - p.size / 2,
+                        top: gardenTop + p.y - p.size / 2,
+                        width: p.size,
+                        height: p.size,
+                        zIndex: draggingId === t.id ? 10 : 2,
+                    }}
+                >
+                    <TopicOrb size={p.size} title={t.title} />
+                </Pressable>
+            );
+        });
+    };
 
     // ── Main render ───────────────────────────────────────────
 
     return (
         <ScreenWrapper screenName="topics" bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
-            <View style={styles.screen}>
+            <View style={styles.screen} onLayout={(e: LayoutChangeEvent) => setScreenHeight(e.nativeEvent.layout.height)}>
                 {/* Top bar */}
                 <View style={styles.topBar}>
                     <Text style={styles.screenTitle}>Topics</Text>
@@ -260,7 +260,7 @@ export default function TopicsScreen() {
                         <FocusRing active={!!focusedTopic}>
                             {focusedTopic ? (
                                 <Animated.View style={[styles.focusedOrbWrap, snapStyle]}>
-                                    <TopicOrb size={120} title={focusedTopic.title} selected />
+                                    <TopicOrb size={140} title={focusedTopic.title} selected />
                                 </Animated.View>
                             ) : (
                                 <Text style={styles.focusLabel}>FOCUS</Text>
@@ -274,12 +274,12 @@ export default function TopicsScreen() {
                     <Text style={[styles.hintText, {
                         bottom: GARDEN_LAYOUT.bottom + GARDEN_LAYOUT.height + 12,
                     }]}>
-                        {'\u2191'} tap or flick an orb up
+                        drag an orb into the ring
                     </Text>
                 )}
 
-                {/* Garden (when not focused) */}
-                {topics.length > 0 && !focusedTopic && renderGarden()}
+                {/* Orbs (rendered at screen level for free dragging) */}
+                {topics.length > 0 && !focusedTopic && renderOrbs()}
 
                 {/* Meta panel (when focused) */}
                 {focusedTopic && focusedStats && (
@@ -413,12 +413,5 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: 'rgba(255,255,255,0.4)',
         letterSpacing: 0.4,
-    },
-    // Garden
-    gardenArea: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        zIndex: 2,
     },
 });

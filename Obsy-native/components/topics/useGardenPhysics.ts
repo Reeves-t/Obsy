@@ -39,6 +39,7 @@ export function useGardenPhysics(
     draggingId: string | null,
 ) {
     const stateRef = useRef(new Map<string, OrbPhysics>());
+    const cooldownRef = useRef(new Map<string, number>()); // orbId → release timestamp
     const rafRef = useRef<number>(0);
     const renderTick = useRef(0);
     const forceRenderRef = useRef<() => void>(() => {});
@@ -46,6 +47,11 @@ export function useGardenPhysics(
     // Expose a way to trigger re-render from the host
     const setForceRender = useCallback((fn: () => void) => {
         forceRenderRef.current = fn;
+    }, []);
+
+    // Mark an orb as just released — drift pauses for 5s
+    const markReleased = useCallback((id: string) => {
+        cooldownRef.current.set(id, Date.now());
     }, []);
 
     // Init / sync entries when goal list changes
@@ -75,6 +81,7 @@ export function useGardenPhysics(
         const tick = () => {
             const m = stateRef.current;
             const ids = [...m.keys()];
+            const now = Date.now();
             const minX = GARDEN_LAYOUT.paddingX;
             const maxX = SCREEN_W - GARDEN_LAYOUT.paddingX;
             const minY = 6;
@@ -85,9 +92,15 @@ export function useGardenPhysics(
                 if (id === draggingId) continue;
                 const p = m.get(id)!;
 
-                // Gentle drift impulse
-                p.vx += rand(-0.012, 0.012);
-                p.vy += rand(-0.010, 0.010);
+                // Gentle drift impulse (skip if orb is in post-release cooldown)
+                const cooldownAt = cooldownRef.current.get(id);
+                if (cooldownAt != null && (now - cooldownAt) >= 5000) {
+                    cooldownRef.current.delete(id);
+                }
+                if (cooldownAt == null || (now - cooldownAt) >= 5000) {
+                    p.vx += rand(-0.012, 0.012);
+                    p.vy += rand(-0.010, 0.010);
+                }
 
                 // Friction
                 p.vx *= 0.985;
@@ -95,7 +108,7 @@ export function useGardenPhysics(
 
                 // Speed cap
                 const sp = Math.hypot(p.vx, p.vy);
-                const cap = 0.55;
+                const cap = 3;
                 if (sp > cap) {
                     p.vx = (p.vx / sp) * cap;
                     p.vy = (p.vy / sp) * cap;
@@ -105,12 +118,19 @@ export function useGardenPhysics(
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // Soft bounds
+                // Bounds
                 const r = p.size / 2;
-                if (p.x < minX + r) { p.x = minX + r; p.vx = Math.abs(p.vx) * 0.6; }
-                if (p.x > maxX - r) { p.x = maxX - r; p.vx = -Math.abs(p.vx) * 0.6; }
-                if (p.y < minY + r) { p.y = minY + r; p.vy = Math.abs(p.vy) * 0.6; }
-                if (p.y > maxY - r) { p.y = maxY - r; p.vy = -Math.abs(p.vy) * 0.6; }
+                // X: hard clamp to screen edges
+                if (p.x < minX + r) { p.x = minX + r; p.vx = Math.abs(p.vx) * 0.5; }
+                if (p.x > maxX - r) { p.x = maxX - r; p.vx = -Math.abs(p.vx) * 0.5; }
+                // Y: soft spring pull back to garden zone
+                if (p.y < minY + r) {
+                    p.vy += (minY + r - p.y) * 0.025;
+                    p.vy *= 0.92;
+                } else if (p.y > maxY - r) {
+                    p.vy += (maxY - r - p.y) * 0.025;
+                    p.vy *= 0.92;
+                }
             }
 
             // Pairwise repulsion
@@ -148,5 +168,5 @@ export function useGardenPhysics(
         return () => cancelAnimationFrame(rafRef.current);
     }, [focusedId, draggingId]);
 
-    return { stateRef, setForceRender };
+    return { stateRef, setForceRender, markReleased };
 }
