@@ -36,10 +36,10 @@ function rand(min: number, max: number) {
 export function useGardenPhysics(
     topicIds: string[],
     focusedId: string | null,
-    draggingId: string | null,
 ) {
     const stateRef = useRef(new Map<string, OrbPhysics>());
     const cooldownRef = useRef(new Map<string, number>()); // orbId → release timestamp
+    const draggingIdRef = useRef<string | null>(null); // updated synchronously in touch handlers
     const rafRef = useRef<number>(0);
     const renderTick = useRef(0);
     const forceRenderRef = useRef<() => void>(() => {});
@@ -76,12 +76,13 @@ export function useGardenPhysics(
         });
     }, [topicIds.join(',')]);
 
-    // Physics loop
+    // Physics loop — reads draggingIdRef each frame so drag exclusion is immediate
     useEffect(() => {
         const tick = () => {
             const m = stateRef.current;
             const ids = [...m.keys()];
             const now = Date.now();
+            const draggingId = draggingIdRef.current; // read ref, never stale
             const minX = GARDEN_LAYOUT.paddingX;
             const maxX = SCREEN_W - GARDEN_LAYOUT.paddingX;
             const minY = 6;
@@ -166,7 +167,7 @@ export function useGardenPhysics(
 
         rafRef.current = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafRef.current);
-    }, [focusedId, draggingId]);
+    }, [focusedId]); // draggingId no longer a dep — read from ref each frame
 
-    return { stateRef, setForceRender, markReleased };
+    return { stateRef, setForceRender, markReleased, draggingIdRef };
 }
