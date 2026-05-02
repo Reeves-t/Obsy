@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
@@ -45,6 +45,9 @@ const GENTLE_PROMPTS = [
 
 export default function JournalEntryScreen() {
     const router = useRouter();
+    const { topicId, topicTitle } = useLocalSearchParams<{ topicId?: string; topicTitle?: string }>();
+    const isTopicEntry = !!topicId;
+
     const { createJournalEntry } = useCaptureStore();
     const { user } = useAuth();
     const { getMoodById } = useCustomMoodStore();
@@ -109,13 +112,14 @@ export default function JournalEntryScreen() {
         setIsSaving(true);
 
         try {
+            const entryTags = isTopicEntry ? [`topic:${topicId}`] : [];
             await createJournalEntry(
                 user,
                 moodId,
                 moodName,
                 note,
-                [],
-                includeInInsights && !aiFreeMode
+                entryTags,
+                isTopicEntry ? false : includeInInsights && !aiFreeMode
             );
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
@@ -176,9 +180,17 @@ export default function JournalEntryScreen() {
                         <ThemedText style={[styles.headerDay, { color: onSurfacePrimary }]}>
                             {dayName}
                         </ThemedText>
-                        <ThemedText style={[styles.headerDate, { color: onSurfaceSecondary }]}>
-                            {dateLine}
-                        </ThemedText>
+                        {isTopicEntry && topicTitle ? (
+                            <View style={[styles.topicBadge, { backgroundColor: chipBackground, borderColor: chipBorder }]}>
+                                <ThemedText style={[styles.topicBadgeText, { color: onSurfaceSecondary }]}>
+                                    {topicTitle}
+                                </ThemedText>
+                            </View>
+                        ) : (
+                            <ThemedText style={[styles.headerDate, { color: onSurfaceSecondary }]}>
+                                {dateLine}
+                            </ThemedText>
+                        )}
                     </View>
 
                     <TouchableOpacity
@@ -244,7 +256,7 @@ export default function JournalEntryScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                    {!isTopicEntry && <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
                         <View style={styles.includeLabelBlock}>
                             <ThemedText style={[styles.includeLabel, { color: onSurfacePrimary }]}>
                                 Include in insights
@@ -263,7 +275,7 @@ export default function JournalEntryScreen() {
                             }}
                             thumbColor="#fff"
                         />
-                    </View>
+                    </View>}
 
                     <TouchableOpacity
                         onPress={handleSave}
@@ -392,6 +404,18 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         paddingTop: 4,
+    },
+    topicBadge: {
+        marginTop: 5,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        borderWidth: StyleSheet.hairlineWidth,
+    },
+    topicBadgeText: {
+        fontSize: 12,
+        fontWeight: '500',
+        letterSpacing: 0.1,
     },
     headerDay: {
         fontFamily: SERIF_FONT,

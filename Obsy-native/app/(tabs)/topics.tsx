@@ -17,6 +17,7 @@ import {
     GARDEN_LAYOUT,
     FOCUS_RING,
 } from '@/components/topics/useGardenPhysics';
+import { TopicEntrySheet } from '@/components/topics/TopicEntrySheet';
 import { useTopicStore } from '@/lib/topicStore';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -35,6 +36,7 @@ export default function TopicsScreen() {
     const [creating, setCreating] = useState(false);
     const [showHint, setShowHint] = useState(true);
     const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [entrySheetOpen, setEntrySheetOpen] = useState(false);
     const [, setTick] = useState(0);
     const [screenHeight, setScreenHeight] = useState(0);
 
@@ -298,6 +300,15 @@ export default function TopicsScreen() {
                         topic={focusedTopic}
                         stats={focusedStats}
                         onClose={() => setFocusedId(null)}
+                        onAddEntry={() => setEntrySheetOpen(true)}
+                    />
+                )}
+
+                {entrySheetOpen && focusedTopic && (
+                    <TopicEntrySheet
+                        topicId={focusedTopic.id}
+                        topicTitle={focusedTopic.title}
+                        onClose={() => setEntrySheetOpen(false)}
                     />
                 )}
 

@@ -11,7 +11,7 @@ import {
     useWindowDimensions,
     View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -266,6 +266,8 @@ function PlaybackStrip({
 
 export default function VoiceNoteScreen() {
     const router = useRouter();
+    const { topicId, topicTitle } = useLocalSearchParams<{ topicId?: string; topicTitle?: string }>();
+    const isTopicEntry = !!topicId;
     const { createVoiceEntry } = useCaptureStore();
     const { user } = useAuth();
     const { getMoodById } = useCustomMoodStore();
@@ -605,14 +607,16 @@ export default function VoiceNoteScreen() {
 
         setIsSaving(true);
         try {
+            const tags = isTopicEntry ? [`topic:${topicId}`] : [];
+            const insights = isTopicEntry ? false : includeInInsights && !aiFreeMode;
             await createVoiceEntry(
                 user,
                 moodId,
                 moodName,
                 transcript,
                 audioStorageUrl ?? '',
-                [],
-                includeInInsights && !aiFreeMode
+                tags,
+                insights
             );
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
@@ -665,9 +669,18 @@ export default function VoiceNoteScreen() {
                         <Ionicons name="chevron-back" size={26} color={onBackgroundPrimary} />
                     </TouchableOpacity>
 
-                    <ThemedText style={[styles.headerTitle, { color: onBackgroundPrimary }]}>
-                        Voice Note
-                    </ThemedText>
+                    <View style={styles.headerCenter}>
+                        <ThemedText style={[styles.headerTitle, { color: onBackgroundPrimary }]}>
+                            Voice Note
+                        </ThemedText>
+                        {isTopicEntry && (
+                            <View style={styles.topicBadge}>
+                                <ThemedText style={styles.topicBadgeText} numberOfLines={1}>
+                                    {topicTitle}
+                                </ThemedText>
+                            </View>
+                        )}
+                    </View>
 
                     {step === 'review' ? (
                         <TouchableOpacity onPress={handleReRecord} style={styles.headerSideRight}>
@@ -771,21 +784,23 @@ export default function VoiceNoteScreen() {
 
                         <View style={[styles.recordingBottomDock, { borderTopColor: surfaceBorder }]}>
                             <MoodTrigger />
-                            <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
-                                <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
-                                    Include in insights
-                                </ThemedText>
-                                <Switch
-                                    value={includeInInsights && !aiFreeMode}
-                                    disabled={aiFreeMode}
-                                    onValueChange={setIncludeInInsights}
-                                    trackColor={{
-                                        false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
-                                        true: Colors.obsy.silver,
-                                    }}
-                                    thumbColor="#fff"
-                                />
-                            </View>
+                            {!isTopicEntry && (
+                                <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                                    <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
+                                        Include in insights
+                                    </ThemedText>
+                                    <Switch
+                                        value={includeInInsights && !aiFreeMode}
+                                        disabled={aiFreeMode}
+                                        onValueChange={setIncludeInInsights}
+                                        trackColor={{
+                                            false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
+                                            true: Colors.obsy.silver,
+                                        }}
+                                        thumbColor="#fff"
+                                    />
+                                </View>
+                            )}
                         </View>
                     </View>
                 ) : (
@@ -846,21 +861,23 @@ export default function VoiceNoteScreen() {
 
                             <MoodTrigger />
 
-                            <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
-                                <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
-                                    Include in insights
-                                </ThemedText>
-                                <Switch
-                                    value={includeInInsights && !aiFreeMode}
-                                    disabled={aiFreeMode}
-                                    onValueChange={setIncludeInInsights}
-                                    trackColor={{
-                                        false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
-                                        true: Colors.obsy.silver,
-                                    }}
-                                    thumbColor="#fff"
-                                />
-                            </View>
+                            {!isTopicEntry && (
+                                <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                                    <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
+                                        Include in insights
+                                    </ThemedText>
+                                    <Switch
+                                        value={includeInInsights && !aiFreeMode}
+                                        disabled={aiFreeMode}
+                                        onValueChange={setIncludeInInsights}
+                                        trackColor={{
+                                            false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
+                                            true: Colors.obsy.silver,
+                                        }}
+                                        thumbColor="#fff"
+                                    />
+                                </View>
+                            )}
                         </ScrollView>
 
                         <View pointerEvents="box-none" style={styles.publishDockWrap}>
@@ -921,13 +938,30 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
         gap: 4,
     },
-    headerTitle: {
+    headerCenter: {
         position: 'absolute',
         left: 0,
         right: 0,
+        alignItems: 'center',
+    },
+    headerTitle: {
         textAlign: 'center',
         fontSize: 17,
         fontWeight: '600',
+    },
+    topicBadge: {
+        marginTop: 2,
+        paddingHorizontal: 10,
+        paddingVertical: 2,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        maxWidth: 200,
+    },
+    topicBadgeText: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.55)',
+        letterSpacing: 0.2,
     },
     reRecordHeaderText: {
         fontSize: 14,

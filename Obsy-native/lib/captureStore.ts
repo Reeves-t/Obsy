@@ -67,7 +67,8 @@ type CaptureState = {
         challengeContext?: { challengeId: string, templateId: string },
         obsyNote?: string | null,
         usePhotoForInsight?: boolean,
-        tier?: SubscriptionTier
+        tier?: SubscriptionTier,
+        includeInInsights?: boolean
     ) => Promise<string | null>;
     deleteCapture: (id: string) => Promise<void>;
     getAllTags: () => string[];
@@ -374,7 +375,7 @@ export const useCaptureStore = create<CaptureState>()(
              * @throws Error if imageUri, moodId, or moodName is missing or invalid.
              * @throws Error if capture limits are exceeded for the user's tier.
              */
-            createCapture: async (imageUri, moodId, moodName, note, tags = [], challengeContext, obsyNote, usePhotoForInsight = false, tier = 'free' as SubscriptionTier) => {
+            createCapture: async (imageUri, moodId, moodName, note, tags = [], challengeContext, obsyNote, usePhotoForInsight = false, tier = 'free' as SubscriptionTier, includeInInsights = true) => {
                 const { data: { user } } = await supabase.auth.getUser();
                 const currentCaptures = get().captures;
                 const limits = getTierLimits(tier);
@@ -491,6 +492,7 @@ export const useCaptureStore = create<CaptureState>()(
                         challengeTemplateId: challengeContext?.templateId,
                         obsy_note: obsyNote,
                         usePhotoForInsight: usePhotoForInsight,
+                        includeInInsights,
                     });
                 } else {
                     return await get().addCapture(null, {
@@ -504,6 +506,7 @@ export const useCaptureStore = create<CaptureState>()(
                         challengeTemplateId: challengeContext?.templateId,
                         obsy_note: obsyNote,
                         usePhotoForInsight: usePhotoForInsight,
+                        includeInInsights,
                     });
                 }
             },

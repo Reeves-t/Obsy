@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -15,6 +15,8 @@ import { useObsyTheme } from '@/contexts/ThemeContext';
 
 export default function QuickMoodScreen() {
   const router = useRouter();
+  const { topicId, topicTitle } = useLocalSearchParams<{ topicId?: string; topicTitle?: string }>();
+  const isTopicEntry = !!topicId;
   const { createJournalEntry } = useCaptureStore();
   const { user } = useAuth();
   const { getMoodById } = useCustomMoodStore();
@@ -43,7 +45,9 @@ export default function QuickMoodScreen() {
 
     setIsSaving(true);
     try {
-      await createJournalEntry(user, moodId, moodName, '', [], includeInInsights && !aiFreeMode);
+      const tags = isTopicEntry ? [`topic:${topicId}`] : [];
+      const insights = isTopicEntry ? false : includeInInsights && !aiFreeMode;
+      await createJournalEntry(user, moodId, moodName, '', tags, insights);
       router.dismissAll();
       setTimeout(() => router.replace('/(tabs)'), 100);
     } catch (error) {
@@ -60,7 +64,14 @@ export default function QuickMoodScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
           <Ionicons name="chevron-back" size={28} color="white" />
         </TouchableOpacity>
-        <ThemedText style={styles.headerTitle}>Quick Mood</ThemedText>
+        <View style={styles.headerCenter}>
+          <ThemedText style={styles.headerTitle}>Quick Mood</ThemedText>
+          {isTopicEntry && (
+            <View style={styles.topicBadge}>
+              <ThemedText style={styles.topicBadgeText} numberOfLines={1}>{topicTitle}</ThemedText>
+            </View>
+          )}
+        </View>
         <TouchableOpacity onPress={handleSave} disabled={!canSave} style={styles.headerButton}>
           <ThemedText style={[styles.doneText, !canSave && styles.doneTextDisabled]}>
             {isSaving ? 'Saving...' : 'Done'}
@@ -87,21 +98,23 @@ export default function QuickMoodScreen() {
           )}
         </TouchableOpacity>
 
-        <View style={[styles.includeRow, { borderColor: colors.cardBorder }, aiFreeMode && styles.includeRowDisabled]}>
-          <View style={styles.includeCopy}>
-            <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
-            <ThemedText style={styles.includeHint}>
-              Keep this on if the mood should count toward insight summaries.
-            </ThemedText>
+        {!isTopicEntry && (
+          <View style={[styles.includeRow, { borderColor: colors.cardBorder }, aiFreeMode && styles.includeRowDisabled]}>
+            <View style={styles.includeCopy}>
+              <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
+              <ThemedText style={styles.includeHint}>
+                Keep this on if the mood should count toward insight summaries.
+              </ThemedText>
+            </View>
+            <Switch
+              value={includeInInsights && !aiFreeMode}
+              disabled={aiFreeMode}
+              onValueChange={setIncludeInInsights}
+              trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
+              thumbColor="#fff"
+            />
           </View>
-          <Switch
-            value={includeInInsights && !aiFreeMode}
-            disabled={aiFreeMode}
-            onValueChange={setIncludeInInsights}
-            trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
-            thumbColor="#fff"
-          />
-        </View>
+        )}
       </View>
 
       <MoodSelectionModal
@@ -126,10 +139,27 @@ const styles = StyleSheet.create({
   headerButton: {
     minWidth: 60,
   },
+  headerCenter: {
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
     color: 'white',
+  },
+  topicBadge: {
+    marginTop: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    maxWidth: 200,
+  },
+  topicBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 0.2,
   },
   doneText: {
     color: Colors.obsy.silver,
