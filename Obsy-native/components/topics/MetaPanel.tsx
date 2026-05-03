@@ -20,6 +20,7 @@ interface MetaPanelProps {
     topic: Topic;
     stats: TopicStats;
     onClose: () => void;
+    onAddEntry?: () => void;
 }
 
 // ── Trend helpers ─────────────────────────────────────────────
@@ -227,7 +228,7 @@ function SparkleIcon() {
 
 // ── Main panel ────────────────────────────────────────────────
 
-export function MetaPanel({ topic, stats, onClose }: MetaPanelProps) {
+export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps) {
     const trendColor = getTrendColor(stats.moodTrend);
     const trendArrow = getTrendArrow(stats.moodTrend);
     const moodDisplay = stats.moodAvg > 0 ? stats.moodAvg.toFixed(1) : '—';
@@ -350,14 +351,14 @@ export function MetaPanel({ topic, stats, onClose }: MetaPanelProps) {
 
                 {/* ── CTAs ── */}
                 <View style={styles.ctaStack}>
-                    <Pressable style={styles.ctaSecondary}>
+                    <Pressable style={styles.ctaSecondary} onPress={onAddEntry}>
                         <View style={styles.ctaLeft}>
                             <View style={styles.ctaPlusChip}>
                                 <Text style={styles.ctaPlusGlyph}>+</Text>
                             </View>
-                            <Text style={styles.ctaSecondaryLabel}>Log today</Text>
+                            <Text style={styles.ctaSecondaryLabel}>Add entry</Text>
                         </View>
-                        <Text style={styles.ctaCaption}>mood {'·'} note {'·'} progress</Text>
+                        <Text style={styles.ctaCaption}>voice {'·'} journal {'·'} mood {'·'} capture</Text>
                     </Pressable>
 
                     <Pressable style={styles.ctaPrimary}>

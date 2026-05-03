@@ -41,13 +41,17 @@ const GENTLE_PROMPTS = [
 
 export default function CaptureReviewScreen() {
     const { imageUri, challengeId, challengeTemplateId, challengeTitle, albumId: initialAlbumId,
+        topicId, topicTitle,
     } = useLocalSearchParams<{
         imageUri: string,
         challengeId?: string,
         challengeTemplateId?: string,
         challengeTitle?: string,
         albumId?: string,
+        topicId?: string,
+        topicTitle?: string,
     }>();
+    const isTopicEntry = !!topicId;
     const router = useRouter();
     const { createCapture, getAllTags, lastUsedAlbumId, setLastUsedAlbumId, setPendingSaveAnimationUri, setPendingSaveMoodGradient, setPendingSaveComplete } = useCaptureStore();
     const { user } = useAuth();
@@ -164,7 +168,7 @@ export default function CaptureReviewScreen() {
         // Capture all values from component scope before navigating away
         const saveMoodId = moodId;
         const saveNote = note;
-        const saveTags = tags;
+        const saveTags = isTopicEntry ? [...tags, `topic:${topicId}`] : tags;
         const saveDestinations = postDestinations;
         const saveUsePhotoForInsight = usePhotoForInsight;
         const saveTier = tier;
@@ -229,7 +233,8 @@ export default function CaptureReviewScreen() {
                 saveChallengeId && saveChallengeTemplateId ? { challengeId: saveChallengeId, templateId: saveChallengeTemplateId } : undefined,
                 obsyNote,
                 saveUsePhotoForInsight,
-                saveTier
+                saveTier,
+                !isTopicEntry
             );
 
             if (saveChallengeId && newCaptureId) {
@@ -356,7 +361,16 @@ export default function CaptureReviewScreen() {
                         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                             <Ionicons name="chevron-back" size={28} color="white" />
                         </TouchableOpacity>
-                        <ThemedText type="subtitle">Details</ThemedText>
+                        <View style={styles.headerCenter}>
+                            <ThemedText type="subtitle">Details</ThemedText>
+                            {isTopicEntry && (
+                                <View style={styles.topicBadge}>
+                                    <ThemedText style={styles.topicBadgeText} numberOfLines={1}>
+                                        {topicTitle}
+                                    </ThemedText>
+                                </View>
+                            )}
+                        </View>
                         <View style={{ width: 28 }} />
                     </View>
 
@@ -609,6 +623,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 10,
+    },
+    headerCenter: {
+        alignItems: 'center',
+    },
+    topicBadge: {
+        marginTop: 3,
+        paddingHorizontal: 10,
+        paddingVertical: 2,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        maxWidth: 200,
+    },
+    topicBadgeText: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.55)',
+        letterSpacing: 0.2,
     },
     backButton: {
         padding: 4,

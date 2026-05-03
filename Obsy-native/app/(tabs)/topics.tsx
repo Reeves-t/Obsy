@@ -17,6 +17,7 @@ import {
     GARDEN_LAYOUT,
     FOCUS_RING,
 } from '@/components/topics/useGardenPhysics';
+import { TopicEntrySheet } from '@/components/topics/TopicEntrySheet';
 import { useTopicStore } from '@/lib/topicStore';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -35,6 +36,7 @@ export default function TopicsScreen() {
     const [creating, setCreating] = useState(false);
     const [showHint, setShowHint] = useState(true);
     const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [entrySheetOpen, setEntrySheetOpen] = useState(false);
     const [, setTick] = useState(0);
     const [screenHeight, setScreenHeight] = useState(0);
 
@@ -43,10 +45,9 @@ export default function TopicsScreen() {
     const focusCenter = { x: SCREEN_W / 2, y: FOCUS_RING.topOffset + FOCUS_RING.size / 2 };
 
     // Physics
-    const { stateRef, setForceRender, markReleased } = useGardenPhysics(
+    const { stateRef, setForceRender, markReleased, draggingIdRef } = useGardenPhysics(
         topics.map(t => t.id),
         focusedId,
-        draggingId,
     );
 
     // Wire physics re-render
@@ -137,15 +138,25 @@ export default function TopicsScreen() {
             return (
                 <Pressable
                     key={t.id}
+                    pressRetentionOffset={{ top: 9999, left: 9999, bottom: 9999, right: 9999 }}
                     onPressIn={(e) => {
                         if (focusedId) return;
+                        // Stop the orb immediately — zero velocity before physics
+                        // loop gets a chance to integrate it further
+                        p.vx = 0;
+                        p.vy = 0;
                         dragInfo.current = {
                             id: t.id,
                             startAbsX: e.nativeEvent.pageX,
                             startAbsY: e.nativeEvent.pageY,
                             moved: false,
                         };
+                        // Update ref synchronously so the physics tick skips
+                        // this orb on the very next frame (no stale-closure lag)
+                        draggingIdRef.current = t.id;
                         setDraggingId(t.id);
+                        // Start 5-second float-pause from the moment of press
+                        markReleased(t.id);
                         velocityTracker.current = [{
                             t: Date.now(),
                             x: p.x,
@@ -157,6 +168,8 @@ export default function TopicsScreen() {
                         if (!d || d.id !== t.id) return;
                         const pp = stateRef.current.get(d.id);
                         dragInfo.current = null;
+                        // Resume physics for this orb immediately
+                        draggingIdRef.current = null;
                         setDraggingId(null);
                         if (!pp) return;
 
@@ -287,6 +300,15 @@ export default function TopicsScreen() {
                         topic={focusedTopic}
                         stats={focusedStats}
                         onClose={() => setFocusedId(null)}
+                        onAddEntry={() => setEntrySheetOpen(true)}
+                    />
+                )}
+
+                {entrySheetOpen && focusedTopic && (
+                    <TopicEntrySheet
+                        topicId={focusedTopic.id}
+                        topicTitle={focusedTopic.title}
+                        onClose={() => setEntrySheetOpen(false)}
                     />
                 )}
 

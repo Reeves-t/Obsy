@@ -260,6 +260,11 @@ export const useTopicStore = create<TopicState>()(
         {
             name: 'obsy-topics-storage',
             storage: createJSONStorage(() => AsyncStorage),
+            version: 1,
+            migrate: (persistedState: any, _fromVersion: number) => {
+                // v0 → v1: baseline; toneId was always optional so no backfill needed
+                return persistedState as { topics: Topic[] };
+            },
             partialize: (state) => ({
                 topics: state.topics,
             }),
