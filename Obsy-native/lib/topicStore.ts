@@ -8,6 +8,13 @@ import { MoodSegment } from './dailyMoodFlows';
 
 // ── Types ────────────────────────────────────────────────────
 
+export type TopicNote = {
+    id: string;
+    topicId: string;
+    text: string;
+    createdAt: string;
+};
+
 export type Topic = {
     id: string;
     title: string;
@@ -217,16 +224,20 @@ function computeStatsForTopic(topicId: string): TopicStats {
 
 type TopicState = {
     topics: Topic[];
+    topicNotes: TopicNote[];
     addTopic: (title: string, description: string) => string;
     removeTopic: (id: string) => void;
     updateTopicTone: (topicId: string, toneId: string) => void;
     getStats: (topicId: string) => TopicStats;
+    addTopicNote: (topicId: string, text: string) => void;
+    getTopicNotes: (topicId: string) => TopicNote[];
 };
 
 export const useTopicStore = create<TopicState>()(
     persist(
         (set, get) => ({
             topics: [],
+            topicNotes: [],
 
             addTopic: (title, description) => {
                 const id = Crypto.randomUUID();
@@ -256,6 +267,20 @@ export const useTopicStore = create<TopicState>()(
             getStats: (topicId) => {
                 return computeStatsForTopic(topicId);
             },
+
+            addTopicNote: (topicId, text) => {
+                const note: TopicNote = {
+                    id: `note-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    topicId,
+                    text: text.trim(),
+                    createdAt: new Date().toISOString(),
+                };
+                set(state => ({ topicNotes: [note, ...state.topicNotes] }));
+            },
+
+            getTopicNotes: (topicId) => {
+                return get().topicNotes.filter(n => n.topicId === topicId);
+            },
         }),
         {
             name: 'obsy-topics-storage',
@@ -267,6 +292,7 @@ export const useTopicStore = create<TopicState>()(
             },
             partialize: (state) => ({
                 topics: state.topics,
+                topicNotes: state.topicNotes,
             }),
         }
     )

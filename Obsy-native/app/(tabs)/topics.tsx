@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, View, Text, Pressable, Dimensions, LayoutChangeEvent } from 'react-native';
+import { useRouter } from 'expo-router';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -31,6 +32,7 @@ interface VelocitySample {
 }
 
 export default function TopicsScreen() {
+    const router = useRouter();
     const { topics, addTopic, getStats } = useTopicStore();
     const [focusedId, setFocusedId] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
@@ -301,6 +303,10 @@ export default function TopicsScreen() {
                         stats={focusedStats}
                         onClose={() => setFocusedId(null)}
                         onAddEntry={() => setEntrySheetOpen(true)}
+                        onAskObsy={() => router.push({
+                            pathname: '/topics/chat',
+                            params: { topicId: focusedTopic.id, topicTitle: focusedTopic.title },
+                        })}
                     />
                 )}
 

@@ -6,7 +6,7 @@ import { Database } from '../types/supabase.types';
 type UserSettings = Database['public']['Tables']['user_settings']['Row'];
 type SubscriptionTier = UserSettings['subscription_tier'];
 
-export type FeatureName = 'daily_insight' | 'group_insight' | 'weekly_insight' | 'albums' | 'premium_tones';
+export type FeatureName = 'daily_insight' | 'group_insight' | 'weekly_insight' | 'albums' | 'premium_tones' | 'topic_chat';
 
 interface SubscriptionState {
     tier: SubscriptionTier;
@@ -153,6 +153,7 @@ export function useSubscription(): SubscriptionState {
             if (feature === 'albums' && tier === 'guest') return false; // Guests can't access albums
             if (feature === 'albums') return true; // Free users can access albums
             if (feature === 'premium_tones' && (tier === 'guest' || tier === 'free')) return false;
+            if (feature === 'topic_chat' && (tier === 'guest' || tier === 'free')) return false;
 
             const currentCount =
                 feature === 'daily_insight'

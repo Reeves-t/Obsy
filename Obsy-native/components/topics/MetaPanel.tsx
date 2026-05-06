@@ -8,19 +8,23 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle as SvgCircle, Polyline } from 'react-native-svg';
-import type { Topic, TopicStats } from '@/lib/topicStore';
+import type { Topic, TopicStats, TopicNote } from '@/lib/topicStore';
 import { useTopicStore } from '@/lib/topicStore';
 import type { MoodSegment } from '@/lib/dailyMoodFlows';
 import { getMoodTheme } from '@/lib/moods';
 import { AiToneId, getToneDefinition, isPresetTone } from '@/lib/aiTone';
 import { ToneSelector } from '@/components/insights/ToneSelector';
 import { useCustomTones } from '@/hooks/useCustomTones';
+import { useSubscription } from '@/hooks/useSubscription';
+import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
+import * as Haptics from 'expo-haptics';
 
 interface MetaPanelProps {
     topic: Topic;
     stats: TopicStats;
     onClose: () => void;
     onAddEntry?: () => void;
+    onAskObsy?: () => void;
 }
 
 // ── Trend helpers ─────────────────────────────────────────────
@@ -41,7 +45,7 @@ function getTrendArrow(trend: number): string {
 
 function RecentPatternChart({ spark, trendColor }: { spark: number[]; trendColor: string }) {
     const { width } = useWindowDimensions();
-    const W = width - 36 - 28; // card width accounting for panel margins + card padding
+    const W = width - 36 - 28;
     const H = 52;
     const PAD_X = 8;
     const PAD_Y = 8;
@@ -78,7 +82,6 @@ function RecentPatternChart({ spark, trendColor }: { spark: number[]; trendColor
 
     return (
         <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-            {/* Soft line */}
             <Polyline
                 points={polyline}
                 fill="none"
@@ -88,7 +91,6 @@ function RecentPatternChart({ spark, trendColor }: { spark: number[]; trendColor
                 strokeLinejoin="round"
                 opacity={0.55}
             />
-            {/* Dots at each data point */}
             {pts.map((p, i) => (
                 <SvgCircle
                     key={i}
@@ -99,7 +101,6 @@ function RecentPatternChart({ spark, trendColor }: { spark: number[]; trendColor
                     opacity={i === pts.length - 1 ? 1 : 0.7}
                 />
             ))}
-            {/* Highlight ring on newest point */}
             <SvgCircle
                 cx={last.x}
                 cy={last.y}
@@ -226,9 +227,37 @@ function SparkleIcon() {
     );
 }
 
+// ── Chat bubble icon ─────────────────────────────────────────
+
+function ChatBubbleIcon() {
+    return (
+        <Svg width={14} height={14} viewBox="0 0 16 16" fill="none">
+            <Path
+                d="M2 3.5C2 2.67 2.67 2 3.5 2h9C13.33 2 14 2.67 14 3.5v6c0 .83-.67 1.5-1.5 1.5H5.5L2 14V3.5z"
+                fill="rgba(255,255,255,0.85)"
+            />
+        </Svg>
+    );
+}
+
+// ── Notes section ────────────────────────────────────────────
+
+function NoteItem({ note }: { note: TopicNote }) {
+    const date = new Date(note.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+    });
+    return (
+        <View style={styles.noteItem}>
+            <Text style={styles.noteText}>{note.text}</Text>
+            <Text style={styles.noteDate}>{date}</Text>
+        </View>
+    );
+}
+
 // ── Main panel ────────────────────────────────────────────────
 
-export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps) {
+export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: MetaPanelProps) {
     const trendColor = getTrendColor(stats.moodTrend);
     const trendArrow = getTrendArrow(stats.moodTrend);
     const moodDisplay = stats.moodAvg > 0 ? stats.moodAvg.toFixed(1) : '—';
@@ -237,6 +266,7 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps)
 
     // ── Tone ─────────────────────────────────────────────────────
     const updateTopicTone = useTopicStore(s => s.updateTopicTone);
+    const getTopicNotes = useTopicStore(s => s.getTopicNotes);
     const { tones: customTones } = useCustomTones();
     const [toneSelectorVisible, setToneSelectorVisible] = useState(false);
     const activeToneId = (topic.toneId ?? 'neutral') as AiToneId;
@@ -244,6 +274,24 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps)
         ? getToneDefinition(activeToneId).label
         : (customTones.find(t => t.id === activeToneId)?.name ?? 'Custom');
 
+    // ── Premium gate ─────────────────────────────────────────────
+    const { checkLimit, tier } = useSubscription();
+    const [showPaywall, setShowPaywall] = useState(false);
+
+    const handleAskObsy = async () => {
+        const allowed = checkLimit('topic_chat');
+        if (!allowed) {
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            setShowPaywall(true);
+            return;
+        }
+        onAskObsy?.();
+    };
+
+    // ── Notes ─────────────────────────────────────────────────────
+    const savedNotes = useMemo(() => getTopicNotes(topic.id), [topic.id, getTopicNotes]);
+
+    // ── Entry animation ───────────────────────────────────────────
     const translateY = useSharedValue(8);
     const opacity = useSharedValue(0);
 
@@ -349,8 +397,21 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps)
                     <TopicMoodFlowBar segments={stats.moodSegments} />
                 </View>
 
+                {/* ── Notes section ── */}
+                {savedNotes.length > 0 && (
+                    <View style={styles.sectionCard}>
+                        <Text style={styles.sectionLabel}>Notes</Text>
+                        <View style={styles.notesList}>
+                            {savedNotes.slice(0, 5).map(note => (
+                                <NoteItem key={note.id} note={note} />
+                            ))}
+                        </View>
+                    </View>
+                )}
+
                 {/* ── CTAs ── */}
                 <View style={styles.ctaStack}>
+                    {/* Add entry */}
                     <Pressable style={styles.ctaSecondary} onPress={onAddEntry}>
                         <View style={styles.ctaLeft}>
                             <View style={styles.ctaPlusChip}>
@@ -361,6 +422,7 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps)
                         <Text style={styles.ctaCaption}>voice {'·'} journal {'·'} mood {'·'} capture</Text>
                     </Pressable>
 
+                    {/* Generate insight */}
                     <Pressable style={styles.ctaPrimary}>
                         <LinearGradient
                             colors={['rgba(255,255,255,0.96)', 'rgba(232,234,240,0.92)']}
@@ -378,6 +440,19 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps)
                             {activeToneName !== 'Neutral' ? `${activeToneName} · ` : ''}from your reflections
                         </Text>
                     </Pressable>
+
+                    {/* Ask Obsy — premium only */}
+                    <Pressable style={styles.ctaAskObsy} onPress={handleAskObsy}>
+                        <View style={styles.ctaLeft}>
+                            <View style={styles.ctaChatChip}>
+                                <ChatBubbleIcon />
+                            </View>
+                            <Text style={styles.ctaAskObsyLabel}>Ask Obsy</Text>
+                        </View>
+                        <Text style={styles.ctaAskObsyCaption}>
+                            {tier === 'founder' || tier === 'subscriber' ? `about ${topic.title}` : 'Plus'}
+                        </Text>
+                    </Pressable>
                 </View>
             </ScrollView>
 
@@ -389,6 +464,12 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry }: MetaPanelProps)
                     updateTopicTone(topic.id, toneId);
                     setToneSelectorVisible(false);
                 }}
+            />
+
+            <VanguardPaywall
+                visible={showPaywall}
+                onClose={() => setShowPaywall(false)}
+                featureName="topic_chat"
             />
         </Animated.View>
     );
@@ -583,7 +664,7 @@ const styles = StyleSheet.create({
         letterSpacing: -0.2,
     },
 
-    // ── Section card (pattern + flow) ─────────────────────────
+    // ── Section card (pattern + flow + notes) ─────────────────
     sectionCard: {
         padding: 12,
         paddingHorizontal: 14,
@@ -605,6 +686,33 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.35)',
         fontStyle: 'italic',
         lineHeight: 17,
+    },
+
+    // ── Notes list ─────────────────────────────────────────────
+    notesList: {
+        gap: 8,
+    },
+    noteItem: {
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+        gap: 4,
+    },
+    noteText: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.75)',
+        lineHeight: 19,
+        fontWeight: '400',
+    },
+    noteDate: {
+        fontSize: 10,
+        color: 'rgba(255,255,255,0.30)',
+        fontWeight: '500',
+        letterSpacing: 0.2,
+        textTransform: 'uppercase',
     },
 
     // ── Mood flow bar ──────────────────────────────────────────
@@ -725,6 +833,38 @@ const styles = StyleSheet.create({
     ctaPrimaryCaption: {
         fontSize: 12,
         color: 'rgba(11,12,16,0.55)',
+        fontWeight: '500',
+    },
+
+    // ── Ask Obsy CTA ───────────────────────────────────────────
+    ctaAskObsy: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 14,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        backgroundColor: 'rgba(139,34,82,0.10)',
+        borderWidth: 1,
+        borderColor: 'rgba(139,34,82,0.28)',
+    },
+    ctaChatChip: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: 'rgba(139,34,82,0.20)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ctaAskObsyLabel: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#fff',
+        letterSpacing: -0.1,
+    },
+    ctaAskObsyCaption: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.45)',
         fontWeight: '500',
     },
 });
