@@ -59,27 +59,38 @@ const eclipseStyles = StyleSheet.create({
 function ChatBubble({ message }: { message: ChatMessage }) {
     const isUser = message.role === 'user';
 
-    return (
-        <View style={[bubbleStyles.container, isUser ? bubbleStyles.userContainer : bubbleStyles.assistantContainer]}>
-            <View style={[bubbleStyles.bubble, isUser ? bubbleStyles.userBubble : bubbleStyles.assistantBubble]}>
-                <ThemedText style={[bubbleStyles.text, isUser ? bubbleStyles.userText : bubbleStyles.assistantText]}>
-                    {message.text}
-                </ThemedText>
+    if (isUser) {
+        return (
+            <View style={[bubbleStyles.container, bubbleStyles.userContainer]}>
+                <View style={bubbleStyles.userBubble}>
+                    <ThemedText style={bubbleStyles.userText}>{message.text}</ThemedText>
+                </View>
             </View>
+        );
+    }
+
+    // Assistant: bubbleless prose directly on the background
+    return (
+        <View style={[bubbleStyles.container, bubbleStyles.assistantContainer]}>
+            <ThemedText style={bubbleStyles.assistantText}>{message.text}</ThemedText>
         </View>
     );
 }
 
 const bubbleStyles = StyleSheet.create({
-    container: { paddingHorizontal: 16, marginVertical: 4 },
-    userContainer: { alignItems: 'flex-end' },
-    assistantContainer: { alignItems: 'flex-start' },
-    bubble: { maxWidth: '85%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
-    userBubble: { backgroundColor: 'rgba(139, 34, 82, 0.22)', borderBottomRightRadius: 4 },
-    assistantBubble: { backgroundColor: 'rgba(255, 255, 255, 0.06)', borderBottomLeftRadius: 4 },
-    text: { fontSize: 14, lineHeight: 20 },
-    userText: { color: 'rgba(255, 255, 255, 0.85)' },
-    assistantText: { color: 'rgba(255, 255, 255, 0.7)' },
+    container: { paddingHorizontal: 16 },
+    userContainer: { alignItems: 'flex-end', marginVertical: 4 },
+    assistantContainer: { alignItems: 'flex-start', marginVertical: 10, maxWidth: '92%' },
+    userBubble: {
+        maxWidth: '85%',
+        borderRadius: 16,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        backgroundColor: 'rgba(139, 34, 82, 0.22)',
+        borderBottomRightRadius: 4,
+    },
+    userText: { fontSize: 14, lineHeight: 20, color: 'rgba(255, 255, 255, 0.85)' },
+    assistantText: { fontSize: 21, lineHeight: 32, color: 'rgba(255, 255, 255, 0.7)' },
 });
 
 // ── Context builders ────────────────────────────────────────────────────

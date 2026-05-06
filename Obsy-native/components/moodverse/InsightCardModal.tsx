@@ -10,6 +10,7 @@ import {
     Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -146,6 +147,7 @@ const stepperStyles = StyleSheet.create({
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardModalProps) {
+    const insets = useSafeAreaInsets();
     const { tones: customTones } = useCustomTones();
     const { canGenerate, getRemainingGenerations, consumeGeneration, getCached, setCached } = useInsightCardStore();
 
@@ -337,7 +339,7 @@ export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardM
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 20) + 16 }]} showsVerticalScrollIndicator={false}>
 
                         {/* ── Card type ─────────────────────────────── */}
                         <View style={styles.section}>

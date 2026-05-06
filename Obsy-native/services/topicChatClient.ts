@@ -16,11 +16,7 @@ function buildTopicContext(topic: Topic, stats: TopicStats, captures: Capture[])
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
-    const recentEntries = sorted.slice(0, 20).map(c => ({
-        date: new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        mood: c.mood_name_snapshot,
-        ...(c.note ? { note: c.note } : {}),
-    }));
+    const recentEntries = sorted.slice(0, 20);
 
     const moodCounts: Record<string, number> = {};
     linked.forEach(c => {
@@ -29,27 +25,47 @@ function buildTopicContext(topic: Topic, stats: TopicStats, captures: Capture[])
     });
     const moodDistribution = Object.entries(moodCounts)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([mood, count]) => ({ mood, count }));
+        .slice(0, 8);
 
-    return JSON.stringify({
-        mode: 'topic_chat',
-        topic: {
-            title: topic.title,
-            description: topic.description || '',
-        },
-        stats: {
-            totalEntries: stats.totalEntries,
-            moodAverage: stats.moodAvg > 0 ? stats.moodAvg.toFixed(1) : null,
-            streak: stats.streak,
-            mostFeltMood: stats.mostFelt !== '—' ? stats.mostFelt : null,
-            lastLogged: stats.lastLogged,
-            impact: stats.impact,
-        },
-        moodDistribution,
-        recentEntries,
-        instructions: `You are Obsy, a calm and reflective AI companion. The user is reflecting on their "${topic.title}" topic. Stay entirely focused on this topic and its associated data — do not reference other areas of their life or app data unrelated to this topic. Be warm, curious, and insightful. Ask one question at a time. Keep responses concise (2-4 sentences).`,
-    });
+    // Build plain-text context so the edge function's formatContextPack
+    // falls through its catch block and passes this string to Claude as-is.
+    const lines: string[] = [];
+
+    lines.push(`TOPIC REFLECTION: "${topic.title}"`);
+    if (topic.description) lines.push(`Description: ${topic.description}`);
+    lines.push('');
+
+    lines.push('TOPIC STATS:');
+    lines.push(`- Total entries: ${stats.totalEntries}`);
+    if (stats.moodAvg > 0) lines.push(`- Mood average: ${stats.moodAvg.toFixed(1)}`);
+    if (stats.streak > 0) lines.push(`- Current streak: ${stats.streak} days`);
+    if (stats.mostFelt !== '—') lines.push(`- Most felt mood: ${stats.mostFelt}`);
+    if (stats.lastLogged) lines.push(`- Last logged: ${stats.lastLogged}`);
+    if (stats.impact) lines.push(`- Impact: ${stats.impact}`);
+    lines.push('');
+
+    if (moodDistribution.length > 0) {
+        lines.push('MOOD DISTRIBUTION:');
+        for (const [mood, count] of moodDistribution) {
+            lines.push(`- ${mood}: ${count}x`);
+        }
+        lines.push('');
+    }
+
+    if (recentEntries.length > 0) {
+        lines.push('RECENT ENTRIES:');
+        for (const c of recentEntries) {
+            const date = new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const notePart = c.note ? ` — "${c.note}"` : '';
+            lines.push(`- ${date}: ${c.mood_name_snapshot}${notePart}`);
+        }
+        lines.push('');
+    }
+
+    lines.push('INSTRUCTIONS:');
+    lines.push(`You are Obsy, a calm and reflective AI companion. The user is reflecting on their "${topic.title}" topic. Stay entirely focused on this topic and its associated data — do not reference other areas of their life or app data unrelated to this topic. Be warm, curious, and insightful. Ask one question at a time. Keep responses concise (2-4 sentences).`);
+
+    return lines.join('\n');
 }
 
 function buildCapturePayload(topic: Topic, captures: Capture[]) {

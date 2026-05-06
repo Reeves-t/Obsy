@@ -9,13 +9,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCaptureStore } from '@/lib/captureStore';
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from '@/services/archive';
 import { BookmarkButton } from '@/components/insights/BookmarkButton';
-import { useObsyTheme } from '@/contexts/ThemeContext';
 import Colors from '@/constants/Colors';
 import { countPendingDailyCaptures } from '@/lib/pendingCaptureUtils';
 import { useI18n } from '@/i18n/config';
 import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
 import { getLocalDayKey } from '@/lib/utils';
 import { InsightMoodOrbField } from '@/components/insights/InsightMoodOrbField';
+import { InsightCardSurface } from '@/components/insights/InsightCardSurface';
+import { MoodRefreshLight, type MoodLight } from '@/components/insights/MoodRefreshLight';
+import { useInsightLightGate } from '@/hooks/useInsightLightGate';
+import { getMoodTheme } from '@/lib/moods/theme';
 
 interface TodayInsightCardProps {
     text: string | null;
@@ -36,17 +39,13 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
 }) => {
     const { user } = useAuth();
     const { captures } = useCaptureStore();
-    const { isLight } = useObsyTheme();
-    const { loadSnapshot, lastUpdated } = useTodayInsight();
+
+    const { loadSnapshot, lastUpdated, status } = useTodayInsight();
     const { t } = useI18n();
 
     const [isSaved, setIsSaved] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
 
-    const flatTitleColor = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.75)';
-    const flatTextColor = isLight ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)';
-    const flatTextSecondary = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)';
-    const flatDateColor = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)';
 
     // Count pending captures
     const pendingCount = countPendingDailyCaptures(lastUpdated, captures);
@@ -121,88 +120,99 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
             .filter(Boolean);
     }, [captures]);
 
-    const translatedText = useTranslatedInsight({ insightId: 'daily-current', sourceText: text, sourceLanguage: 'en' });
+    // Light gate: holds new text behind the mood-light retraction animation
+    const isLoading = status === 'loading';
+    const { displayText, lightLoading, onRetractComplete } = useInsightLightGate(isLoading, text);
+
+    // Derive mood lights from today's captures (top 4 most frequent moods)
+    const moodLights = React.useMemo((): MoodLight[] => {
+        const freq = new Map<string, number>();
+        for (const id of todayMoodIds) {
+            freq.set(id, (freq.get(id) || 0) + 1);
+        }
+        return [...freq.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 4)
+            .map(([id]) => {
+                const theme = getMoodTheme(id);
+                return {
+                    primary: theme.gradient.primary,
+                    mid: theme.gradient.mid,
+                    secondary: theme.gradient.secondary,
+                };
+            });
+    }, [todayMoodIds]);
+
+    const translatedText = useTranslatedInsight({ insightId: 'daily-current', sourceText: displayText, sourceLanguage: 'en' });
     const isEmpty = !translatedText;
 
     return (
-        <View style={[styles.container, flat && styles.flatContainer]}>
-            <View style={[styles.header, flat && styles.flatHeader]}>
-                <ThemedText type="subtitle" style={[styles.title, flat && { color: flatTitleColor }]}>
-                    {flat ? t('insight.dailyTitleFlat') : t('insight.dailyTitle')}
-                </ThemedText>
-                {onRefresh && (
-                    <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
-                        <ThemedText style={styles.refreshText}>{t('common.refresh')}</ThemedText>
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            {!flat && <View style={styles.divider} />}
-
-            {/* Pending captures message */}
-            {!isEmpty && pendingCount > 0 && (
-                <View style={styles.pendingMessageContainer}>
-                    <ThemedText style={styles.pendingMessage}>
-                        {t(pendingCount === 1 ? 'insight.pendingCaptureOne' : 'insight.pendingCaptureOther', { count: pendingCount })}
+        <View style={styles.wrapper}>
+            <MoodRefreshLight loading={lightLoading} moods={moodLights} onRetractComplete={onRetractComplete} />
+            <InsightCardSurface>
+                <View style={styles.header}>
+                    <ThemedText type="subtitle" style={styles.title}>
+                        {flat ? t('insight.dailyTitleFlat') : t('insight.dailyTitle')}
                     </ThemedText>
+                    {onRefresh && (
+                        <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
+                            <ThemedText style={styles.refreshText}>{t('common.refresh')}</ThemedText>
+                        </TouchableOpacity>
+                    )}
                 </View>
-            )}
 
-            <View style={[styles.content, flat && styles.flatContent]}>
-                {isEmpty ? (
-                    <View style={styles.emptyContainer}>
-                        <ThemedText style={[styles.emptyText, flat && { color: flatTextSecondary }]}>
-                            {t('insight.emptyDaily')}
+                <View style={styles.divider} />
+
+                {/* Pending captures message */}
+                {!isEmpty && pendingCount > 0 && (
+                    <View style={styles.pendingMessageContainer}>
+                        <ThemedText style={styles.pendingMessage}>
+                            {t(pendingCount === 1 ? 'insight.pendingCaptureOne' : 'insight.pendingCaptureOther', { count: pendingCount })}
                         </ThemedText>
-                        <InsightMoodOrbField moodIds={todayMoodIds} variant="focus" maxOrbs={10} />
-                    </View>
-                ) : (
-                    <View>
-                        <InsightText
-                            fallbackText={translatedText || ''}
-                            collapsedSentences={4}
-                            expandable={true}
-                            textStyle={flat ? { color: flatTextColor } : styles.insightText}
-                        />
-
-                        <InsightMoodOrbField moodIds={todayMoodIds} variant="subtle" maxOrbs={8} />
-
-                        <View style={styles.footer}>
-                            <ThemedText type="caption" style={[styles.footerDate, flat && { color: flatDateColor }]}>
-                                {format(new Date(), "EEEE, MMM d")}
-                            </ThemedText>
-                            <BookmarkButton
-                                isSaved={isSaved}
-                                onPress={handleSave}
-                                disabled={saving}
-                            />
-                        </View>
                     </View>
                 )}
-            </View>
+
+                <View style={styles.content}>
+                    {isEmpty ? (
+                        <View style={styles.emptyContainer}>
+                            <ThemedText style={styles.emptyText}>
+                                {t('insight.emptyDaily')}
+                            </ThemedText>
+                            <InsightMoodOrbField moodIds={todayMoodIds} variant="focus" maxOrbs={10} />
+                        </View>
+                    ) : (
+                        <View>
+                            <InsightText
+                                fallbackText={translatedText || ''}
+                                collapsedSentences={4}
+                                expandable={true}
+                                textStyle={styles.insightText}
+                            />
+
+                            <InsightMoodOrbField moodIds={todayMoodIds} variant="subtle" maxOrbs={8} />
+
+                            <View style={styles.footer}>
+                                <ThemedText type="caption" style={styles.footerDate}>
+                                    {format(new Date(), "EEEE, MMM d")}
+                                </ThemedText>
+                                <BookmarkButton
+                                    isSaved={isSaved}
+                                    onPress={handleSave}
+                                    disabled={saving}
+                                />
+                            </View>
+                        </View>
+                    )}
+                </View>
+            </InsightCardSurface>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
+    wrapper: {
         width: '100%',
-        backgroundColor: '#000000', // Pure black base
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)', // Very subtle white border
-        overflow: 'hidden',
-    },
-    flatContainer: {
-        backgroundColor: 'transparent',
-        borderWidth: 0,
-        borderRadius: 0,
-        padding: 0,
-    },
-    flatHeader: {
-        paddingHorizontal: 0,
-        paddingTop: 12,
-        paddingBottom: 8,
+        overflow: 'visible' as const,
     },
     header: {
         flexDirection: 'row',
@@ -234,10 +244,6 @@ const styles = StyleSheet.create({
     },
     content: {
         padding: 20,
-    },
-    flatContent: {
-        paddingHorizontal: 0,
-        paddingTop: 0,
     },
     emptyContainer: {
         paddingVertical: 30,

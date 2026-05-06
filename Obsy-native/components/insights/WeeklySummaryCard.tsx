@@ -2,9 +2,12 @@ import React, { memo, useEffect } from "react";
 import { ActivityIndicator, StyleSheet, TouchableOpacity, View, Alert } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from "@expo/vector-icons";
-import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
 import { InsightText } from "@/components/insights/InsightText";
+import { InsightCardSurface } from "@/components/insights/InsightCardSurface";
+import { MoodRefreshLight, type MoodLight } from "@/components/insights/MoodRefreshLight";
+import { useInsightLightGate } from "@/hooks/useInsightLightGate";
+import { getMoodTheme } from "@/lib/moods/theme";
 import Colors from "@/constants/Colors";
 import { WeeklyStats } from "@/lib/insightsAnalytics";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
@@ -38,12 +41,11 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     isGenerating,
     onGenerate,
     onViewHistory,
-    flat = false,
     onArchiveFull,
     pendingCount = 0,
     error = null,
 }: WeeklySummaryCardProps) {
-    const { colors, isLight } = useObsyTheme();
+    const { colors } = useObsyTheme();
     const { t } = useI18n();
     const { user } = useAuth();
     const { captures } = useCaptureStore();
@@ -60,7 +62,29 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
             .filter(Boolean);
     }, [captures, currentWeekStart.getTime(), currentWeekEnd.getTime()]);
 
-    const translatedText = useTranslatedInsight({ insightId: `weekly-${weekKey}`, sourceText: text, sourceLanguage: 'en' });
+    // Light gate: holds new text behind the mood-light retraction animation
+    const { displayText, lightLoading, onRetractComplete } = useInsightLightGate(isGenerating, text);
+
+    // Derive mood lights from this week's captures (top 4 most frequent moods)
+    const moodLights = React.useMemo((): MoodLight[] => {
+        const freq = new Map<string, number>();
+        for (const id of weekMoodIds) {
+            freq.set(id, (freq.get(id) || 0) + 1);
+        }
+        return [...freq.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 4)
+            .map(([id]) => {
+                const theme = getMoodTheme(id);
+                return {
+                    primary: theme.gradient.primary,
+                    mid: theme.gradient.mid,
+                    secondary: theme.gradient.secondary,
+                };
+            });
+    }, [weekMoodIds]);
+
+    const translatedText = useTranslatedInsight({ insightId: `weekly-${weekKey}`, sourceText: displayText, sourceLanguage: 'en' });
     const hasInsight = !!translatedText;
 
     const [isSaved, setIsSaved] = React.useState(false);
@@ -138,7 +162,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     };
 
     const content = (
-        <View style={[styles.cardPadding, flat && styles.flatPadding]}>
+        <View style={styles.cardPadding}>
             <View style={styles.header}>
                 <View style={styles.titleRow}>
                     <Ionicons name="calendar-outline" size={18} color={colors.cardTextSecondary} />
@@ -251,23 +275,23 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
         </View>
     );
 
-    if (flat) return content;
-
     return (
-        <GlassCard noPadding>
-            {content}
-        </GlassCard>
+        <View style={styles.wrapper}>
+            <MoodRefreshLight loading={lightLoading} moods={moodLights} onRetractComplete={onRetractComplete} />
+            <InsightCardSurface>
+                {content}
+            </InsightCardSurface>
+        </View>
     );
 });
 
 const styles = StyleSheet.create({
+    wrapper: {
+        overflow: 'visible' as const,
+    },
     cardPadding: {
         padding: 24,
         gap: 16,
-    },
-    flatPadding: {
-        paddingHorizontal: 0,
-        paddingVertical: 12,
     },
     header: {
         flexDirection: "row",
