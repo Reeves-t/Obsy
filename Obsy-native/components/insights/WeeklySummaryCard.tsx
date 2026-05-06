@@ -190,16 +190,6 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                         <ThemedText style={[styles.emptyText, { color: colors.cardTextSecondary }]}>
                             {error ? getUserFriendlyErrorMessage(error) : "Generate a weekly narrative to see your week's arc."}
                         </ThemedText>
-                        {error && (
-                            <ThemedText style={[styles.emptyText, { color: colors.cardTextSecondary }]}>
-                                ({error.stage}) {error.message}
-                            </ThemedText>
-                        )}
-                        {error?.requestId && (
-                            <ThemedText style={[styles.errorMeta, { color: colors.cardTextSecondary }]}>
-                                Error ID: {error.requestId}
-                            </ThemedText>
-                        )}
                         <InsightMoodOrbField moodIds={weekMoodIds} variant="focus" maxOrbs={10} />
                         <TouchableOpacity onPress={onGenerate} disabled={isGenerating}>
                             <LinearGradient
@@ -318,10 +308,6 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         color: "rgba(255,255,255,0.6)",
-    },
-    errorMeta: {
-        fontSize: 12,
-        opacity: 0.75,
     },
     generateBtn: {
         paddingVertical: 10,

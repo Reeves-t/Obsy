@@ -56,27 +56,33 @@ export function parseInsightError(err: unknown): InsightError {
 }
 
 export function getUserFriendlyErrorMessage(error: InsightError): string {
-  const base = (() => {
-    switch (error.stage) {
-      case 'auth':
-        return 'Please sign in again to continue.';
-      case 'fetch':
-        return 'Unable to load your captures. Please try again.';
-      case 'model':
-        return 'AI service temporarily unavailable. Please try again later.';
-      case 'parse':
-        return 'Unable to process insight. Please try again.';
-      case 'validate':
-        return 'Insight validation failed. Please try again.';
-      case 'extract':
-        return 'Unable to generate insight. Please try again.';
-      default:
-        return 'An unexpected error occurred. Please try again.';
-    }
-  })();
+  const lower = error.message.toLowerCase();
 
-  if (error.requestId) {
-    return `${base} (Error ID: ${error.requestId})`;
+  // Check message content first for more specific feedback
+  if (lower.includes('high demand') || lower.includes('overloaded') || lower.includes('capacity')) {
+    return 'Our AI is a bit busy right now. Give it a moment and try again.';
   }
-  return base;
+  if (lower.includes('rate limit') || lower.includes('429')) {
+    return "You've reached your insight limit for today. Check back tomorrow.";
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'The request took too long. Try again in a moment.';
+  }
+
+  // Fall back to stage-based messages
+  switch (error.stage) {
+    case 'auth':
+      return 'Session expired. Please sign in again to generate insights.';
+    case 'fetch':
+      return 'Could not reach the server. Check your connection and try again.';
+    case 'model':
+      return 'AI service temporarily unavailable. Try again in a moment.';
+    case 'parse':
+    case 'extract':
+      return 'Something went wrong generating your insight. Try again.';
+    case 'validate':
+      return "You've reached your insight limit for today. Check back tomorrow.";
+    default:
+      return 'Something unexpected happened. Try again in a moment.';
+  }
 }

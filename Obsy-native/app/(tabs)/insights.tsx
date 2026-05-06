@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { resolveMoodThemeById } from '@/lib/moodUtils';
 import { generateOrbEffect } from '@/lib/moods';
 import type { TimeBucket } from '@/hooks/useInsightsStats';
+import type { InsightError } from '@/lib/insightErrorUtils';
 import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -711,6 +712,7 @@ export default function InsightsScreen() {
                                     message={monthlyError.message}
                                     stage={monthlyError.stage}
                                     requestId={monthlyError.requestId}
+                                    onRetry={() => loadMonthlyInsight(true)}
                                 />
                             )}
                             <MonthView
@@ -738,6 +740,7 @@ export default function InsightsScreen() {
                                 message={dailyError.message}
                                 stage={dailyError.stage}
                                 requestId={dailyError.requestId}
+                                onRetry={() => loadInsight(true)}
                             />
                         )}
                         <TodayInsightCard
@@ -917,7 +920,7 @@ export default function InsightsScreen() {
                                     flat
                                     onArchiveFull={() => setIsArchiveFullModalVisible(true)}
                                     pendingCount={0}
-                                    error={weeklyError}
+                                    error={weeklyError as InsightError | null}
                                 />
                                 <MicroDivider width="40%" />
                                 <ObjectOfWeek objectOfWeek={weeklyStats?.objectOfWeek || undefined} flat />

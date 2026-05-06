@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ui/ThemedText';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 export interface InsightErrorDisplayProps {
     message: string;
@@ -10,32 +11,78 @@ export interface InsightErrorDisplayProps {
     isRetrying?: boolean;
 }
 
+// requestId is accepted for caller convenience but intentionally not displayed to users
+
+/**
+ * Maps raw API/edge-function error messages to friendly user-facing copy.
+ */
+function getFriendlyMessage(stage: string, message: string): string {
+    const lower = message.toLowerCase();
+
+    if (lower.includes('high demand') || lower.includes('overloaded') || lower.includes('capacity')) {
+        return 'Our AI is a bit busy right now. Give it a moment and try again.';
+    }
+    if (lower.includes('rate limit') || lower.includes('429') || stage === 'validate') {
+        return "You've reached your insight limit for today. Check back tomorrow.";
+    }
+    if (lower.includes('timeout') || lower.includes('timed out')) {
+        return 'The request took too long. Try again in a moment.';
+    }
+    if (stage === 'auth') {
+        return 'Session expired. Please sign in again to generate insights.';
+    }
+    if (stage === 'fetch' || lower.includes('network') || lower.includes('failed to fetch')) {
+        return 'Could not reach the server. Check your connection and try again.';
+    }
+    if (stage === 'parse' || stage === 'extract') {
+        return 'Something went wrong generating your insight. Try again.';
+    }
+
+    return 'Something unexpected happened. Try again in a moment.';
+}
+
 export const InsightErrorDisplay: React.FC<InsightErrorDisplayProps> = ({
     message,
     stage,
-    requestId,
+    requestId: _requestId,
     onRetry,
     isRetrying = false,
 }) => {
+    const { isLight } = useObsyTheme();
+    const friendly = getFriendlyMessage(stage, message);
+
     return (
-        <View style={styles.errorCard}>
-            <ThemedText style={styles.errorTitle}>
-                {message}
+        <View style={[
+            styles.errorCard,
+            isLight ? styles.errorCardLight : styles.errorCardDark,
+        ]}>
+            <ThemedText style={[
+                styles.errorTitle,
+                { color: isLight ? '#991b1b' : '#fca5a5' },
+            ]}>
+                {friendly}
             </ThemedText>
-            <ThemedText style={styles.errorDetails}>
-                ({stage}) {message}
-            </ThemedText>
-            {requestId && (
-                <ThemedText style={styles.errorMeta}>
-                    Error ID: {requestId}
-                </ThemedText>
-            )}
+
             {onRetry && (
-                <TouchableOpacity onPress={onRetry} disabled={isRetrying} style={styles.retryButton}>
+                <TouchableOpacity
+                    onPress={onRetry}
+                    disabled={isRetrying}
+                    activeOpacity={0.7}
+                    style={[
+                        styles.retryButton,
+                        isLight ? styles.retryButtonLight : styles.retryButtonDark,
+                        isRetrying && styles.retryButtonDisabled,
+                    ]}
+                >
                     {isRetrying ? (
-                        <ActivityIndicator />
+                        <ActivityIndicator size="small" color={isLight ? '#000' : '#fff'} />
                     ) : (
-                        <ThemedText style={styles.retryText}>Retry</ThemedText>
+                        <ThemedText style={[
+                            styles.retryText,
+                            { color: isLight ? '#000' : '#fff' },
+                        ]}>
+                            Try again
+                        </ThemedText>
                     )}
                 </TouchableOpacity>
             )}
@@ -46,38 +93,45 @@ export const InsightErrorDisplay: React.FC<InsightErrorDisplayProps> = ({
 const styles = StyleSheet.create({
     errorCard: {
         width: '100%',
-        borderRadius: 12,
-        paddingVertical: 16,
-        paddingHorizontal: 14,
+        borderRadius: 14,
+        paddingVertical: 20,
+        paddingHorizontal: 20,
         borderWidth: 1,
-        borderColor: 'rgba(248, 113, 113, 0.35)',
-        backgroundColor: 'rgba(185, 28, 28, 0.12)',
         alignItems: 'center',
-        gap: 8,
+        gap: 14,
+    },
+    errorCardLight: {
+        backgroundColor: '#fef2f2',
+        borderColor: 'rgba(185, 28, 28, 0.15)',
+    },
+    errorCardDark: {
+        backgroundColor: 'rgba(185, 28, 28, 0.08)',
+        borderColor: 'rgba(248, 113, 113, 0.2)',
     },
     errorTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        textAlign: 'center',
-    },
-    errorDetails: {
         fontSize: 14,
+        fontWeight: '500',
         textAlign: 'center',
-        opacity: 0.85,
-    },
-    errorMeta: {
-        fontSize: 12,
-        textAlign: 'center',
-        opacity: 0.7,
+        lineHeight: 20,
     },
     retryButton: {
-        marginTop: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 8,
-        backgroundColor: '#fff',
+        paddingHorizontal: 24,
+        paddingVertical: 10,
+        borderRadius: 20,
+        minWidth: 120,
+        alignItems: 'center',
+    },
+    retryButtonLight: {
+        backgroundColor: 'rgba(0,0,0,0.08)',
+    },
+    retryButtonDark: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    retryButtonDisabled: {
+        opacity: 0.5,
     },
     retryText: {
-        fontWeight: '700',
+        fontSize: 14,
+        fontWeight: '600',
     },
 });
