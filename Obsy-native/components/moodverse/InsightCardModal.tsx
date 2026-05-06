@@ -172,11 +172,12 @@ export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardM
     }, [datePreset, customFrom, customTo]);
 
     // Filtered captures for the selected range + mood
+    // All captures in the date range are included regardless of includeInInsights —
+    // the card is a personal reflection tool, not the daily insights pipeline.
     const filteredCaptures = useMemo(() => {
         return allCaptures.filter((c) => {
             const day = c.created_at.slice(0, 10);
             if (day < dateRange.from || day > dateRange.to) return false;
-            if (!c.includeInInsights) return false;
             if (scope === 'specific' && moodFilter) {
                 return c.mood_name_snapshot === moodFilter;
             }
@@ -190,7 +191,7 @@ export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardM
         const moods: string[] = [];
         allCaptures.forEach((c) => {
             const day = c.created_at.slice(0, 10);
-            if (day >= dateRange.from && day <= dateRange.to && c.includeInInsights) {
+            if (day >= dateRange.from && day <= dateRange.to) {
                 if (!seen.has(c.mood_name_snapshot)) {
                     seen.add(c.mood_name_snapshot);
                     moods.push(c.mood_name_snapshot);

@@ -184,8 +184,18 @@ function computeMoodverseContext(
         const firstTs = selectedSorted[0].timestamp;
         const lastTs = selectedSorted[selectedSorted.length - 1].timestamp;
 
-        beforeSelection = sorted.filter((o) => o.timestamp < firstTs).slice(-5).map((o) => ({ date: fmt(o.timestamp), mood: o.moodLabel }));
-        afterSelection = sorted.filter((o) => o.timestamp > lastTs).slice(0, 5).map((o) => ({ date: fmt(o.timestamp), mood: o.moodLabel }));
+        beforeSelection = sorted.filter((o) => o.timestamp < firstTs).slice(-5).map((o) => ({
+            date: fmt(o.timestamp),
+            mood: o.moodLabel,
+            ...(o.noteFull ? { note: o.noteFull } : {}),
+            ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
+        }));
+        afterSelection = sorted.filter((o) => o.timestamp > lastTs).slice(0, 5).map((o) => ({
+            date: fmt(o.timestamp),
+            mood: o.moodLabel,
+            ...(o.noteFull ? { note: o.noteFull } : {}),
+            ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
+        }));
 
         const selectedCluster = selectedSorted[0].clusterId;
         const selectedIdSet = new Set(selectedOrbs.map((o) => o.id));
@@ -195,7 +205,12 @@ function computeMoodverseContext(
             .map((o) => ({ date: fmt(o.timestamp), mood: o.moodLabel }));
     }
 
-    const recency = sorted.slice(-14).map((o) => ({ date: fmtShort(o.timestamp), mood: o.moodLabel }));
+    const recency = sorted.slice(-14).map((o) => ({
+        date: fmtShort(o.timestamp),
+        mood: o.moodLabel,
+        ...(o.noteFull ? { note: o.noteFull } : {}),
+        ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
+    }));
 
     const pack = {
         aggregates: { totalCaptures: allOrbs.length, moodCounts: topMoods, topTags },
@@ -256,6 +271,7 @@ export default function MoodverseChatScreen() {
             tags: orb.tags,
             date: new Date(orb.timestamp).toISOString(),
             clusterId: orb.clusterId,
+            sourceType: orb.sourceType ?? undefined,
         }));
     }, [selectedOrbs]);
 

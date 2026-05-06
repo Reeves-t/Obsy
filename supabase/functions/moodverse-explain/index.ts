@@ -17,6 +17,7 @@ interface CaptureContext {
   tags?: string[];
   date: string;
   clusterId?: string;
+  sourceType?: string;
 }
 
 interface ChatMessage {
@@ -251,14 +252,16 @@ function formatContextPack(contextJson: string, captures: CaptureContext[], sele
         lines.push("SELECTED CAPTURE:");
         lines.push(`- Mood: ${c.mood}`);
         lines.push(`- Date: ${c.date}`);
+        if (c.type) lines.push(`- Entry type: ${c.type}`);
         if (c.note) lines.push(`- Note: "${c.note}"`);
         if (c.tags?.length > 0) lines.push(`- Tags: ${c.tags.join(", ")}`);
       } else {
         lines.push(`SELECTED CAPTURES (${sel.length}, mode: ${selectionMode}):`);
         for (const c of sel) {
+          const typePart = c.type ? ` [${c.type}]` : "";
           const tags = c.tags?.length > 0 ? ` | tags: ${c.tags.join(", ")}` : "";
           const note = c.note ? ` | note: "${c.note}"` : "";
-          lines.push(`- ${c.date} | ${c.mood}${tags}${note}`);
+          lines.push(`- ${c.date} | ${c.mood}${typePart}${tags}${note}`);
         }
       }
     }
@@ -275,13 +278,23 @@ function formatContextPack(contextJson: string, captures: CaptureContext[], sele
         lines.push("");
         lines.push("SURROUNDING CONTEXT:");
         if (pat.beforeSelection?.length > 0) {
-          lines.push(`- 5 captures before: ${pat.beforeSelection.map((b: any) => `${b.date} (${b.mood})`).join(", ")}`);
+          lines.push("Before selection:");
+          for (const b of pat.beforeSelection) {
+            const typePart = b.type ? ` [${b.type}]` : "";
+            const notePart = b.note ? ` — "${b.note}"` : "";
+            lines.push(`  ${b.date} (${b.mood})${typePart}${notePart}`);
+          }
         }
         if (pat.afterSelection?.length > 0) {
-          lines.push(`- 5 captures after: ${pat.afterSelection.map((a: any) => `${a.date} (${a.mood})`).join(", ")}`);
+          lines.push("After selection:");
+          for (const a of pat.afterSelection) {
+            const typePart = a.type ? ` [${a.type}]` : "";
+            const notePart = a.note ? ` — "${a.note}"` : "";
+            lines.push(`  ${a.date} (${a.mood})${typePart}${notePart}`);
+          }
         }
         if (pat.sameMoodSameMonth?.length > 0) {
-          lines.push(`- Same mood this month: ${pat.sameMoodSameMonth.map((s: any) => s.date).join(", ")}`);
+          lines.push(`Same mood this month: ${pat.sameMoodSameMonth.map((s: any) => s.date).join(", ")}`);
         }
       }
     }
@@ -333,7 +346,11 @@ function formatContextPack(contextJson: string, captures: CaptureContext[], sele
     if (pack.recency?.length > 0) {
       lines.push("");
       lines.push("RECENT ACTIVITY (last 14 captures):");
-      lines.push(pack.recency.map((r: any) => `${r.date} (${r.mood})`).join(", "));
+      for (const r of pack.recency) {
+        const typePart = r.type ? ` [${r.type}]` : "";
+        const notePart = r.note ? ` — "${r.note}"` : "";
+        lines.push(`  ${r.date} (${r.mood})${typePart}${notePart}`);
+      }
     }
 
     return lines.join("\n");
@@ -346,7 +363,8 @@ function formatFallbackContext(captures: CaptureContext[], selectionMode: string
   const captureLines = captures.map((c) => {
     const tags = (c.tags ?? []).join(", ");
     const note = (c.note ?? "").replace(/\s+/g, " ").trim();
-    return `${c.date} | mood: ${c.mood}${note ? ` | note: "${note}"` : ""}${tags ? ` | tags: ${tags}` : ""}`;
+    const typePart = c.sourceType && c.sourceType !== "capture" ? ` [${c.sourceType}]` : "";
+    return `${c.date} | mood: ${c.mood}${typePart}${note ? ` | note: "${note}"` : ""}${tags ? ` | tags: ${tags}` : ""}`;
   });
   return [
     `SELECTED CAPTURES (${captures.length}, mode: ${selectionMode}):`,

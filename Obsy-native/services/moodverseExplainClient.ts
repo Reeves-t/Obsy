@@ -8,6 +8,7 @@ export interface CaptureContext {
     tags?: string[];
     date: string;
     clusterId?: string;
+    sourceType?: string;
 }
 
 export interface ExplainResponse {

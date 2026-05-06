@@ -22,6 +22,7 @@ export interface GalaxyOrb {
     tags: string[];
     photoUri: string | null;
     includeInInsights: boolean;
+    sourceType: 'capture' | 'journal' | 'voice' | null;
 
     // ── Derived for Moodverse ───────────────────────────────────────────────
     year: number;

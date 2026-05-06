@@ -270,12 +270,22 @@ function computeMoodverseContext(
         beforeSelection = sorted
             .filter((o) => o.timestamp < firstTs)
             .slice(-5)
-            .map((o) => ({ date: fmt(o.timestamp), mood: o.moodLabel }));
+            .map((o) => ({
+                date: fmt(o.timestamp),
+                mood: o.moodLabel,
+                ...(o.noteFull ? { note: o.noteFull } : {}),
+                ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
+            }));
 
         afterSelection = sorted
             .filter((o) => o.timestamp > lastTs)
             .slice(0, 5)
-            .map((o) => ({ date: fmt(o.timestamp), mood: o.moodLabel }));
+            .map((o) => ({
+                date: fmt(o.timestamp),
+                mood: o.moodLabel,
+                ...(o.noteFull ? { note: o.noteFull } : {}),
+                ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
+            }));
 
         const selectedCluster = selectedSorted[0].clusterId;
         const selectedIdSet = new Set(selectedOrbs.map((o) => o.id));
@@ -293,6 +303,8 @@ function computeMoodverseContext(
     const recency = sorted.slice(-14).map((o) => ({
         date: fmtShort(o.timestamp),
         mood: o.moodLabel,
+        ...(o.noteFull ? { note: o.noteFull } : {}),
+        ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
     }));
 
     // ── Build pack ──────────────────────────────────────────────────────
@@ -364,6 +376,7 @@ export function MoodverseExplainChat({
             tags: orb.tags,
             date: new Date(orb.timestamp).toISOString(),
             clusterId: orb.clusterId,
+            sourceType: orb.sourceType ?? undefined,
         }));
     }, [selectedOrbs]);
 
