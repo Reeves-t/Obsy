@@ -89,7 +89,7 @@ const bubbleStyles = StyleSheet.create({
         borderBottomRightRadius: 4,
     },
     userText: { fontSize: 14, lineHeight: 20, color: 'rgba(255,255,255,0.85)' },
-    assistantText: { fontSize: 21, lineHeight: 32, color: 'rgba(255,255,255,0.7)' },
+    assistantText: { fontSize: 17, lineHeight: 27, color: 'rgba(255,255,255,0.88)', fontWeight: '400' },
 });
 
 // ── Note Approval Card ──────────────────────────────────────────────────
@@ -371,9 +371,11 @@ export default function TopicChatScreen() {
             if (result.ok && result.text) {
                 setDraftNote(result.text);
                 setIsNoteApprovalVisible(true);
+            } else {
+                setShowNoteHelper(true);
             }
         } catch {
-            // silently fail — user can try again
+            setShowNoteHelper(true);
         } finally {
             setIsGeneratingNote(false);
         }

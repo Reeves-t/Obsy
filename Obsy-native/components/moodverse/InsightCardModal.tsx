@@ -319,15 +319,12 @@ export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardM
 
     // ── Generator setup modal ───────────────────────────────────────────────
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
             <View style={styles.overlay}>
                 <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
                 <TouchableOpacity style={styles.backdrop} onPress={handleClose} activeOpacity={1} />
 
                 <View style={styles.sheet}>
-                    {/* Drag indicator */}
-                    <View style={styles.dragBar} />
-
                     {/* Header */}
                     <View style={styles.header}>
                         <View>
@@ -572,33 +569,25 @@ export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardM
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        justifyContent: 'flex-end',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 20,
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,
     },
     sheet: {
+        width: '100%',
         backgroundColor: '#0A0A10',
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
+        borderRadius: 28,
         borderWidth: 1,
-        borderBottomWidth: 0,
         borderColor: 'rgba(255,255,255,0.08)',
-        maxHeight: '92%',
+        maxHeight: '88%',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: -8 },
-        shadowOpacity: 0.5,
-        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.6,
+        shadowRadius: 32,
         elevation: 20,
-    },
-    dragBar: {
-        width: 36,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        alignSelf: 'center',
-        marginTop: 12,
-        marginBottom: 4,
     },
     header: {
         flexDirection: 'row',
