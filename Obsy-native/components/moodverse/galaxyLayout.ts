@@ -263,6 +263,7 @@ export function computeGalaxyLayout(
             tags: capture.tags || [],
             photoUri: capture.image_url || null,
             includeInInsights: capture.includeInInsights,
+            sourceType: capture.source_type ?? null,
             year,
             month: new Date(capture.created_at).getMonth(),
             weekOfYear: getWeekOfYear(date),

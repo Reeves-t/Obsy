@@ -5,7 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ChevronLeft, Search, Crosshair, RotateCcw } from 'lucide-react-native';
+import { ChevronLeft, Search, Crosshair, RotateCcw, Sparkles } from 'lucide-react-native';
+import { InsightCardModal } from '@/components/moodverse/InsightCardModal';
 import { useSubscription } from '@/hooks/useSubscription';
 import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
 import { ObsyIcon } from '@/components/moodverse/ObsyIcon';
@@ -47,6 +48,7 @@ export default function MoodversePage() {
     const [isFocused, setIsFocused] = useState(true);
     const [showSearch, setShowSearch] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
+    const [showInsightCard, setShowInsightCard] = useState(false);
     const { aiFreeMode } = useAiFreeMode();
     const [trailPoints, setTrailPoints] = useState<Array<{ x: number; y: number }>>([]);
     const { tier } = useSubscription();
@@ -409,6 +411,20 @@ export default function MoodversePage() {
                     </TouchableOpacity>
                     <ThemedText style={styles.headerTitle}>Moodverse</ThemedText>
                     <View style={styles.headerActions}>
+                        {/* Insight card generator (Plus only) */}
+                        <TouchableOpacity
+                            onPress={() => {
+                                if (!isPro) {
+                                    setShowPaywall(true);
+                                    return;
+                                }
+                                setShowInsightCard(true);
+                            }}
+                            style={styles.headerBtn}
+                        >
+                            <Sparkles size={18} color="rgba(228,228,237,0.5)" />
+                        </TouchableOpacity>
+
                         {/* Crosshair: recenter when orbit active, multi-select toggle otherwise */}
                         <TouchableOpacity
                             onPress={() => {
@@ -484,6 +500,12 @@ export default function MoodversePage() {
                     <ObsyIcon size={38} />
                 </TouchableOpacity>
             )}
+
+            <InsightCardModal
+                visible={showInsightCard}
+                onClose={() => setShowInsightCard(false)}
+                allCaptures={effectiveCaptures}
+            />
 
             <VanguardPaywall
                 visible={showPaywall}
