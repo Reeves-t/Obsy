@@ -7,11 +7,12 @@ import {
     TextInput,
     KeyboardAvoidingView,
     Platform,
+    Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Send } from 'lucide-react-native';
+import { ChevronLeft, ArrowUp } from 'lucide-react-native';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useMoodverseStore, ChatMessage } from '@/lib/moodverseStore';
 import { useCaptureStore } from '@/lib/captureStore';
@@ -255,6 +256,7 @@ export default function MoodverseChatScreen() {
     } = useMoodverseStore();
 
     const [inputText, setInputText] = useState('');
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const { aiFreeMode } = useAiFreeMode();
     const flatListRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
@@ -362,6 +364,15 @@ export default function MoodverseChatScreen() {
         return () => clearTimeout(timer);
     }, []);
 
+    // Track keyboard visibility to fix bottom padding gap
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+        const show = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+        const hide = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+        return () => { show.remove(); hide.remove(); };
+    }, []);
+
     const handleSend = useCallback(() => {
         const text = inputText.trim();
         if (!text || isAiLoading) return;
@@ -443,14 +454,14 @@ export default function MoodverseChatScreen() {
                     }
                 />
 
-                <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+                <View style={[styles.inputBar, { paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 8) }]}>
                     <TextInput
                         ref={inputRef}
                         style={styles.textInput}
                         value={inputText}
                         onChangeText={setInputText}
                         placeholder={isGeneral ? "What's on your mind?" : "Say something..."}
-                        placeholderTextColor="rgba(255,255,255,0.25)"
+                        placeholderTextColor="rgba(255,255,255,0.3)"
                         multiline
                         maxLength={1200}
                         editable={!isAiLoading}
@@ -463,9 +474,9 @@ export default function MoodverseChatScreen() {
                         onPress={handleSend}
                         disabled={!inputText.trim() || isAiLoading}
                     >
-                        <Send
-                            size={16}
-                            color={inputText.trim() && !isAiLoading ? '#8B2252' : 'rgba(255,255,255,0.15)'}
+                        <ArrowUp
+                            size={18}
+                            color={inputText.trim() && !isAiLoading ? '#fff' : 'rgba(255,255,255,0.3)'}
                         />
                     </TouchableOpacity>
                 </View>
@@ -522,13 +533,16 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     messageListContent: {
-        paddingTop: 8,
-        paddingBottom: 16,
+        flexGrow: 1,
+        justifyContent: 'flex-end',
+        paddingTop: 12,
+        paddingBottom: 8,
     },
     emptyChat: {
+        flex: 1,
+        minHeight: 160,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: 80,
         gap: 16,
     },
     emptyChatText: {
@@ -537,33 +551,38 @@ const styles = StyleSheet.create({
     },
     inputBar: {
         flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingTop: 8,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.06)',
+        alignItems: 'flex-end',
+        paddingHorizontal: 12,
+        paddingTop: 10,
+        gap: 8,
     },
     textInput: {
         flex: 1,
-        minHeight: 38,
-        maxHeight: 100,
-        borderRadius: 18,
+        minHeight: 44,
+        maxHeight: 120,
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
         backgroundColor: 'rgba(255,255,255,0.06)',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+        paddingHorizontal: 16,
+        paddingTop: 11,
+        paddingBottom: 11,
         color: '#fff',
-        fontSize: 14,
-        marginRight: 8,
+        fontSize: 15,
+        lineHeight: 22,
     },
     sendBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: 'rgba(139, 34, 82, 0.15)',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(139,34,82,0.85)',
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: 2,
     },
     sendBtnDisabled: {
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
 });
