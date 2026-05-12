@@ -37,8 +37,12 @@ type CaptureState = {
             challengeId?: string,
             challengeTemplateId?: string,
             obsy_note?: string | null,
-            source_type?: 'capture' | 'journal' | 'voice',
+            source_type?: 'capture' | 'journal' | 'voice' | 'shared_link',
             audio_url?: string | null,
+            shared_link_url?: string | null,
+            shared_link_platform?: string | null,
+            shared_link_title?: string | null,
+            shared_link_thumbnail_url?: string | null,
         }
     ) => Promise<string | null>;
     createJournalEntry: (
@@ -56,6 +60,18 @@ type CaptureState = {
         transcript: string,
         audioUrl: string,
         tags?: string[],
+        includeInInsights?: boolean
+    ) => Promise<string | null>;
+    createSharedLinkEntry: (
+        user: User | null,
+        moodId: string,
+        moodName: string,
+        url: string,
+        platform: string,
+        title: string | null,
+        thumbnailUrl: string | null,
+        note?: string | null,
+        topicTag?: string | null,
         includeInInsights?: boolean
     ) => Promise<string | null>;
     createCapture: (
@@ -153,9 +169,13 @@ export const useCaptureStore = create<CaptureState>()(
                                 includeInInsights: entry.include_in_insights ?? true,
                                 obsy_note: entry.ai_summary || null,
                                 usePhotoForInsight: entry.use_photo_for_insight ?? false,
-                                source_type: (entry.source_type as 'capture' | 'journal' | 'voice') || 'capture',
+                                source_type: (entry.source_type as 'capture' | 'journal' | 'voice' | 'shared_link') || 'capture',
                                 audio_url: entry.audio_url || null,
                                 orb_effect: (entry.orb_effect as Capture['orb_effect']) || null,
+                                shared_link_url: entry.shared_link_url || null,
+                                shared_link_platform: entry.shared_link_platform || null,
+                                shared_link_title: entry.shared_link_title || null,
+                                shared_link_thumbnail_url: entry.shared_link_thumbnail_url || null,
                             };
                         });
                         set({ captures: mappedCaptures });
@@ -264,6 +284,10 @@ export const useCaptureStore = create<CaptureState>()(
                         source_type: data.source_type || 'capture',
                         audio_url: data.audio_url || null,
                         orb_effect: orbEffect,
+                        shared_link_url: data.shared_link_url || null,
+                        shared_link_platform: data.shared_link_platform || null,
+                        shared_link_title: data.shared_link_title || null,
+                        shared_link_thumbnail_url: data.shared_link_thumbnail_url || null,
                     };
 
                     const { data: inserted, error } = await supabase
@@ -289,9 +313,13 @@ export const useCaptureStore = create<CaptureState>()(
                         challengeTemplateId: data.challengeTemplateId,
                         obsy_note: inserted.ai_summary || null,
                         usePhotoForInsight: inserted.use_photo_for_insight ?? false,
-                        source_type: (inserted.source_type as 'capture' | 'journal' | 'voice') || 'capture',
+                        source_type: (inserted.source_type as 'capture' | 'journal' | 'voice' | 'shared_link') || 'capture',
                         audio_url: inserted.audio_url || null,
                         orb_effect: (inserted.orb_effect as Capture['orb_effect']) || orbEffect,
+                        shared_link_url: inserted.shared_link_url || null,
+                        shared_link_platform: inserted.shared_link_platform || null,
+                        shared_link_title: inserted.shared_link_title || null,
+                        shared_link_thumbnail_url: inserted.shared_link_thumbnail_url || null,
                     };
 
                     set((state) => ({ captures: [newCapture, ...state.captures] }));
@@ -545,6 +573,29 @@ export const useCaptureStore = create<CaptureState>()(
                     audio_url: audioUrl,
                     usePhotoForInsight: false,
                     includeInInsights,
+                });
+            },
+
+            createSharedLinkEntry: async (user, moodId, moodName, url, platform, title, thumbnailUrl, note = null, topicTag = null, includeInInsights = true) => {
+                if (!moodCache.isInitialized() || moodCache.isStale()) {
+                    await moodCache.fetchAllMoods(user?.id ?? null);
+                }
+                const tags = topicTag ? [topicTag] : [];
+                return get().addCapture(user, {
+                    mood_id: moodId,
+                    mood_name_snapshot: moodName,
+                    note: note ?? null,
+                    image_url: thumbnailUrl ?? '',
+                    image_path: null,
+                    tags,
+                    source_type: 'shared_link',
+                    audio_url: null,
+                    usePhotoForInsight: false,
+                    includeInInsights,
+                    shared_link_url: url,
+                    shared_link_platform: platform,
+                    shared_link_title: title,
+                    shared_link_thumbnail_url: thumbnailUrl,
                 });
             },
 

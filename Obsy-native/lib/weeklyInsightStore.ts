@@ -211,6 +211,9 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
                     timeBucket: c.timeBucket ?? getTimeBucketForDate(date),
                     dayPart: c.dayPart ?? getDayPart(date),
                     localTimeLabel: c.localTimeLabel,
+                    entry_type: c.entry_type ?? (c.source_type as CaptureData['entry_type']) ?? 'capture',
+                    shared_link_platform: c.shared_link_platform ?? null,
+                    shared_link_title: c.shared_link_title ?? null,
                 };
             });
 

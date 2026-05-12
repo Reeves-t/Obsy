@@ -11,12 +11,28 @@ export function buildCaptureTimelineBlock(captures: CaptureForInsight[]): string
     if (captures.length === 0) return "No captures found.";
 
     return captures
-        .map((c, index) => `
+        .map((c, index) => {
+            const entryType = c.entry_type ?? 'capture';
+            const typeLabel = {
+                capture: 'Capture (photo moment)',
+                journal: 'Journal (written reflection)',
+                voice: 'Mic (spoken reflection)',
+                shared_link: `Shared Link (external content the user saved)`,
+                mood_checkin: 'Mood check-in (quick emotional note)',
+            }[entryType] ?? entryType;
+
+            const linkMeta = entryType === 'shared_link'
+                ? `\nPlatform: ${c.shared_link_platform ?? 'Web'}\nLink title: ${c.shared_link_title ?? 'unknown'}`
+                : '';
+
+            return `
 [${index + 1}] Time: ${c.localTimeLabel} (${c.dayPart})
+Entry type: ${typeLabel}${linkMeta}
 Feeling: ${transformMoodToNaturalLanguage(c.mood)}
 Journal: ${c.journalSnippet ?? 'none'}
 Tags: ${c.tags?.join(', ') || 'none'}
-`)
+`;
+        })
         .join('\n');
 }
 

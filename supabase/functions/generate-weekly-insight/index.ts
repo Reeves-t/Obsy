@@ -17,6 +17,9 @@ interface CaptureData {
   timeBucket?: TimeBucket;
   dayPart?: DayPart;
   localTimeLabel?: string;
+  entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
+  shared_link_platform?: string | null;
+  shared_link_title?: string | null;
 }
 
 interface WeeklyInsightRequest {
@@ -77,7 +80,15 @@ VOICE RULES:
 - Never reference the app, captures, data, or the act of recording.
 - Keep the writing concise, wise, non-literal, and natural.
 
-EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.`;
+EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.
+
+ENTRY FORMAT INTERPRETATION GUIDE:
+Each capture entry may include an "entry_type" field. Use it to differentiate context when synthesizing the week.
+- capture: A real-world moment the user personally experienced.
+- journal: Direct internal reflection written by the user. High-confidence personal context.
+- voice/mic: Immediate spoken expression. Emotionally direct.
+- shared_link: External content the user saved because it resonated. Interpret as "what caught their attention" or "what they were drawn toward." Do NOT treat as a lived experience. Refer to shared links as "content you saved," "things you were drawn toward," or "ideas that kept orbiting." Never say "you experienced" or "you went through" in reference to a link unless the user's note explicitly says so.
+- mood_checkin: A lightweight emotional checkpoint. Useful for pattern detection only.`;
 
 const TONE_STYLES: Record<string, string> = {
   neutral: `NEUTRAL TONE:
@@ -293,7 +304,15 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
         new Date(c.capturedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const part = c.dayPart ?? "unknown";
       const note = (c.note ?? "").replace(/\s+/g, " ").trim();
-      return `${time} | ${part} | mood: ${c.mood}${note ? ` | note: ${note}` : ""}`;
+      const typeLabels: Record<string, string> = {
+        capture: 'capture', journal: 'journal', voice: 'mic',
+        shared_link: 'shared link', mood_checkin: 'mood check-in',
+      };
+      const typeLabel = c.entry_type ? (typeLabels[c.entry_type] ?? c.entry_type) : 'capture';
+      const linkMeta = c.entry_type === 'shared_link'
+        ? ` | platform: ${c.shared_link_platform ?? 'Web'} | link title: ${c.shared_link_title ?? 'unknown'}`
+        : '';
+      return `${time} | ${part} | type: ${typeLabel} | mood: ${c.mood}${linkMeta}${note ? ` | note: ${note}` : ""}`;
     });
     return `${day}\n${lines.join("\n")}`;
   }).join("\n\n");
