@@ -60,11 +60,23 @@ export type Capture = {
     /** Whether to use the photo for AI insight generation */
     usePhotoForInsight: boolean;
 
-    /** How the entry was created: photo capture, journal-only, or voice note */
-    source_type?: 'capture' | 'journal' | 'voice';
+    /** How the entry was created: photo capture, journal-only, voice note, or shared link */
+    source_type?: 'capture' | 'journal' | 'voice' | 'shared_link';
 
     /** Supabase Storage URL of the voice recording (voice entries only) */
     audio_url?: string | null;
+
+    /** Original URL for shared_link entries */
+    shared_link_url?: string | null;
+
+    /** Detected platform (TikTok, YouTube, Reddit, Spotify, Instagram, Web) */
+    shared_link_platform?: string | null;
+
+    /** Title parsed from URL metadata or share payload */
+    shared_link_title?: string | null;
+
+    /** Thumbnail URL for shared link preview (if available) */
+    shared_link_thumbnail_url?: string | null;
 
     /** Persisted randomized orb surface effect parameters */
     orb_effect?: OrbEffect | null;

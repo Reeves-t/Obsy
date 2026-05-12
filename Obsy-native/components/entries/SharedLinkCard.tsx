@@ -1,0 +1,244 @@
+import React, { memo, useCallback } from 'react';
+import { View, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import { format } from 'date-fns';
+import { ThemedText } from '@/components/ui/ThemedText';
+import { Capture } from '@/types/capture';
+import { useMoodResolver } from '@/hooks/useMoodResolver';
+import { platformToIcon, platformToColor } from '@/services/sharedLinkService';
+import type { SharedLinkPlatform } from '@/services/sharedLinkService';
+
+interface SharedLinkCardProps {
+    capture: Capture;
+    textColor: string;
+    textSecondary: string;
+    textTertiary: string;
+    isLight: boolean;
+    onPress?: (id: string) => void;
+}
+
+export const SharedLinkCard = memo(function SharedLinkCard({
+    capture,
+    textColor,
+    textSecondary,
+    textTertiary,
+    isLight,
+    onPress,
+}: SharedLinkCardProps) {
+    const { getMoodDisplay } = useMoodResolver();
+    const moodDisplay = getMoodDisplay(capture.mood_id, capture.mood_name_snapshot);
+    const date = new Date(capture.created_at);
+
+    const platform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
+    const platformIcon = platformToIcon(platform);
+    const platformColor = platformToColor(platform);
+    const title = capture.shared_link_title;
+    const url = capture.shared_link_url ?? '';
+    const thumbnail = capture.shared_link_thumbnail_url;
+
+    const cardBg = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)';
+    const cardBorder = isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)';
+
+    const handlePress = useCallback(() => {
+        if (onPress) {
+            onPress(capture.id);
+        } else if (url) {
+            Linking.openURL(url).catch(() => {});
+        }
+    }, [capture.id, url, onPress]);
+
+    const handleLinkTap = useCallback(() => {
+        if (url) Linking.openURL(url).catch(() => {});
+    }, [url]);
+
+    // Derive a short display URL for the card
+    const displayUrl = (() => {
+        try {
+            const parsed = new URL(url);
+            return parsed.hostname.replace(/^www\./, '') + (parsed.pathname !== '/' ? parsed.pathname.slice(0, 40) : '');
+        } catch {
+            return url.slice(0, 50);
+        }
+    })();
+
+    return (
+        <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handlePress}
+            style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
+        >
+            <View style={styles.content}>
+                {/* Left: text area */}
+                <View style={styles.textArea}>
+                    {/* Platform chip */}
+                    <View style={styles.platformRow}>
+                        <Ionicons
+                            name={platformIcon as any}
+                            size={11}
+                            color={platformColor}
+                        />
+                        <ThemedText style={[styles.platformLabel, { color: platformColor }]}>
+                            {platform}
+                        </ThemedText>
+                    </View>
+
+                    {/* Title */}
+                    {title ? (
+                        <ThemedText numberOfLines={2} style={[styles.title, { color: textColor }]}>
+                            {title}
+                        </ThemedText>
+                    ) : (
+                        <ThemedText numberOfLines={2} style={[styles.urlFallback, { color: textSecondary }]}>
+                            {displayUrl}
+                        </ThemedText>
+                    )}
+
+                    {/* URL tap target */}
+                    {title && (
+                        <TouchableOpacity onPress={handleLinkTap} activeOpacity={0.7}>
+                            <ThemedText numberOfLines={1} style={[styles.displayUrl, { color: textTertiary }]}>
+                                {displayUrl}
+                            </ThemedText>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Note */}
+                    {capture.note && capture.note.trim().length > 0 && (
+                        <ThemedText numberOfLines={2} style={[styles.note, { color: textSecondary }]}>
+                            {capture.note}
+                        </ThemedText>
+                    )}
+
+                    {/* Bottom row: mood + time */}
+                    <View style={styles.metaRow}>
+                        {moodDisplay && (
+                            <View style={[
+                                styles.moodPill,
+                                { borderLeftColor: moodDisplay.color, borderLeftWidth: 2 },
+                                isLight ? styles.pillLight : styles.pillDark,
+                            ]}>
+                                <ThemedText style={[styles.moodText, { color: textSecondary }]}>
+                                    {moodDisplay.name}
+                                </ThemedText>
+                            </View>
+                        )}
+                        <ThemedText style={[styles.timeText, { color: textTertiary }]}>
+                            {format(date, 'h:mm a')} · {format(date, 'MMM d')}
+                        </ThemedText>
+                    </View>
+                </View>
+
+                {/* Right: thumbnail */}
+                {thumbnail ? (
+                    <View style={styles.thumbnailContainer}>
+                        <Image
+                            source={{ uri: thumbnail }}
+                            style={styles.thumbnail}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                        />
+                    </View>
+                ) : (
+                    <View style={[styles.thumbnailPlaceholder, { borderColor: cardBorder }]}>
+                        <Ionicons name="link-outline" size={22} color={textTertiary} />
+                    </View>
+                )}
+            </View>
+        </TouchableOpacity>
+    );
+});
+
+const styles = StyleSheet.create({
+    card: {
+        marginBottom: 12,
+        padding: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+    },
+    content: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'flex-start',
+    },
+    textArea: {
+        flex: 1,
+        gap: 6,
+    },
+    platformRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    platformLabel: {
+        fontSize: 10,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+    },
+    title: {
+        fontSize: 14,
+        fontWeight: '500',
+        lineHeight: 20,
+    },
+    urlFallback: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    displayUrl: {
+        fontSize: 11,
+        opacity: 0.6,
+    },
+    note: {
+        fontSize: 13,
+        lineHeight: 18,
+        fontStyle: 'italic',
+        opacity: 0.8,
+    },
+    metaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flexWrap: 'wrap',
+        marginTop: 2,
+    },
+    moodPill: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 10,
+    },
+    pillDark: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+    },
+    pillLight: {
+        backgroundColor: 'rgba(0,0,0,0.04)',
+    },
+    moodText: {
+        fontSize: 10,
+        fontWeight: '500',
+    },
+    timeText: {
+        fontSize: 11,
+    },
+    thumbnailContainer: {
+        width: 64,
+        height: 64,
+        borderRadius: 10,
+        overflow: 'hidden',
+        flexShrink: 0,
+    },
+    thumbnail: {
+        width: '100%',
+        height: '100%',
+    },
+    thumbnailPlaceholder: {
+        width: 64,
+        height: 64,
+        borderRadius: 10,
+        borderWidth: 1,
+        flexShrink: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+    },
+});

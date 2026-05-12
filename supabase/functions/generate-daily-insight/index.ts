@@ -16,6 +16,9 @@ interface CaptureData {
   timeBucket?: TimeBucket;
   dayPart?: DayPart;
   localTimeLabel?: string;
+  entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
+  shared_link_platform?: string | null;
+  shared_link_title?: string | null;
 }
 
 interface DailyInsightRequest {
@@ -91,7 +94,18 @@ IMMERSION GUIDELINES:
 - Never introduce unrelated metaphors or fantasy.
 - Keep immersion elegant, never theatrical or performative.
 
-EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.`;
+EMBODY THE TONE COMPLETELY. The tone style must shape your vocabulary, sentence rhythm, imagery density, and emotional weight. The tone is not a suggestion. It is the voice.
+
+ENTRY FORMAT INTERPRETATION GUIDE:
+Each entry in the capture timeline includes an "Entry type" field. Use it to interpret the entry's context correctly.
+
+- Capture (photo moment): A real-world moment the user personally experienced and photographed. Treat as a lived, physical signal. If a journal note is attached, combine the visual moment with the user's words.
+- Journal (written reflection): Direct internal reflection written by the user. Treat as high-confidence personal context. Let it carry strong interpretive weight without overquoting.
+- Mic (spoken reflection): Immediate spoken expression. Treat as emotionally direct and time-sensitive. If a transcript is present, use it as user-provided reflection.
+- Shared Link (external content the user saved): External content that emotionally resonated with the user. Do NOT treat as a lived experience. Do NOT assume the user personally experienced the events or content in the link. Interpret as "what caught the user's attention" or "what the user was drawn toward." Use only the platform, link title, attached mood, and optional note. Do not claim to know the full content of the link unless it is explicitly in the title or note. Good phrasing: "content you saved," "what caught your attention," "things you were drawn toward," "ideas orbiting your day." Bad phrasing: "you experienced," "you went through," "this happened to you" (unless the user's note explicitly says so).
+- Mood check-in (quick emotional note): A lightweight emotional checkpoint. Useful for pattern recognition, lower context than journals or captures.
+
+Do not flatten all entries into the same meaning. The output should subtly reflect the source type. Preserve all existing tone, length, structure, and narrative rules above.`;
 
 const TONE_STYLES: Record<string, string> = {
   neutral: `NEUTRAL TONE:
@@ -323,7 +337,21 @@ function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; t
     const part = c.dayPart ?? "unknown";
     const tags = (c.tags ?? []).join(", ");
     const note = (c.note ?? "").replace(/\s+/g, " ").trim();
-    return `${time} | ${part} | mood: ${c.mood}${note ? ` | note: ${note}` : ""}${tags ? ` | tags: ${tags}` : ""}`;
+
+    const entryTypeLabels: Record<string, string> = {
+      capture: 'capture',
+      journal: 'journal',
+      voice: 'mic',
+      shared_link: 'shared link',
+      mood_checkin: 'mood check-in',
+    };
+    const typeLabel = c.entry_type ? (entryTypeLabels[c.entry_type] ?? c.entry_type) : 'capture';
+
+    const linkMeta = c.entry_type === 'shared_link'
+      ? ` | platform: ${c.shared_link_platform ?? 'Web'} | link title: ${c.shared_link_title ?? 'unknown'}`
+      : '';
+
+    return `${time} | ${part} | type: ${typeLabel} | mood: ${c.mood}${linkMeta}${note ? ` | note: ${note}` : ""}${tags ? ` | tags: ${tags}` : ""}`;
   });
 
   const captureCount = input.captures.length;

@@ -111,6 +111,9 @@ export interface CaptureData {
     timeBucket?: string;
     dayPart?: string;
     localTimeLabel?: string;
+    entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
+    shared_link_platform?: string | null;
+    shared_link_title?: string | null;
 }
 
 export interface AlbumEntry {

@@ -14,10 +14,15 @@ export interface CaptureForInsight {
     hasJournal: boolean;
     journalSnippet?: string;
     tags?: string[];
-    // Include any existing fields (image summary, challengeId, tag group id, etc.)
     imageDescription?: string;
     imageUrl?: string;
     usePhotoForInsight: boolean;
+    /** Entry format type — used by AI to interpret context correctly */
+    entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
+    /** For shared_link entries: the detected platform */
+    shared_link_platform?: string | null;
+    /** For shared_link entries: the parsed title */
+    shared_link_title?: string | null;
 }
 
 export interface DaySummaryForInsight {
@@ -70,6 +75,7 @@ export interface EnrichedCapture extends Capture {
     localTimeLabel: string;
     timeBucket: TimeBucket;
     dayPart: DayPart;
+    entry_type: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
 }
 
 /**
@@ -77,11 +83,13 @@ export interface EnrichedCapture extends Capture {
  */
 function enrichCapture(capture: Capture): EnrichedCapture {
     const captureDate = new Date(capture.created_at);
+    const entry_type = (capture.source_type as EnrichedCapture['entry_type']) ?? 'capture';
     return {
         ...capture,
         localTimeLabel: formatLocalTimeLabel(captureDate),
         timeBucket: getTimeBucketForDate(captureDate),
         dayPart: getDayPart(captureDate),
+        entry_type,
     };
 }
 

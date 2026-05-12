@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, View, FlatList, TouchableOpacity, Dimensions, Modal, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -7,80 +7,75 @@ import { useCaptureStore, Capture } from '@/lib/captureStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
-import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import { MOODS } from '@/constants/Moods';
-
 import { useMoodResolver } from '@/hooks/useMoodResolver';
+import { SharedLinkCard } from '@/components/entries/SharedLinkCard';
 
 const { width } = Dimensions.get('window');
 
-type ViewMode = 'timeline' | 'grid';
-type ContentType = 'photos' | 'journals';
+// ─── Filter types ────────────────────────────────────────────────────────────
 
-// Type for timeline data that includes headers
+type EntryFilter = 'all' | 'captures' | 'journals' | 'mic' | 'shared_links';
+type ViewMode = 'timeline' | 'grid';
+
+const FILTER_OPTIONS: { key: EntryFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'captures', label: 'Captures' },
+    { key: 'journals', label: 'Journals' },
+    { key: 'mic', label: 'Mic' },
+    { key: 'shared_links', label: 'Shared Links' },
+];
+
+// ─── Timeline / List item shapes ─────────────────────────────────────────────
+
 type TimelineItem =
     | { type: 'header'; title: string; id: string }
     | { type: 'row'; captures: Capture[]; id: string };
 
-// Type for journal list data that includes headers
-type JournalListItem =
+type ListItem =
     | { type: 'header'; title: string; id: string }
     | { type: 'entry'; capture: Capture; id: string };
 
-// ... (constants 31-35)
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-// Memoized Timeline Header component
-interface TimelineHeaderProps {
-    title: string;
-    isLight: boolean;
-    textColor: string;
-}
-
-const TimelineHeader = memo(function TimelineHeader({ title, isLight, textColor }: TimelineHeaderProps) {
+const TimelineHeader = memo(function TimelineHeader({
+    title,
+    isLight,
+    textColor,
+}: { title: string; isLight: boolean; textColor: string }) {
     return (
         <View style={styles.dateHeader}>
             <ThemedText style={[styles.dateHeaderText, { color: textColor }]}>{title}</ThemedText>
             <View style={[
                 styles.dateHeaderLine,
-                { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }
+                { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' },
             ]} />
         </View>
     );
 });
-
-// Memoized Timeline Capture Item component
-interface TimelineCaptureItemProps {
-    capture: Capture;
-    onPress: (id: string) => void;
-    isLight: boolean;
-    textTertiary: string;
-    textSecondary: string;
-}
 
 const TimelineCaptureItem = memo(function TimelineCaptureItem({
     capture,
     onPress,
     isLight,
     textTertiary,
-    textSecondary
-}: TimelineCaptureItemProps) {
+    textSecondary,
+}: {
+    capture: Capture;
+    onPress: (id: string) => void;
+    isLight: boolean;
+    textTertiary: string;
+    textSecondary: string;
+}) {
     const { getMoodDisplay } = useMoodResolver();
     const moodDisplay = getMoodDisplay(capture.mood_id, capture.mood_name_snapshot);
     const date = new Date(capture.created_at);
     const pillBgStyle = isLight ? styles.pillLight : undefined;
-
-    const handlePress = useCallback(() => {
-        onPress(capture.id);
-    }, [capture.id, onPress]);
+    const handlePress = useCallback(() => onPress(capture.id), [capture.id, onPress]);
 
     return (
-        <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handlePress}
-            style={styles.timelineItem}
-        >
+        <TouchableOpacity activeOpacity={0.8} onPress={handlePress} style={styles.timelineItem}>
             <View style={styles.imageContainer}>
                 <Image
                     source={{ uri: capture.image_url }}
@@ -111,22 +106,19 @@ const TimelineCaptureItem = memo(function TimelineCaptureItem({
     );
 });
 
-// Memoized Timeline Row component
-interface TimelineRowProps {
-    captures: Capture[];
-    onPress: (id: string) => void;
-    isLight: boolean;
-    textTertiary: string;
-    textSecondary: string;
-}
-
 const TimelineRow = memo(function TimelineRow({
     captures,
     onPress,
     isLight,
     textTertiary,
-    textSecondary
-}: TimelineRowProps) {
+    textSecondary,
+}: {
+    captures: Capture[];
+    onPress: (id: string) => void;
+    isLight: boolean;
+    textTertiary: string;
+    textSecondary: string;
+}) {
     return (
         <View style={styles.timelineRow}>
             {captures.map(capture => (
@@ -144,23 +136,13 @@ const TimelineRow = memo(function TimelineRow({
     );
 });
 
-// Memoized Grid Item component
-interface GridItemProps {
-    capture: Capture;
-    onPress: (id: string) => void;
-}
-
-const GridItem = memo(function GridItem({ capture, onPress }: GridItemProps) {
-    const handlePress = useCallback(() => {
-        onPress(capture.id);
-    }, [capture.id, onPress]);
-
+const GridItem = memo(function GridItem({
+    capture,
+    onPress,
+}: { capture: Capture; onPress: (id: string) => void }) {
+    const handlePress = useCallback(() => onPress(capture.id), [capture.id, onPress]);
     return (
-        <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handlePress}
-            style={styles.gridItem}
-        >
+        <TouchableOpacity activeOpacity={0.8} onPress={handlePress} style={styles.gridItem}>
             <View style={styles.gridImageContainer}>
                 <Image
                     source={{ uri: capture.image_url }}
@@ -174,16 +156,6 @@ const GridItem = memo(function GridItem({ capture, onPress }: GridItemProps) {
     );
 });
 
-// Memoized Journal Entry Card component
-interface JournalEntryCardProps {
-    capture: Capture;
-    onPress: (id: string) => void;
-    textColor: string;
-    textSecondary: string;
-    textTertiary: string;
-    isLight: boolean;
-}
-
 const JournalEntryCard = memo(function JournalEntryCard({
     capture,
     onPress,
@@ -191,15 +163,18 @@ const JournalEntryCard = memo(function JournalEntryCard({
     textSecondary,
     textTertiary,
     isLight,
-}: JournalEntryCardProps) {
+}: {
+    capture: Capture;
+    onPress: (id: string) => void;
+    textColor: string;
+    textSecondary: string;
+    textTertiary: string;
+    isLight: boolean;
+}) {
     const date = new Date(capture.created_at);
     const isVoice = capture.source_type === 'voice';
     const isJournal = capture.source_type === 'journal';
-
-    const handlePress = useCallback(() => {
-        onPress(capture.id);
-    }, [capture.id, onPress]);
-
+    const handlePress = useCallback(() => onPress(capture.id), [capture.id, onPress]);
     const cardBg = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)';
     const cardBorder = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
 
@@ -211,14 +186,9 @@ const JournalEntryCard = memo(function JournalEntryCard({
         >
             <View style={styles.journalCardContent}>
                 <View style={styles.journalCardTextArea}>
-                    {/* Source type indicator */}
                     {(isVoice || isJournal) && (
                         <View style={styles.sourceTypeRow}>
-                            <Ionicons
-                                name={isVoice ? 'mic' : 'pencil'}
-                                size={11}
-                                color={textTertiary}
-                            />
+                            <Ionicons name={isVoice ? 'mic' : 'pencil'} size={11} color={textTertiary} />
                             <ThemedText style={[styles.sourceTypeLabel, { color: textTertiary }]}>
                                 {isVoice ? 'Voice' : 'Journal'}
                             </ThemedText>
@@ -247,134 +217,188 @@ const JournalEntryCard = memo(function JournalEntryCard({
     );
 });
 
+// ─── Filter Dropdown ──────────────────────────────────────────────────────────
+
+function FilterDropdown({
+    value,
+    onChange,
+    isLight,
+    textColor,
+    textSecondary,
+    textTertiary,
+}: {
+    value: EntryFilter;
+    onChange: (f: EntryFilter) => void;
+    isLight: boolean;
+    textColor: string;
+    textSecondary: string;
+    textTertiary: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const label = FILTER_OPTIONS.find(o => o.key === value)?.label ?? 'All';
+    const toggleBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)';
+    const menuBg = isLight ? '#F5F5F5' : '#161719';
+
+    return (
+        <View>
+            <TouchableOpacity
+                onPress={() => setOpen(v => !v)}
+                style={[styles.filterTrigger, { backgroundColor: toggleBg }]}
+                activeOpacity={0.8}
+            >
+                <ThemedText style={[styles.filterTriggerText, { color: textSecondary }]}>{label}</ThemedText>
+                <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={13} color={textTertiary} />
+            </TouchableOpacity>
+
+            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+                <TouchableOpacity style={styles.dropdownOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+                    <View style={[styles.dropdownMenu, { backgroundColor: menuBg }]}>
+                        {FILTER_OPTIONS.map(opt => (
+                            <TouchableOpacity
+                                key={opt.key}
+                                onPress={() => { onChange(opt.key); setOpen(false); }}
+                                style={[
+                                    styles.dropdownItem,
+                                    value === opt.key && styles.dropdownItemActive,
+                                ]}
+                            >
+                                {value === opt.key && (
+                                    <Ionicons name="checkmark" size={14} color={textColor} style={styles.dropdownCheck} />
+                                )}
+                                <ThemedText style={[
+                                    styles.dropdownItemText,
+                                    { color: value === opt.key ? textColor : textSecondary },
+                                ]}>
+                                    {opt.label}
+                                </ThemedText>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+        </View>
+    );
+}
+
+// ─── Main Entries Screen ──────────────────────────────────────────────────────
+
 export default function GalleryScreen() {
     const router = useRouter();
     const { user } = useAuth();
     const { captures, fetchCaptures, loading } = useCaptureStore();
     const { colors, isLight } = useObsyTheme();
     const [viewMode, setViewMode] = useState<ViewMode>('timeline');
-    const [contentType, setContentType] = useState<ContentType>('photos');
+    const [filter, setFilter] = useState<EntryFilter>('all');
 
-    // Theme-aware on-background colors
     const onBgText = colors.text;
     const onBgTextSecondary = colors.textSecondary;
     const onBgTextTertiary = colors.textTertiary;
+    const toggleBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+    const toggleBorder = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+    const toggleActiveBg = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+    const iconActive = onBgText;
+    const iconInactive = onBgTextTertiary;
 
-    useEffect(() => {
-        fetchCaptures(user);
-    }, [user]);
+    useEffect(() => { fetchCaptures(user); }, [user]);
 
-    // Photos-only captures (exclude journal/voice entries that have no photo)
-    const photoCaptures = useMemo(() => {
-        return captures.filter(c => c.source_type !== 'journal' && c.source_type !== 'voice' && c.image_url);
-    }, [captures]);
+    // ── Filtered captures per selected filter ──
 
-    // Group captures by date for timeline view
+    const filteredCaptures = useMemo(() => {
+        switch (filter) {
+            case 'captures':
+                return captures.filter(c => c.image_url && c.source_type !== 'journal' && c.source_type !== 'voice' && c.source_type !== 'shared_link');
+            case 'journals':
+                return captures.filter(c => c.source_type === 'journal' || (c.note && c.note.trim().length > 0 && !c.image_url && c.source_type !== 'voice' && c.source_type !== 'shared_link'));
+            case 'mic':
+                return captures.filter(c => c.source_type === 'voice');
+            case 'shared_links':
+                return captures.filter(c => c.source_type === 'shared_link');
+            case 'all':
+            default:
+                return captures;
+        }
+    }, [captures, filter]);
+
+    // ── Photo-only captures (for captures tab timeline/grid) ──
+
+    const photoCaptures = useMemo(() =>
+        filteredCaptures.filter(c =>
+            c.image_url &&
+            c.source_type !== 'journal' &&
+            c.source_type !== 'voice' &&
+            c.source_type !== 'shared_link'
+        ),
+    [filteredCaptures]);
+
+    // ── Timeline grouping ──
+
     const capturesByDate = useMemo(() => {
         const groups: Record<string, Capture[]> = {};
-        photoCaptures.forEach(capture => {
-            const date = format(new Date(capture.created_at), 'yyyy-MM-dd');
-            if (!groups[date]) {
-                groups[date] = [];
-            }
-            groups[date].push(capture);
+        photoCaptures.forEach(c => {
+            const date = format(new Date(c.created_at), 'yyyy-MM-dd');
+            if (!groups[date]) groups[date] = [];
+            groups[date].push(c);
         });
         return groups;
     }, [photoCaptures]);
 
-    // Sorted dates descending
-    const sortedDates = useMemo(() => {
-        return Object.keys(capturesByDate).sort((a, b) =>
-            new Date(b).getTime() - new Date(a).getTime()
-        );
-    }, [capturesByDate]);
+    const sortedDates = useMemo(() =>
+        Object.keys(capturesByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
+    [capturesByDate]);
 
-    // Grid also uses photo-only captures
-    const gridCaptures = photoCaptures;
-
-    // Build timeline data with headers and rows of 2 captures each
-    const timelineData = useMemo(() => {
+    const timelineData = useMemo((): TimelineItem[] => {
         const data: TimelineItem[] = [];
         sortedDates.forEach(date => {
-            // Add header
             data.push({
                 type: 'header',
                 title: format(new Date(date + 'T12:00:00'), 'EEEE, MMM d').toUpperCase(),
-                id: `header-${date}`
+                id: `header-${date}`,
             });
-            // Add rows of 2 captures each
             const dateCaptures = capturesByDate[date];
             for (let i = 0; i < dateCaptures.length; i += 2) {
-                data.push({
-                    type: 'row',
-                    captures: dateCaptures.slice(i, i + 2),
-                    id: `row-${date}-${i}`
-                });
+                data.push({ type: 'row', captures: dateCaptures.slice(i, i + 2), id: `row-${date}-${i}` });
             }
         });
         return data;
     }, [sortedDates, capturesByDate]);
 
-    // Filter captures with notes (journal entries)
-    const journalEntries = useMemo(() => {
-        return captures
-            .filter(c => c.note && c.note.trim().length > 0)
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    }, [captures]);
+    // ── List view grouping (journals, mic, shared links, all) ──
 
-    // Group journal entries by date
-    const journalsByDate = useMemo(() => {
-        const groups: Record<string, Capture[]> = {};
-        journalEntries.forEach(capture => {
-            const date = format(new Date(capture.created_at), 'yyyy-MM-dd');
-            if (!groups[date]) groups[date] = [];
-            groups[date].push(capture);
-        });
-        return groups;
-    }, [journalEntries]);
-
-    // Build journal list data with headers and entries
-    const journalListData = useMemo(() => {
-        const data: JournalListItem[] = [];
-        const sortedJournalDates = Object.keys(journalsByDate).sort((a, b) =>
-            new Date(b).getTime() - new Date(a).getTime()
+    const listData = useMemo((): ListItem[] => {
+        if (filter === 'captures') return []; // handled by timeline/grid
+        const sorted = [...filteredCaptures].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
-        sortedJournalDates.forEach(date => {
-            // Add header
+        const groups: Record<string, Capture[]> = {};
+        sorted.forEach(c => {
+            const date = format(new Date(c.created_at), 'yyyy-MM-dd');
+            if (!groups[date]) groups[date] = [];
+            groups[date].push(c);
+        });
+        const data: ListItem[] = [];
+        Object.keys(groups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).forEach(date => {
             data.push({
                 type: 'header',
                 title: format(new Date(date + 'T12:00:00'), 'EEEE, MMM d').toUpperCase(),
-                id: `journal-header-${date}`
+                id: `lh-${date}`,
             });
-            // Add entries
-            journalsByDate[date].forEach(capture => {
-                data.push({
-                    type: 'entry',
-                    capture,
-                    id: `journal-entry-${capture.id}`
-                });
-            });
+            groups[date].forEach(c => data.push({ type: 'entry', capture: c, id: `le-${c.id}` }));
         });
         return data;
-    }, [journalsByDate]);
+    }, [filteredCaptures, filter]);
 
-    // Stable callback for navigation
+    // ── Navigation ──
+
     const handleCapturePress = useCallback((captureId: string) => {
         router.push(`/capture/${captureId}`);
     }, [router]);
 
-    // Memoized render function for timeline items
+    // ── Render functions ──
+
     const renderTimelineItem = useCallback(({ item }: { item: TimelineItem }) => {
         if (item.type === 'header') {
-            return (
-                <TimelineHeader
-                    title={item.title}
-                    isLight={isLight}
-                    textColor={onBgTextTertiary}
-                />
-            );
+            return <TimelineHeader title={item.title} isLight={isLight} textColor={onBgTextTertiary} />;
         }
-
         return (
             <TimelineRow
                 captures={item.captures}
@@ -386,34 +410,31 @@ export default function GalleryScreen() {
         );
     }, [isLight, onBgTextTertiary, onBgTextSecondary, handleCapturePress]);
 
-    // Memoized render function for grid items
-    const renderGridItem = useCallback(({ item }: { item: Capture }) => {
-        return (
-            <GridItem capture={item} onPress={handleCapturePress} />
-        );
-    }, [handleCapturePress]);
+    const renderGridItem = useCallback(({ item }: { item: Capture }) => (
+        <GridItem capture={item} onPress={handleCapturePress} />
+    ), [handleCapturePress]);
 
-    // NOTE: getItemLayout removed for timeline - mixed item heights (headers vs rows)
-    // cause incorrect scroll positions. FlatList will dynamically measure items.
-
-    // NOTE: getItemLayout removed for grid - row-based calculation was incorrect.
-    // FlatList handles numColumns grids better with dynamic measurement.
-
-    // Memoized render function for journal items
-    const renderJournalItem = useCallback(({ item }: { item: JournalListItem }) => {
+    const renderListItem = useCallback(({ item }: { item: ListItem }) => {
         if (item.type === 'header') {
+            return <TimelineHeader title={item.title} isLight={isLight} textColor={onBgTextTertiary} />;
+        }
+        const capture = item.capture;
+
+        if (capture.source_type === 'shared_link') {
             return (
-                <TimelineHeader
-                    title={item.title}
+                <SharedLinkCard
+                    capture={capture}
+                    textColor={onBgText}
+                    textSecondary={onBgTextSecondary}
+                    textTertiary={onBgTextTertiary}
                     isLight={isLight}
-                    textColor={onBgTextTertiary}
                 />
             );
         }
 
         return (
             <JournalEntryCard
-                capture={item.capture}
+                capture={capture}
                 onPress={handleCapturePress}
                 textColor={onBgText}
                 textSecondary={onBgTextSecondary}
@@ -423,148 +444,115 @@ export default function GalleryScreen() {
         );
     }, [isLight, onBgText, onBgTextSecondary, onBgTextTertiary, handleCapturePress]);
 
-    // NOTE: getItemLayout removed for journals - mixed item heights cause scroll issues.
+    // ── Empty states ──
 
-    const renderEmptyState = () => (
+    const emptyLabel = useMemo(() => {
+        switch (filter) {
+            case 'captures': return { main: 'No captures yet.', sub: 'Start capturing your moments!' };
+            case 'journals': return { main: 'No journal entries yet.', sub: 'Start writing your thoughts!' };
+            case 'mic': return { main: 'No voice entries yet.', sub: 'Tap the mic to record your thoughts.' };
+            case 'shared_links': return { main: 'No shared links yet.', sub: 'Share a post, article, song, or video into Obsy and attach a mood to it.' };
+            default: return { main: 'Nothing here yet.', sub: 'Capture a moment, write, or share a link.' };
+        }
+    }, [filter]);
+
+    const renderEmpty = useCallback(() =>
         !loading ? (
             <View style={styles.emptyState}>
-                <ThemedText style={[styles.emptyText, { color: onBgTextSecondary }]}>No captures yet.</ThemedText>
-                <ThemedText style={[styles.emptySubtext, { color: onBgTextTertiary }]}>Start capturing your moments!</ThemedText>
+                <ThemedText style={[styles.emptyText, { color: onBgTextSecondary }]}>{emptyLabel.main}</ThemedText>
+                <ThemedText style={[styles.emptySubtext, { color: onBgTextTertiary }]}>{emptyLabel.sub}</ThemedText>
             </View>
-        ) : null
-    );
+        ) : null,
+    [loading, emptyLabel, onBgTextSecondary, onBgTextTertiary]);
 
-    const renderJournalsEmptyState = () => (
-        !loading ? (
-            <View style={styles.emptyState}>
-                <ThemedText style={[styles.emptyText, { color: onBgTextSecondary }]}>No journal entries yet.</ThemedText>
-                <ThemedText style={[styles.emptySubtext, { color: onBgTextTertiary }]}>Start writing your thoughts!</ThemedText>
-            </View>
-        ) : null
-    );
-
-    // Theme-aware toggle container colors
-    const toggleBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
-    const toggleBorder = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-    const toggleActiveBg = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-    const iconActive = onBgText;
-    const iconInactive = onBgTextTertiary;
+    // ── Decide which view to show ──
+    const showGrid = filter === 'captures' && viewMode === 'grid';
+    const showTimeline = filter === 'captures' && viewMode === 'timeline';
+    const showList = filter !== 'captures';
 
     return (
         <ScreenWrapper screenName="gallery" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
             {/* Header */}
             <View style={styles.header}>
-                <ThemedText type="title" style={{ color: onBgText }}>Gallery</ThemedText>
+                <ThemedText type="title" style={{ color: onBgText }}>Entries</ThemedText>
                 <View style={styles.headerRight}>
                     <TouchableOpacity onPress={() => fetchCaptures(user)} style={styles.refreshButton}>
                         <Ionicons name="refresh" size={18} color={onBgTextSecondary} />
                     </TouchableOpacity>
-                    {/* Primary toggle: Photos / Journals */}
-                    <View style={[styles.contentToggle, { backgroundColor: toggleBg, borderColor: toggleBorder }]}>
-                        <TouchableOpacity
-                            onPress={() => setContentType('photos')}
-                            style={[
-                                styles.contentToggleButton,
-                                contentType === 'photos' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]
-                            ]}
-                        >
-                            <ThemedText style={[
-                                styles.contentToggleText,
-                                { color: contentType === 'photos' ? iconActive : iconInactive }
-                            ]}>Photos</ThemedText>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => setContentType('journals')}
-                            style={[
-                                styles.contentToggleButton,
-                                contentType === 'journals' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]
-                            ]}
-                        >
-                            <ThemedText style={[
-                                styles.contentToggleText,
-                                { color: contentType === 'journals' ? iconActive : iconInactive }
-                            ]}>Journals</ThemedText>
-                        </TouchableOpacity>
-                    </View>
-                    {/* Secondary toggle: Timeline / Grid (only for Photos) */}
-                    {contentType === 'photos' && (
+
+                    {/* Filter dropdown */}
+                    <FilterDropdown
+                        value={filter}
+                        onChange={setFilter}
+                        isLight={isLight}
+                        textColor={onBgText}
+                        textSecondary={onBgTextSecondary}
+                        textTertiary={onBgTextTertiary}
+                    />
+
+                    {/* Stack/grid toggle — only visible when Captures filter is active */}
+                    {filter === 'captures' && (
                         <View style={[styles.viewToggle, { backgroundColor: toggleBg, borderColor: toggleBorder }]}>
                             <TouchableOpacity
                                 onPress={() => setViewMode('timeline')}
-                                style={[
-                                    styles.toggleButton,
-                                    viewMode === 'timeline' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]
-                                ]}
+                                style={[styles.toggleButton, viewMode === 'timeline' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]]}
                             >
-                                <Ionicons
-                                    name="list"
-                                    size={16}
-                                    color={viewMode === 'timeline' ? iconActive : iconInactive}
-                                />
+                                <Ionicons name="list" size={16} color={viewMode === 'timeline' ? iconActive : iconInactive} />
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => setViewMode('grid')}
-                                style={[
-                                    styles.toggleButton,
-                                    viewMode === 'grid' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]
-                                ]}
+                                style={[styles.toggleButton, viewMode === 'grid' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]]}
                             >
-                                <Ionicons
-                                    name="grid"
-                                    size={16}
-                                    color={viewMode === 'grid' ? iconActive : iconInactive}
-                                />
+                                <Ionicons name="grid" size={16} color={viewMode === 'grid' ? iconActive : iconInactive} />
                             </TouchableOpacity>
                         </View>
                     )}
                 </View>
             </View>
 
-            {contentType === 'photos' ? (
-                viewMode === 'timeline' ? (
-                    <FlatList
-                        key="timeline"
-                        data={timelineData}
-                        renderItem={renderTimelineItem}
-                        keyExtractor={(item) => item.id}
-                        contentContainerStyle={styles.listContent}
-                        showsVerticalScrollIndicator={false}
-                        ListEmptyComponent={renderEmptyState}
-                        // Performance optimizations
-                        removeClippedSubviews={true}
-                        windowSize={7}
-                        initialNumToRender={10}
-                        maxToRenderPerBatch={5}
-                    />
-                ) : (
-                    <FlatList
-                        key="grid"
-                        data={gridCaptures}
-                        renderItem={renderGridItem}
-                        keyExtractor={(item) => item.id}
-                        numColumns={3}
-                        contentContainerStyle={styles.gridContent}
-                        columnWrapperStyle={styles.gridRow}
-                        showsVerticalScrollIndicator={false}
-                        ListEmptyComponent={renderEmptyState}
-                        // Performance optimizations
-                        removeClippedSubviews={true}
-                        windowSize={7}
-                        initialNumToRender={15}
-                        maxToRenderPerBatch={6}
-                    />
-                )
-            ) : (
+            {/* Content */}
+            {showTimeline && (
                 <FlatList
-                    key="journals"
-                    data={journalListData}
-                    renderItem={renderJournalItem}
-                    keyExtractor={(item) => item.id}
+                    key="timeline"
+                    data={timelineData}
+                    renderItem={renderTimelineItem}
+                    keyExtractor={item => item.id}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={renderJournalsEmptyState}
-                    // Performance optimizations
-                    removeClippedSubviews={true}
+                    ListEmptyComponent={renderEmpty}
+                    removeClippedSubviews
+                    windowSize={7}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={5}
+                />
+            )}
+            {showGrid && (
+                <FlatList
+                    key="grid"
+                    data={photoCaptures}
+                    renderItem={renderGridItem}
+                    keyExtractor={item => item.id}
+                    numColumns={3}
+                    contentContainerStyle={styles.gridContent}
+                    columnWrapperStyle={styles.gridRow}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={renderEmpty}
+                    removeClippedSubviews
+                    windowSize={7}
+                    initialNumToRender={15}
+                    maxToRenderPerBatch={6}
+                />
+            )}
+            {showList && (
+                <FlatList
+                    key={`list-${filter}`}
+                    data={listData}
+                    renderItem={renderListItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={renderEmpty}
+                    removeClippedSubviews
                     windowSize={7}
                     initialNumToRender={10}
                     maxToRenderPerBatch={5}
@@ -573,6 +561,8 @@ export default function GalleryScreen() {
         </ScreenWrapper>
     );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
     header: {
@@ -587,19 +577,67 @@ const styles = StyleSheet.create({
     headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
     },
     refreshButton: {
         padding: 8,
     },
+    // Filter dropdown trigger
+    filterTrigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 20,
+    },
+    filterTriggerText: {
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    // Dropdown overlay + menu
+    dropdownOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-end',
+        paddingTop: 110,
+        paddingRight: 20,
+    },
+    dropdownMenu: {
+        borderRadius: 14,
+        paddingVertical: 6,
+        minWidth: 160,
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 12,
+    },
+    dropdownItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 11,
+        gap: 8,
+    },
+    dropdownItemActive: {
+        // no background fill; checkmark indicates selection
+    },
+    dropdownCheck: {
+        // already indented via gap
+    },
+    dropdownItemText: {
+        fontSize: 14,
+        fontWeight: '400',
+    },
+    // View toggle (stack/grid)
     viewToggle: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
         borderRadius: 20,
         padding: 4,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
     },
     toggleButton: {
         padding: 8,
@@ -608,6 +646,7 @@ const styles = StyleSheet.create({
     toggleButtonActive: {
         backgroundColor: 'rgba(255,255,255,0.1)',
     },
+    // List/grid layouts
     listContent: {
         paddingHorizontal: 16,
         paddingBottom: 100,
@@ -620,6 +659,7 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 8,
     },
+    // Date header
     dateHeader: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -630,13 +670,13 @@ const styles = StyleSheet.create({
     dateHeaderText: {
         fontSize: 12,
         fontWeight: '500',
-        color: 'rgba(255,255,255,0.5)',
         letterSpacing: 1,
     },
     dateHeaderLine: {
         flex: 1,
         height: 1,
     },
+    // Timeline items
     timelineRow: {
         flexDirection: 'row',
         gap: 16,
@@ -673,7 +713,6 @@ const styles = StyleSheet.create({
     timeText: {
         fontSize: 11,
         fontWeight: '500',
-        color: 'rgba(255,255,255,0.5)',
     },
     pill: {
         backgroundColor: 'rgba(255,255,255,0.05)',
@@ -686,11 +725,11 @@ const styles = StyleSheet.create({
     },
     pillText: {
         fontSize: 10,
-        color: 'rgba(255,255,255,0.6)',
     },
+    // Grid items
     gridItem: {
         flex: 1,
-        maxWidth: (width - 32 - 16) / 3, // Account for padding and gaps
+        maxWidth: (width - 32 - 16) / 3,
     },
     gridImageContainer: {
         aspectRatio: 1,
@@ -700,52 +739,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.05)',
     },
-    emptyState: {
-        padding: 40,
-        alignItems: 'center',
-        gap: 8,
-    },
-    emptyText: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 16,
-    },
-    emptySubtext: {
-        color: 'rgba(255,255,255,0.3)',
-        fontSize: 14,
-    },
-    // Content toggle styles (Photos/Journals)
-    contentToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderRadius: 20,
-        padding: 4,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-    },
-    contentToggleButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-    },
-    contentToggleText: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    // Source type indicator row
-    sourceTypeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginBottom: 2,
-    },
-    sourceTypeLabel: {
-        fontSize: 11,
-        fontWeight: '500',
-        opacity: 0.6,
-        letterSpacing: 0.5,
-    },
-    // Journal card styles
+    // Journal cards
     journalCard: {
         marginBottom: 12,
         padding: 16,
@@ -777,5 +771,32 @@ const styles = StyleSheet.create({
     journalCardThumbnail: {
         width: '100%',
         height: '100%',
+    },
+    sourceTypeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginBottom: 2,
+    },
+    sourceTypeLabel: {
+        fontSize: 11,
+        fontWeight: '500',
+        opacity: 0.6,
+        letterSpacing: 0.5,
+    },
+    // Empty state
+    emptyState: {
+        padding: 40,
+        alignItems: 'center',
+        gap: 8,
+    },
+    emptyText: {
+        fontSize: 16,
+    },
+    emptySubtext: {
+        fontSize: 14,
+        textAlign: 'center',
+        lineHeight: 20,
+        paddingHorizontal: 20,
     },
 });
