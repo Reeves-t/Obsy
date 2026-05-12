@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, AppState } from 'react-native';
+import { StyleSheet, View, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, AppState, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -13,6 +13,9 @@ import { useTimeFormatStore, getFormattedTime } from '@/lib/timeFormatStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { format, isSameDay } from 'date-fns';
+import { Ionicons } from '@expo/vector-icons';
+import { isDevUser } from '@/lib/devConfig';
+import { DevPortalModal } from '@/components/dev/DevPortalModal';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AmbientMoodField } from '@/components/ambient/AmbientMoodField';
@@ -52,6 +55,8 @@ export default function HomeScreen() {
   const headerTop = Math.max(insets.top, 32) + 48;
 
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [devPortalVisible, setDevPortalVisible] = useState(false);
+  const isDev = isDevUser(user?.email);
 
   const onBgText = colors.text;
   const onBgTextSecondary = colors.textSecondary;
@@ -184,15 +189,27 @@ export default function HomeScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        <View style={[styles.heroSection, { height: pageHeight }]}> 
-          <View style={[styles.headerContainer, { top: headerTop }]}> 
-            <ThemedText style={[styles.clockTime, { color: onBgText }]}> 
+        <View style={[styles.heroSection, { height: pageHeight }]}>
+          <View style={[styles.headerContainer, { top: headerTop }]}>
+            <ThemedText style={[styles.clockTime, { color: onBgText }]}>
               {getFormattedTime(currentTime, timeFormat)}
             </ThemedText>
-            <ThemedText style={[styles.clockDate, { color: onBgTextSecondary }]}> 
+            <ThemedText style={[styles.clockDate, { color: onBgTextSecondary }]}>
               {format(currentTime, 'EEEE, MMMM d')}
             </ThemedText>
           </View>
+
+          {/* Dev portal button — only visible to dev accounts */}
+          {isDev && (
+            <TouchableOpacity
+              onPress={() => setDevPortalVisible(true)}
+              style={[styles.devButton, { top: insets.top + 14 }]}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="flask-outline" size={17} color="rgba(255,107,53,0.85)" />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.centerContainer}>
             <HomeActionCarousel />
@@ -239,6 +256,13 @@ export default function HomeScreen() {
           }}
         />
       )}
+
+      {isDev && (
+        <DevPortalModal
+          visible={devPortalVisible}
+          onClose={() => setDevPortalVisible(false)}
+        />
+      )}
     </ScreenWrapper>
   );
 }
@@ -260,6 +284,19 @@ const styles = StyleSheet.create({
   },
   horizonStarsLayer: {
     ...StyleSheet.absoluteFillObject,
+  },
+  devButton: {
+    position: 'absolute',
+    right: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,107,53,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,53,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
   },
 
   headerContainer: {
