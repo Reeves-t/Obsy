@@ -63,8 +63,10 @@ interface EmbedConfig {
 }
 
 // ─── URL parsers ─────────────────────────────────────────────────────────
+// These are exported so StaticLinkPreview (and any future callers) can reuse
+// the same per-platform URL → identifier logic without duplicating it.
 
-function extractYouTubeId(url: string): string | null {
+export function extractYouTubeId(url: string): string | null {
     try {
         const u = new URL(url);
         const host = u.hostname.replace(/^www\./, '');
@@ -88,7 +90,7 @@ function extractYouTubeId(url: string): string | null {
     return null;
 }
 
-function extractSpotifyEmbedPath(url: string): string | null {
+export function extractSpotifyEmbedPath(url: string): string | null {
     // Spotify: /track/{id}, /album/{id}, /playlist/{id}, /artist/{id}, /episode/{id}, /show/{id}
     try {
         const u = new URL(url);
@@ -108,7 +110,7 @@ function extractSpotifyEmbedPath(url: string): string | null {
     }
 }
 
-function extractTikTokVideoId(url: string): string | null {
+export function extractTikTokVideoId(url: string): string | null {
     try {
         const u = new URL(url);
         const parts = u.pathname.split('/').filter(Boolean);
@@ -123,7 +125,7 @@ function extractTikTokVideoId(url: string): string | null {
     return null;
 }
 
-function extractInstagramCode(url: string): string | null {
+export function extractInstagramCode(url: string): string | null {
     try {
         const u = new URL(url);
         const parts = u.pathname.split('/').filter(Boolean);
@@ -135,7 +137,25 @@ function extractInstagramCode(url: string): string | null {
     return null;
 }
 
-function extractTweetId(url: string): string | null {
+export function extractRedditPostPath(url: string): string | null {
+    // Reddit URLs follow /r/{sub}/comments/{id}/{slug}/
+    try {
+        const u = new URL(url);
+        if (!/reddit\.com$/.test(u.hostname.replace(/^www\./, '').replace(/^old\./, '').replace(/^new\./, ''))) {
+            return null;
+        }
+        const parts = u.pathname.split('/').filter(Boolean);
+        const cIdx = parts.indexOf('comments');
+        if (cIdx === -1 || !parts[cIdx + 1]) return null;
+        // Use /r/{sub}/comments/{id}/{slug} (slug optional) — drop everything else.
+        const trimmed = parts.slice(0, cIdx + 3).join('/');
+        return `/${trimmed}/`;
+    } catch {
+        return null;
+    }
+}
+
+export function extractTweetId(url: string): string | null {
     try {
         const u = new URL(url);
         const host = u.hostname.replace(/^www\./, '');
@@ -177,9 +197,38 @@ function buildEmbedConfig(
         case 'TikTok': {
             const id = extractTikTokVideoId(url);
             if (!id) return null;
+            // The /embed/v2/ iframe URL sizes inconsistently in WebView; use
+            // TikTok's official blockquote + embed.js script (same pattern as
+            // Twitter) which handles its own responsive sizing.
+            const html = `<!doctype html>
+<html><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<style>
+  html,body{margin:0;padding:0;background:transparent;}
+  body{display:flex;justify-content:center;}
+  .tiktok-embed{max-width:100% !important;min-width:0 !important;margin:0 !important;}
+</style>
+</head><body>
+<blockquote class="tiktok-embed" cite="${url.replace(/"/g, '%22')}" data-video-id="${id}">
+  <section></section>
+</blockquote>
+<script async src="https://www.tiktok.com/embed.js"></script>
+</body></html>`;
             return {
-                source: { kind: 'uri', uri: `https://www.tiktok.com/embed/v2/${id}` },
-                fixedHeight: 640,
+                source: { kind: 'html', html, baseUrl: 'https://www.tiktok.com' },
+                fixedHeight: 740,
+            };
+        }
+        case 'Reddit': {
+            // Reddit's redditmedia.com supports embedded post views. Theme
+            // follows the OS-level mode (dark/light) we already track.
+            const path = extractRedditPostPath(url);
+            if (!path) return null;
+            const theme = isLight ? 'light' : 'dark';
+            return {
+                source: { kind: 'uri', uri: `https://www.redditmedia.com${path}?ref_source=embed&ref=share&embed=true&theme=${theme}` },
+                fixedHeight: 560,
             };
         }
         case 'Instagram': {
@@ -363,6 +412,8 @@ export function isEmbeddablePlatform(platform: SharedLinkPlatform, url: string):
             return !!extractInstagramCode(url);
         case 'Twitter':
             return !!extractTweetId(url);
+        case 'Reddit':
+            return !!extractRedditPostPath(url);
         default:
             return false;
     }
