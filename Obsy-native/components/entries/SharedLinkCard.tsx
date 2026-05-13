@@ -8,6 +8,22 @@ import { Capture } from '@/types/capture';
 import { useMoodResolver } from '@/hooks/useMoodResolver';
 import { platformToIcon, platformToColor } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
+import { PlatformEmbed, isEmbeddablePlatform } from './PlatformEmbed';
+
+/**
+ * SharedLinkCard renders an entry whose source is a shared link.
+ *
+ * Rendering modes (Option A — see PlatformEmbed.tsx for the Option B note):
+ *  - Embeddable platform (YouTube, Spotify, TikTok, Instagram, Twitter) with
+ *    a parseable URL → render the real platform embed via PlatformEmbed,
+ *    with a compact footer below it (mood + note + time).
+ *  - Anything else (Reddit, Web, or parsing failed) → fall back to the
+ *    original lightweight card layout with a thumbnail/icon.
+ *
+ * The list (`gallery.tsx`) uses `paddingHorizontal: 16` on the FlatList
+ * contentContainer; the embed receives `horizontalPaddingTotal={32}` so it
+ * can size itself to fill the row width.
+ */
 
 interface SharedLinkCardProps {
     capture: Capture;
@@ -52,7 +68,6 @@ export const SharedLinkCard = memo(function SharedLinkCard({
         if (url) Linking.openURL(url).catch(() => {});
     }, [url]);
 
-    // Derive a short display URL for the card
     const displayUrl = (() => {
         try {
             const parsed = new URL(url);
@@ -62,6 +77,65 @@ export const SharedLinkCard = memo(function SharedLinkCard({
         }
     })();
 
+    const embeddable = url ? isEmbeddablePlatform(platform, url) : false;
+
+    // ── Embedded variant ────────────────────────────────────────────────
+    if (embeddable) {
+        return (
+            <View style={[styles.embedCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+                <PlatformEmbed
+                    url={url}
+                    platform={platform}
+                    isLight={isLight}
+                    horizontalPaddingTotal={32}
+                />
+                <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handlePress}
+                    style={styles.embedFooter}
+                >
+                    <View style={styles.platformRow}>
+                        <Ionicons name={platformIcon as any} size={11} color={platformColor} />
+                        <ThemedText style={[styles.platformLabel, { color: platformColor }]}>
+                            {platform}
+                        </ThemedText>
+                        <ThemedText
+                            numberOfLines={1}
+                            style={[styles.embedDomain, { color: textTertiary }]}
+                            onPress={handleLinkTap}
+                        >
+                            · {displayUrl}
+                        </ThemedText>
+                    </View>
+
+                    {capture.note && capture.note.trim().length > 0 && (
+                        <ThemedText numberOfLines={2} style={[styles.note, { color: textSecondary }]}>
+                            {capture.note}
+                        </ThemedText>
+                    )}
+
+                    <View style={styles.metaRow}>
+                        {moodDisplay && (
+                            <View style={[
+                                styles.moodPill,
+                                { borderLeftColor: moodDisplay.color, borderLeftWidth: 2 },
+                                isLight ? styles.pillLight : styles.pillDark,
+                            ]}>
+                                <ThemedText style={[styles.moodText, { color: textSecondary }]}>
+                                    {moodDisplay.name}
+                                </ThemedText>
+                            </View>
+                        )}
+                        <ThemedText style={[styles.timeText, { color: textTertiary }]}>
+                            {format(date, 'h:mm a')} · {format(date, 'MMM d')}
+                        </ThemedText>
+                    </View>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    // ── Fallback static card (Reddit / Web / unparseable URLs) ──────────
     return (
         <TouchableOpacity
             activeOpacity={0.8}
@@ -69,9 +143,7 @@ export const SharedLinkCard = memo(function SharedLinkCard({
             style={[styles.card, { backgroundColor: cardBg, borderColor: cardBorder }]}
         >
             <View style={styles.content}>
-                {/* Left: text area */}
                 <View style={styles.textArea}>
-                    {/* Platform chip */}
                     <View style={styles.platformRow}>
                         <Ionicons
                             name={platformIcon as any}
@@ -83,7 +155,6 @@ export const SharedLinkCard = memo(function SharedLinkCard({
                         </ThemedText>
                     </View>
 
-                    {/* Title */}
                     {title ? (
                         <ThemedText numberOfLines={2} style={[styles.title, { color: textColor }]}>
                             {title}
@@ -94,7 +165,6 @@ export const SharedLinkCard = memo(function SharedLinkCard({
                         </ThemedText>
                     )}
 
-                    {/* URL tap target */}
                     {title && (
                         <TouchableOpacity onPress={handleLinkTap} activeOpacity={0.7}>
                             <ThemedText numberOfLines={1} style={[styles.displayUrl, { color: textTertiary }]}>
@@ -103,14 +173,12 @@ export const SharedLinkCard = memo(function SharedLinkCard({
                         </TouchableOpacity>
                     )}
 
-                    {/* Note */}
                     {capture.note && capture.note.trim().length > 0 && (
                         <ThemedText numberOfLines={2} style={[styles.note, { color: textSecondary }]}>
                             {capture.note}
                         </ThemedText>
                     )}
 
-                    {/* Bottom row: mood + time */}
                     <View style={styles.metaRow}>
                         {moodDisplay && (
                             <View style={[
@@ -129,7 +197,6 @@ export const SharedLinkCard = memo(function SharedLinkCard({
                     </View>
                 </View>
 
-                {/* Right: thumbnail */}
                 {thumbnail ? (
                     <View style={styles.thumbnailContainer}>
                         <Image
@@ -150,6 +217,7 @@ export const SharedLinkCard = memo(function SharedLinkCard({
 });
 
 const styles = StyleSheet.create({
+    // Fallback (non-embed) card
     card: {
         marginBottom: 12,
         padding: 14,
@@ -165,6 +233,24 @@ const styles = StyleSheet.create({
         flex: 1,
         gap: 6,
     },
+
+    // Embedded card
+    embedCard: {
+        marginBottom: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        overflow: 'hidden',
+    },
+    embedFooter: {
+        padding: 12,
+        gap: 6,
+    },
+    embedDomain: {
+        fontSize: 11,
+        flexShrink: 1,
+    },
+
+    // Shared
     platformRow: {
         flexDirection: 'row',
         alignItems: 'center',

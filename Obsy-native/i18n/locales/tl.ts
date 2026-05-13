@@ -3,7 +3,7 @@ import type { TranslationDictionary } from './en';
 export const tl: TranslationDictionary = {
   navigation: {
     home: 'Home',
-    gallery: 'Gallery',
+    gallery: 'Entries',
     insights: 'Insights',
     topics: 'Topics',
     settings: 'Settings',

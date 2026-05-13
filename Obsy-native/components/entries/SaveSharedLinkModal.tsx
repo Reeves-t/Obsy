@@ -14,13 +14,11 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTopicStore } from '@/lib/topicStore';
-import { useMoodResolver } from '@/hooks/useMoodResolver';
 import { moodCache } from '@/lib/moodCache';
 import {
     parseSharedLinkMetadata,
@@ -29,6 +27,8 @@ import {
     type SharedLinkMetadata,
 } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
+import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
+import { useCustomMoodStore } from '@/lib/customMoodStore';
 import { MOODS } from '@/constants/Moods';
 import { getMoodTheme } from '@/lib/moods';
 import Colors from '@/constants/Colors';
@@ -52,8 +52,11 @@ export function SaveSharedLinkModal({
     const { user } = useAuth();
     const { createSharedLinkEntry } = useCaptureStore();
     const { topics } = useTopicStore();
+    const { getMoodById } = useCustomMoodStore();
 
     const [selectedMoodId, setSelectedMoodId] = useState<string | null>(null);
+    const [moodName, setMoodName] = useState('');
+    const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [note, setNote] = useState('');
     const [destination, setDestination] = useState<DestinationType>('today');
     const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
@@ -72,15 +75,20 @@ export function SaveSharedLinkModal({
 
     const canSave = !!selectedMoodId && !!meta.url;
 
+    const handleMoodSelect = useCallback((id: string) => {
+        const mood = getMoodById(id);
+        const fallbackName = MOODS.find(m => m.id === id)?.label
+            ?? moodCache.getAllMoods().find(m => m.id === id)?.name
+            ?? id;
+        setSelectedMoodId(id);
+        setMoodName(mood?.name || fallbackName);
+    }, [getMoodById]);
+
     const handleSave = useCallback(async () => {
         if (!canSave || !selectedMoodId) return;
         setSaving(true);
         setError(null);
         try {
-            const allMoods = moodCache.getAllMoods();
-            const mood = allMoods.find(m => m.id === selectedMoodId);
-            const moodName = mood?.name ?? selectedMoodId;
-
             const topicTag = destination === 'topic' && selectedTopicId
                 ? `topic:${selectedTopicId}`
                 : null;
@@ -88,7 +96,7 @@ export function SaveSharedLinkModal({
             await createSharedLinkEntry(
                 user,
                 selectedMoodId,
-                moodName,
+                moodName || selectedMoodId,
                 meta.url,
                 meta.platform,
                 meta.title,
@@ -105,10 +113,11 @@ export function SaveSharedLinkModal({
         } finally {
             setSaving(false);
         }
-    }, [canSave, selectedMoodId, meta, note, destination, selectedTopicId, useForInsights, user]);
+    }, [canSave, selectedMoodId, moodName, meta, note, destination, selectedTopicId, useForInsights, user]);
 
     const resetForm = useCallback(() => {
         setSelectedMoodId(null);
+        setMoodName('');
         setNote('');
         setDestination('today');
         setSelectedTopicId(null);
@@ -125,11 +134,9 @@ export function SaveSharedLinkModal({
         if (meta.url) Linking.openURL(meta.url).catch(() => {});
     }, [meta.url]);
 
-    // All available moods (system + custom)
-    const allMoods = useMemo(() => moodCache.getAllMoods(), []);
-    const systemMoods = useMemo(
-        () => allMoods.filter(m => m.type === 'system'),
-        [allMoods],
+    const selectedMoodTheme = useMemo(
+        () => selectedMoodId ? getMoodTheme(selectedMoodId) : null,
+        [selectedMoodId],
     );
 
     const inputBg = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)';
@@ -206,47 +213,47 @@ export function SaveSharedLinkModal({
                             <ThemedText style={[styles.sectionLabel, { color: colors.textTertiary }]}>
                                 MOOD
                             </ThemedText>
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={styles.moodRow}
+                            <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => setMoodModalVisible(true)}
+                                style={[
+                                    styles.moodTrigger,
+                                    {
+                                        backgroundColor: selectedMoodTheme
+                                            ? selectedMoodTheme.solid + 'CC'
+                                            : inputBg,
+                                        borderColor: selectedMoodTheme
+                                            ? selectedMoodTheme.solid
+                                            : inputBorder,
+                                    },
+                                ]}
                             >
-                                {systemMoods.map(mood => {
-                                    const theme = getMoodTheme(mood.id);
-                                    const isSelected = selectedMoodId === mood.id;
-                                    return (
-                                        <TouchableOpacity
-                                            key={mood.id}
-                                            onPress={() => setSelectedMoodId(mood.id)}
-                                            style={[
-                                                styles.moodChip,
-                                                isSelected && styles.moodChipSelected,
-                                                {
-                                                    backgroundColor: isSelected
-                                                        ? theme.solid + 'CC'
-                                                        : isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
-                                                    borderColor: isSelected ? theme.solid : 'transparent',
-                                                },
-                                            ]}
-                                        >
-                                            {isSelected && (
-                                                <View style={[styles.moodDot, { backgroundColor: theme.solid }]} />
-                                            )}
-                                            <ThemedText style={[
-                                                styles.moodChipText,
-                                                {
-                                                    color: isSelected
-                                                        ? (theme.textOn === 'dark' ? '#000' : '#fff')
-                                                        : colors.textSecondary,
-                                                    fontWeight: isSelected ? '600' : '400',
-                                                },
-                                            ]}>
-                                                {mood.name}
-                                            </ThemedText>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
+                                {selectedMoodId && selectedMoodTheme ? (
+                                    <>
+                                        <View style={[styles.moodDot, { backgroundColor: selectedMoodTheme.solid }]} />
+                                        <ThemedText style={[
+                                            styles.moodTriggerText,
+                                            {
+                                                color: selectedMoodTheme.textOn === 'dark' ? '#000' : '#fff',
+                                            },
+                                        ]}>
+                                            {moodName || 'Selected'}
+                                        </ThemedText>
+                                        <Ionicons
+                                            name="chevron-down"
+                                            size={14}
+                                            color={selectedMoodTheme.textOn === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)'}
+                                        />
+                                    </>
+                                ) : (
+                                    <>
+                                        <Ionicons name="add" size={16} color={colors.textTertiary} />
+                                        <ThemedText style={[styles.moodTriggerText, { color: colors.textTertiary }]}>
+                                            Choose a mood
+                                        </ThemedText>
+                                    </>
+                                )}
+                            </TouchableOpacity>
                         </View>
 
                         {/* ── Save As ── */}
@@ -429,6 +436,13 @@ export function SaveSharedLinkModal({
                     </ScrollView>
                 </View>
             </KeyboardAvoidingView>
+
+            <MoodSelectionModal
+                visible={moodModalVisible}
+                selectedMood={selectedMoodId}
+                onSelect={handleMoodSelect}
+                onClose={() => setMoodModalVisible(false)}
+            />
         </Modal>
     );
 }
@@ -534,30 +548,24 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
     // Mood picker
-    moodRow: {
-        flexDirection: 'row',
-        gap: 8,
-        paddingRight: 20,
-    },
-    moodChip: {
+    moodTrigger: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 5,
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: 20,
+        gap: 8,
+        alignSelf: 'flex-start',
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: 22,
         borderWidth: 1,
     },
-    moodChipSelected: {
-        borderWidth: 1.5,
+    moodTriggerText: {
+        fontSize: 14,
+        fontWeight: '500',
     },
     moodDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-    },
-    moodChipText: {
-        fontSize: 13,
+        width: 7,
+        height: 7,
+        borderRadius: 3.5,
     },
     // Destination
     destinationRow: {

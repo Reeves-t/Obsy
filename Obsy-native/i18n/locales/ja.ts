@@ -3,7 +3,7 @@ import type { TranslationDictionary } from './en';
 export const ja: TranslationDictionary = {
   navigation: {
     home: 'ホーム',
-    gallery: 'ギャラリー',
+    gallery: 'エントリー',
     insights: 'インサイト',
     topics: 'トピック',
     settings: '設定',

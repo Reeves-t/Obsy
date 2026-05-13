@@ -38,7 +38,7 @@ export interface TranslationDictionary {
 export const en: TranslationDictionary = {
   navigation: {
     home: 'Home',
-    gallery: 'Gallery',
+    gallery: 'Entries',
     insights: 'Insights',
     topics: 'Topics',
     settings: 'Settings',
