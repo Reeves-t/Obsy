@@ -26,6 +26,19 @@ ADD COLUMN IF NOT EXISTS shared_link_thumbnail_url TEXT;
 COMMENT ON COLUMN public.entries.shared_link_thumbnail_url IS 'Optional thumbnail URL for shared link preview card';
 
 -- ============================================================================
+-- BACKFILL LEGACY source_type VALUES
+-- ============================================================================
+
+-- Older rows (from the original 20251218_world_lens migration) were inserted
+-- with source_type = 'regular' before the column was recharacterized as
+-- capture/journal/voice. Map any non-conforming value to 'capture' so the
+-- CHECK constraint below can be added. NULL is left as-is (CHECK allows NULL).
+UPDATE public.entries
+SET source_type = 'capture'
+WHERE source_type IS NOT NULL
+  AND source_type NOT IN ('capture', 'journal', 'voice', 'shared_link');
+
+-- ============================================================================
 -- UPDATE source_type CHECK CONSTRAINT
 -- ============================================================================
 
