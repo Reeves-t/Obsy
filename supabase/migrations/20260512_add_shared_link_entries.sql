@@ -33,10 +33,18 @@ COMMENT ON COLUMN public.entries.shared_link_thumbnail_url IS 'Optional thumbnai
 -- with source_type = 'regular' before the column was recharacterized as
 -- capture/journal/voice. Map any non-conforming value to 'capture' so the
 -- CHECK constraint below can be added. NULL is left as-is (CHECK allows NULL).
+--
+-- The validate_entry_mood_trigger re-validates mood on any UPDATE; some
+-- legacy rows have orphaned mood references that would block the backfill,
+-- so we temporarily disable the trigger and re-enable it after.
+ALTER TABLE public.entries DISABLE TRIGGER validate_entry_mood_trigger;
+
 UPDATE public.entries
 SET source_type = 'capture'
 WHERE source_type IS NOT NULL
   AND source_type NOT IN ('capture', 'journal', 'voice', 'shared_link');
+
+ALTER TABLE public.entries ENABLE TRIGGER validate_entry_mood_trigger;
 
 -- ============================================================================
 -- UPDATE source_type CHECK CONSTRAINT
