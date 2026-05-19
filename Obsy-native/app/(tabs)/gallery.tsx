@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, Dimensions, Modal, ScrollView } from 'react-native';
+import { StyleSheet, View, FlatList, TouchableOpacity, Dimensions, Modal } from 'react-native';
 import { Image } from 'expo-image';
 import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -9,15 +9,21 @@ import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import { useMoodResolver } from '@/hooks/useMoodResolver';
 import { SharedLinkCard } from '@/components/entries/SharedLinkCard';
+import { EntryGridTile } from '@/components/entries/EntryGridTile';
 
 const { width } = Dimensions.get('window');
 
 // ─── Filter types ────────────────────────────────────────────────────────────
 
 type EntryFilter = 'all' | 'captures' | 'journals' | 'mic' | 'shared_links';
-type ViewMode = 'timeline' | 'grid';
+type ViewMode = 'grid' | 'list';
+
+// Grid layout: 3 columns, 16px horizontal padding, 8px gap between tiles
+const GRID_H_PADDING = 16;
+const GRID_GAP = 8;
+const GRID_COLS = 3;
+const GRID_TILE_SIZE = Math.floor((width - GRID_H_PADDING * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
 
 const FILTER_OPTIONS: { key: EntryFilter; label: string }[] = [
     { key: 'all', label: 'All' },
@@ -27,9 +33,9 @@ const FILTER_OPTIONS: { key: EntryFilter; label: string }[] = [
     { key: 'shared_links', label: 'Shared Links' },
 ];
 
-// ─── Timeline / List item shapes ─────────────────────────────────────────────
+// ─── Grid / List item shapes ─────────────────────────────────────────────────
 
-type TimelineItem =
+type GridItemData =
     | { type: 'header'; title: string; id: string }
     | { type: 'row'; captures: Capture[]; id: string };
 
@@ -39,7 +45,7 @@ type ListItem =
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const TimelineHeader = memo(function TimelineHeader({
+const DateHeader = memo(function DateHeader({
     title,
     isLight,
     textColor,
@@ -55,104 +61,32 @@ const TimelineHeader = memo(function TimelineHeader({
     );
 });
 
-const TimelineCaptureItem = memo(function TimelineCaptureItem({
-    capture,
-    onPress,
-    isLight,
-    textTertiary,
-    textSecondary,
-}: {
-    capture: Capture;
-    onPress: (id: string) => void;
-    isLight: boolean;
-    textTertiary: string;
-    textSecondary: string;
-}) {
-    const { getMoodDisplay } = useMoodResolver();
-    const moodDisplay = getMoodDisplay(capture.mood_id, capture.mood_name_snapshot);
-    const date = new Date(capture.created_at);
-    const pillBgStyle = isLight ? styles.pillLight : undefined;
-    const handlePress = useCallback(() => onPress(capture.id), [capture.id, onPress]);
-
-    return (
-        <TouchableOpacity activeOpacity={0.8} onPress={handlePress} style={styles.timelineItem}>
-            <View style={styles.imageContainer}>
-                <Image
-                    source={{ uri: capture.image_url }}
-                    style={styles.image}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    recyclingKey={capture.id}
-                />
-            </View>
-            <View style={styles.metaRow}>
-                <ThemedText style={[styles.timeText, { color: textTertiary }]}>
-                    {format(date, 'h:mm a')}
-                </ThemedText>
-                <View style={styles.metaRight}>
-                    {moodDisplay && (
-                        <View style={[styles.pill, pillBgStyle, { borderLeftColor: moodDisplay.color, borderLeftWidth: 2 }]}>
-                            <ThemedText style={[styles.pillText, { color: textSecondary }]}>{moodDisplay.name}</ThemedText>
-                        </View>
-                    )}
-                    {capture.note && capture.note.trim() !== '' && (
-                        <View style={[styles.pill, pillBgStyle]}>
-                            <ThemedText style={[styles.pillText, { color: textSecondary }]}>Journal</ThemedText>
-                        </View>
-                    )}
-                </View>
-            </View>
-        </TouchableOpacity>
-    );
-});
-
-const TimelineRow = memo(function TimelineRow({
+const GridRow = memo(function GridRow({
     captures,
     onPress,
     isLight,
-    textTertiary,
-    textSecondary,
 }: {
     captures: Capture[];
     onPress: (id: string) => void;
     isLight: boolean;
-    textTertiary: string;
-    textSecondary: string;
 }) {
     return (
-        <View style={styles.timelineRow}>
+        <View style={styles.gridRow}>
             {captures.map(capture => (
-                <TimelineCaptureItem
+                <EntryGridTile
                     key={capture.id}
                     capture={capture}
+                    size={GRID_TILE_SIZE}
                     onPress={onPress}
                     isLight={isLight}
-                    textTertiary={textTertiary}
-                    textSecondary={textSecondary}
                 />
             ))}
-            {captures.length === 1 && <View style={styles.timelineItem} />}
+            {/* Pad row with empty slots to keep last row aligned to columns */}
+            {captures.length < GRID_COLS &&
+                Array.from({ length: GRID_COLS - captures.length }).map((_, i) => (
+                    <View key={`pad-${i}`} style={{ width: GRID_TILE_SIZE, height: GRID_TILE_SIZE }} />
+                ))}
         </View>
-    );
-});
-
-const GridItem = memo(function GridItem({
-    capture,
-    onPress,
-}: { capture: Capture; onPress: (id: string) => void }) {
-    const handlePress = useCallback(() => onPress(capture.id), [capture.id, onPress]);
-    return (
-        <TouchableOpacity activeOpacity={0.8} onPress={handlePress} style={styles.gridItem}>
-            <View style={styles.gridImageContainer}>
-                <Image
-                    source={{ uri: capture.image_url }}
-                    style={styles.image}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    recyclingKey={capture.id}
-                />
-            </View>
-        </TouchableOpacity>
     );
 });
 
@@ -287,7 +221,7 @@ export default function GalleryScreen() {
     const { user } = useAuth();
     const { captures, fetchCaptures, loading } = useCaptureStore();
     const { colors, isLight } = useObsyTheme();
-    const [viewMode, setViewMode] = useState<ViewMode>('timeline');
+    const [viewMode, setViewMode] = useState<ViewMode>('grid');
     const [filter, setFilter] = useState<EntryFilter>('all');
 
     const onBgText = colors.text;
@@ -319,53 +253,9 @@ export default function GalleryScreen() {
         }
     }, [captures, filter]);
 
-    // ── Photo-only captures (for captures tab timeline/grid) ──
+    // ── Date grouping (used by both grid and list views) ──
 
-    const photoCaptures = useMemo(() =>
-        filteredCaptures.filter(c =>
-            c.image_url &&
-            c.source_type !== 'journal' &&
-            c.source_type !== 'voice' &&
-            c.source_type !== 'shared_link'
-        ),
-    [filteredCaptures]);
-
-    // ── Timeline grouping ──
-
-    const capturesByDate = useMemo(() => {
-        const groups: Record<string, Capture[]> = {};
-        photoCaptures.forEach(c => {
-            const date = format(new Date(c.created_at), 'yyyy-MM-dd');
-            if (!groups[date]) groups[date] = [];
-            groups[date].push(c);
-        });
-        return groups;
-    }, [photoCaptures]);
-
-    const sortedDates = useMemo(() =>
-        Object.keys(capturesByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()),
-    [capturesByDate]);
-
-    const timelineData = useMemo((): TimelineItem[] => {
-        const data: TimelineItem[] = [];
-        sortedDates.forEach(date => {
-            data.push({
-                type: 'header',
-                title: format(new Date(date + 'T12:00:00'), 'EEEE, MMM d').toUpperCase(),
-                id: `header-${date}`,
-            });
-            const dateCaptures = capturesByDate[date];
-            for (let i = 0; i < dateCaptures.length; i += 2) {
-                data.push({ type: 'row', captures: dateCaptures.slice(i, i + 2), id: `row-${date}-${i}` });
-            }
-        });
-        return data;
-    }, [sortedDates, capturesByDate]);
-
-    // ── List view grouping (journals, mic, shared links, all) ──
-
-    const listData = useMemo((): ListItem[] => {
-        if (filter === 'captures') return []; // handled by timeline/grid
+    const groupedByDate = useMemo(() => {
         const sorted = [...filteredCaptures].sort(
             (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
@@ -375,17 +265,46 @@ export default function GalleryScreen() {
             if (!groups[date]) groups[date] = [];
             groups[date].push(c);
         });
+        const dates = Object.keys(groups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+        return { groups, dates };
+    }, [filteredCaptures]);
+
+    // ── Grid view data (3-per-row tiles, all entry types) ──
+
+    const gridData = useMemo((): GridItemData[] => {
+        const data: GridItemData[] = [];
+        groupedByDate.dates.forEach(date => {
+            data.push({
+                type: 'header',
+                title: format(new Date(date + 'T12:00:00'), 'EEEE, MMM d').toUpperCase(),
+                id: `gh-${date}`,
+            });
+            const dateCaptures = groupedByDate.groups[date];
+            for (let i = 0; i < dateCaptures.length; i += GRID_COLS) {
+                data.push({
+                    type: 'row',
+                    captures: dateCaptures.slice(i, i + GRID_COLS),
+                    id: `gr-${date}-${i}`,
+                });
+            }
+        });
+        return data;
+    }, [groupedByDate]);
+
+    // ── List view data (full-length cards, all entry types) ──
+
+    const listData = useMemo((): ListItem[] => {
         const data: ListItem[] = [];
-        Object.keys(groups).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).forEach(date => {
+        groupedByDate.dates.forEach(date => {
             data.push({
                 type: 'header',
                 title: format(new Date(date + 'T12:00:00'), 'EEEE, MMM d').toUpperCase(),
                 id: `lh-${date}`,
             });
-            groups[date].forEach(c => data.push({ type: 'entry', capture: c, id: `le-${c.id}` }));
+            groupedByDate.groups[date].forEach(c => data.push({ type: 'entry', capture: c, id: `le-${c.id}` }));
         });
         return data;
-    }, [filteredCaptures, filter]);
+    }, [groupedByDate]);
 
     // ── Navigation ──
 
@@ -395,28 +314,22 @@ export default function GalleryScreen() {
 
     // ── Render functions ──
 
-    const renderTimelineItem = useCallback(({ item }: { item: TimelineItem }) => {
+    const renderGridItem = useCallback(({ item }: { item: GridItemData }) => {
         if (item.type === 'header') {
-            return <TimelineHeader title={item.title} isLight={isLight} textColor={onBgTextTertiary} />;
+            return <DateHeader title={item.title} isLight={isLight} textColor={onBgTextTertiary} />;
         }
         return (
-            <TimelineRow
+            <GridRow
                 captures={item.captures}
                 onPress={handleCapturePress}
                 isLight={isLight}
-                textTertiary={onBgTextTertiary}
-                textSecondary={onBgTextSecondary}
             />
         );
-    }, [isLight, onBgTextTertiary, onBgTextSecondary, handleCapturePress]);
-
-    const renderGridItem = useCallback(({ item }: { item: Capture }) => (
-        <GridItem capture={item} onPress={handleCapturePress} />
-    ), [handleCapturePress]);
+    }, [isLight, onBgTextTertiary, handleCapturePress]);
 
     const renderListItem = useCallback(({ item }: { item: ListItem }) => {
         if (item.type === 'header') {
-            return <TimelineHeader title={item.title} isLight={isLight} textColor={onBgTextTertiary} />;
+            return <DateHeader title={item.title} isLight={isLight} textColor={onBgTextTertiary} />;
         }
         const capture = item.capture;
 
@@ -466,9 +379,8 @@ export default function GalleryScreen() {
     [loading, emptyLabel, onBgTextSecondary, onBgTextTertiary]);
 
     // ── Decide which view to show ──
-    const showGrid = filter === 'captures' && viewMode === 'grid';
-    const showTimeline = filter === 'captures' && viewMode === 'timeline';
-    const showList = filter !== 'captures';
+    const showGrid = viewMode === 'grid';
+    const showList = viewMode === 'list';
 
     return (
         <ScreenWrapper screenName="gallery" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
@@ -490,56 +402,37 @@ export default function GalleryScreen() {
                         textTertiary={onBgTextTertiary}
                     />
 
-                    {/* Stack/grid toggle — only visible when Captures filter is active */}
-                    {filter === 'captures' && (
-                        <View style={[styles.viewToggle, { backgroundColor: toggleBg, borderColor: toggleBorder }]}>
-                            <TouchableOpacity
-                                onPress={() => setViewMode('timeline')}
-                                style={[styles.toggleButton, viewMode === 'timeline' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]]}
-                            >
-                                <Ionicons name="list" size={16} color={viewMode === 'timeline' ? iconActive : iconInactive} />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => setViewMode('grid')}
-                                style={[styles.toggleButton, viewMode === 'grid' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]]}
-                            >
-                                <Ionicons name="grid" size={16} color={viewMode === 'grid' ? iconActive : iconInactive} />
-                            </TouchableOpacity>
-                        </View>
-                    )}
+                    {/* Grid/list view toggle — visible for all filters */}
+                    <View style={[styles.viewToggle, { backgroundColor: toggleBg, borderColor: toggleBorder }]}>
+                        <TouchableOpacity
+                            onPress={() => setViewMode('grid')}
+                            style={[styles.toggleButton, viewMode === 'grid' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]]}
+                        >
+                            <Ionicons name="grid" size={16} color={viewMode === 'grid' ? iconActive : iconInactive} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setViewMode('list')}
+                            style={[styles.toggleButton, viewMode === 'list' && [styles.toggleButtonActive, { backgroundColor: toggleActiveBg }]]}
+                        >
+                            <Ionicons name="list" size={16} color={viewMode === 'list' ? iconActive : iconInactive} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
 
             {/* Content */}
-            {showTimeline && (
-                <FlatList
-                    key="timeline"
-                    data={timelineData}
-                    renderItem={renderTimelineItem}
-                    keyExtractor={item => item.id}
-                    contentContainerStyle={styles.listContent}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={renderEmpty}
-                    removeClippedSubviews
-                    windowSize={7}
-                    initialNumToRender={10}
-                    maxToRenderPerBatch={5}
-                />
-            )}
             {showGrid && (
                 <FlatList
-                    key="grid"
-                    data={photoCaptures}
+                    key={`grid-${filter}`}
+                    data={gridData}
                     renderItem={renderGridItem}
                     keyExtractor={item => item.id}
-                    numColumns={3}
                     contentContainerStyle={styles.gridContent}
-                    columnWrapperStyle={styles.gridRow}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={renderEmpty}
                     removeClippedSubviews
                     windowSize={7}
-                    initialNumToRender={15}
+                    initialNumToRender={12}
                     maxToRenderPerBatch={6}
                 />
             )}
@@ -652,12 +545,13 @@ const styles = StyleSheet.create({
         paddingBottom: 100,
     },
     gridContent: {
-        paddingHorizontal: 16,
+        paddingHorizontal: GRID_H_PADDING,
         paddingBottom: 100,
     },
     gridRow: {
-        gap: 8,
-        marginBottom: 8,
+        flexDirection: 'row',
+        gap: GRID_GAP,
+        marginBottom: GRID_GAP,
     },
     // Date header
     dateHeader: {
@@ -675,69 +569,6 @@ const styles = StyleSheet.create({
     dateHeaderLine: {
         flex: 1,
         height: 1,
-    },
-    // Timeline items
-    timelineRow: {
-        flexDirection: 'row',
-        gap: 16,
-        marginBottom: 16,
-    },
-    timelineItem: {
-        flex: 1,
-    },
-    imageContainer: {
-        aspectRatio: 1,
-        borderRadius: 16,
-        overflow: 'hidden',
-        backgroundColor: '#000',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
-    },
-    image: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    metaRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 4,
-        paddingTop: 8,
-    },
-    metaRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    timeText: {
-        fontSize: 11,
-        fontWeight: '500',
-    },
-    pill: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 10,
-    },
-    pillLight: {
-        backgroundColor: 'rgba(0,0,0,0.05)',
-    },
-    pillText: {
-        fontSize: 10,
-    },
-    // Grid items
-    gridItem: {
-        flex: 1,
-        maxWidth: (width - 32 - 16) / 3,
-    },
-    gridImageContainer: {
-        aspectRatio: 1,
-        borderRadius: 12,
-        overflow: 'hidden',
-        backgroundColor: '#000',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
     },
     // Journal cards
     journalCard: {

@@ -24,6 +24,7 @@ interface ActionConfig {
     disabled: boolean;
     onPress?: () => void;
     dim?: boolean;
+    isFront?: boolean;
   }) => React.ReactNode;
 }
 
@@ -41,6 +42,7 @@ interface CarouselSlotProps {
   size: number;
   disabled: boolean;
   dim?: boolean;
+  isFront?: boolean;
   onPress?: () => void;
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
 }
@@ -119,8 +121,8 @@ const ACTIONS: ActionConfig[] = [
   },
   {
     key: 'quick-mood',
-    render: ({ size, disabled, onPress, dim }) => (
-      <QuickMoodButton size={size} disabled={disabled} onPress={onPress} dim={dim} />
+    render: ({ size, disabled, onPress, dim, isFront }) => (
+      <QuickMoodButton size={size} disabled={disabled} onPress={onPress} dim={dim} isFront={isFront} />
     ),
   },
 ];
@@ -452,6 +454,7 @@ function CarouselSlot({
   size,
   disabled,
   dim = false,
+  isFront = false,
   onPress,
   pointerEvents = 'auto',
 }: CarouselSlotProps) {
@@ -468,7 +471,7 @@ function CarouselSlot({
         },
       ]}
     >
-      {action.render({ size, disabled, onPress, dim })}
+      {action.render({ size, disabled, onPress, dim, isFront })}
     </View>
   );
 }
@@ -546,6 +549,7 @@ function OrbitItem({
       size={MAIN_BUTTON_SIZE}
       disabled={slot !== 'front'}
       dim={slot === 'top'}
+      isFront={slot === 'front'}
       pointerEvents={slot === 'front' ? 'auto' : 'none'}
     />
   );

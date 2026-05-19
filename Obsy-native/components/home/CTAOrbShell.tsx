@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 interface CTAOrbShellProps {
   size: number;
@@ -10,9 +11,31 @@ interface CTAOrbShellProps {
 
 const RING_PADDING = 8;
 
+// bezelGrad from assets/images/obsy.cobalt.logo.svg (vertical, top→bottom)
+const BEZEL_COLORS = [
+  '#9a9a9e',
+  '#cfcfd3',
+  '#5e5e63',
+  '#1f1f22',
+  '#3a3a3e',
+  '#b8b8bc',
+  '#5c5c60',
+] as const;
+const BEZEL_LOCATIONS = [0, 0.08, 0.22, 0.55, 0.8, 0.92, 1] as const;
+
+// bezelHi top-highlight overlay from the same SVG
+const BEZEL_HI_COLORS = [
+  'rgba(255,255,255,0.55)',
+  'rgba(255,255,255,0.05)',
+  'rgba(255,255,255,0)',
+] as const;
+const BEZEL_HI_LOCATIONS = [0, 0.4, 1] as const;
+
 export function CTAOrbShell({ size, dim = false, children }: CTAOrbShellProps) {
   const ringSize = size + RING_PADDING;
   const innerInset = Math.max(2, size * 0.025);
+  const innerSize = ringSize - innerInset * 2;
+  const innerRadius = innerSize / 2;
 
   return (
     <View
@@ -26,20 +49,28 @@ export function CTAOrbShell({ size, dim = false, children }: CTAOrbShellProps) {
         },
       ]}
     >
+      {/* Bezel base gradient — matches obsy.cobalt.logo bezelGrad */}
       <LinearGradient
-        colors={[
-          'rgba(230,230,230,0.60)',
-          'rgba(180,180,180,0.44)',
-          'rgba(140,140,140,0.36)',
-        ]}
-        locations={[0, 0.45, 1]}
-        start={{ x: 0.15, y: 0.08 }}
-        end={{ x: 0.9, y: 0.95 }}
+        colors={BEZEL_COLORS as unknown as readonly [string, string, ...string[]]}
+        locations={BEZEL_LOCATIONS as unknown as readonly [number, number, ...number[]]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
         style={[
           StyleSheet.absoluteFillObject,
-          {
-            borderRadius: ringSize / 2,
-          },
+          { borderRadius: ringSize / 2 },
+        ]}
+      />
+
+      {/* Bezel top highlight — matches obsy.cobalt.logo bezelHi */}
+      <LinearGradient
+        colors={BEZEL_HI_COLORS as unknown as readonly [string, string, ...string[]]}
+        locations={BEZEL_HI_LOCATIONS as unknown as readonly [number, number, ...number[]]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFillObject,
+          { borderRadius: ringSize / 2 },
         ]}
       />
 
@@ -51,18 +82,33 @@ export function CTAOrbShell({ size, dim = false, children }: CTAOrbShellProps) {
             right: innerInset,
             bottom: innerInset,
             left: innerInset,
-            borderRadius: (ringSize - innerInset * 2) / 2,
+            width: innerSize,
+            height: innerSize,
+            borderRadius: innerRadius,
           },
         ]}
       >
+        {/* Frosted-glass blur of whatever sits behind (e.g. the Aurora background) */}
+        <BlurView
+          intensity={42}
+          tint="dark"
+          style={[StyleSheet.absoluteFillObject, { borderRadius: innerRadius }]}
+        />
+
+        {/* Dark transparent tint to give the orb depth + readability */}
         <LinearGradient
-          colors={['#242422', '#1A1A18', '#111110']}
-          locations={[0, 0.45, 1]}
+          colors={[
+            'rgba(14,21,48,0.55)',
+            'rgba(7,10,22,0.65)',
+            'rgba(4,6,13,0.72)',
+          ]}
+          locations={[0, 0.5, 1]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
+          style={[StyleSheet.absoluteFillObject, { borderRadius: innerRadius }]}
+          pointerEvents="none"
         />
-        <View style={styles.innerRim} />
+
         <View style={styles.content}>{children}</View>
       </View>
     </View>
@@ -94,16 +140,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  innerRim: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    shadowColor: '#FFFFFF',
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
   },
   content: {
     zIndex: 1,

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PeriodName, type GradientOutput, resolveGradient, resolveGradientForPeriod } from '@/lib/timeThemes';
 import { currentPreset } from '@/lib/timeThemes/presets/current';
 
-export type ThemeMode = 'dark' | 'light' | 'pack1';
+export type ThemeMode = 'dark' | 'light' | 'pack1' | 'obsy-default';
 export type TimeThemeSelection = 'auto' | PeriodName;
 
 interface ThemeContextType {
@@ -57,6 +57,19 @@ const PACK1_COLORS = {
     glassBorder: 'rgba(255, 255, 255, 0.14)',
 };
 
+const OBSY_DEFAULT_COLORS = {
+    background: '#04060d',
+    text: '#eaeef7',
+    textSecondary: 'rgba(234,238,247,0.72)',
+    textTertiary: 'rgba(234,238,247,0.5)',
+    cardBackground: 'rgba(7, 10, 22, 0.30)',
+    cardText: '#FFFFFF',
+    cardTextSecondary: 'rgba(255,255,255,0.68)',
+    cardBorder: 'rgba(255, 255, 255, 0.14)',
+    glass: 'rgba(7, 10, 22, 0.30)',
+    glassBorder: 'rgba(255, 255, 255, 0.14)',
+};
+
 const LIGHT_COLORS = {
     background: '#D2C2A6',
     text: '#1A1A1A',
@@ -89,7 +102,12 @@ export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
                     AsyncStorage.getItem(TIME_THEME_SELECTION_KEY),
                 ]);
 
-                if (storedTheme === 'dark' || storedTheme === 'light' || storedTheme === 'pack1') {
+                if (
+                    storedTheme === 'dark' ||
+                    storedTheme === 'light' ||
+                    storedTheme === 'pack1' ||
+                    storedTheme === 'obsy-default'
+                ) {
                     setThemeState(storedTheme);
                 }
 
@@ -170,7 +188,9 @@ export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
         ? LIGHT_COLORS
         : theme === 'pack1'
             ? PACK1_COLORS
-            : DARK_COLORS;
+            : theme === 'obsy-default'
+                ? OBSY_DEFAULT_COLORS
+                : DARK_COLORS;
 
     const value = useMemo(() => ({
         theme,
@@ -217,4 +237,4 @@ export function useObsyTheme(): ThemeContextType {
     return context;
 }
 
-export { DARK_COLORS, LIGHT_COLORS, PACK1_COLORS };
+export { DARK_COLORS, LIGHT_COLORS, PACK1_COLORS, OBSY_DEFAULT_COLORS };

@@ -16,13 +16,17 @@ const STAR_DOTS = [
     { top: 38, right: 42, size: 2, opacity: 0.14 },
     { top: 20, right: 148, size: 1.5, opacity: 0.18 },
     { top: 52, left: 138, size: 2, opacity: 0.14 },
+    { top: 34, left: 52, size: 1.5, opacity: 0.18 },
+    { top: 62, left: 28, size: 1.5, opacity: 0.16 },
+    { top: 30, right: 68, size: 2, opacity: 0.20 },
+    { top: 66, right: 104, size: 1.5, opacity: 0.16 },
 ] as const;
 
 export function MoodverseEntryCard() {
     const router = useRouter();
     const { isLight } = useObsyTheme();
 
-    const cardBg = '#000000';
+    const cardBg = 'rgba(0,0,0,0.62)';
     const borderColor = isLight ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.07)';
     const subtitleColor = isLight ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.5)';
     const chevronColor = isLight ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.3)';

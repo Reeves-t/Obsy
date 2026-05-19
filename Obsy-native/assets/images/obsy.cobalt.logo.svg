@@ -1,0 +1,89 @@
+<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg" data-om-id="8b3fab4d:5">
+      <defs data-om-id="8b3fab4d:6">
+        <radialGradient id="discFill" cx="50%" cy="42%" r="62%" data-om-id="8b3fab4d:7">
+          <stop id="bgStop0" offset="0%" stop-color="#242424" data-om-id="8b3fab4d:8"/>
+          <stop id="bgStop1" offset="55%" stop-color="#0a0a0a" data-om-id="8b3fab4d:9"/>
+          <stop id="bgStop2" offset="100%" stop-color="#000000" data-om-id="8b3fab4d:10"/>
+        </radialGradient>
+
+        <linearGradient id="bezelGrad" x1="50%" y1="0%" x2="50%" y2="100%" data-om-id="8b3fab4d:11">
+          <stop offset="0%" stop-color="#9a9a9e" data-om-id="8b3fab4d:12"/>
+          <stop offset="8%" stop-color="#cfcfd3" data-om-id="8b3fab4d:13"/>
+          <stop offset="22%" stop-color="#5e5e63" data-om-id="8b3fab4d:14"/>
+          <stop offset="55%" stop-color="#1f1f22" data-om-id="8b3fab4d:15"/>
+          <stop offset="80%" stop-color="#3a3a3e" data-om-id="8b3fab4d:16"/>
+          <stop offset="92%" stop-color="#b8b8bc" data-om-id="8b3fab4d:17"/>
+          <stop offset="100%" stop-color="#5c5c60" data-om-id="8b3fab4d:18"/>
+        </linearGradient>
+
+        <linearGradient id="bezelHi" x1="50%" y1="0%" x2="50%" y2="100%" data-om-id="8b3fab4d:19">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" data-om-id="8b3fab4d:20"/>
+          <stop offset="40%" stop-color="#ffffff" stop-opacity="0.05" data-om-id="8b3fab4d:21"/>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0" data-om-id="8b3fab4d:22"/>
+        </linearGradient>
+
+        <radialGradient id="innerShadow" cx="50%" cy="50%" r="50%" data-om-id="8b3fab4d:23">
+          <stop offset="80%" stop-color="#000" stop-opacity="0" data-om-id="8b3fab4d:24"/>
+          <stop offset="100%" stop-color="#000" stop-opacity="0.7" data-om-id="8b3fab4d:25"/>
+        </radialGradient>
+
+        <!-- Large orb: primary-dominant, highlight top-left -->
+        <radialGradient id="orbLarge" cx="30%" cy="30%" r="70%" data-om-id="8b3fab4d:26">
+          <stop class="orb-stop" data-orb="large" data-role="hi" offset="0%" stop-color="#41caec" stop-opacity="1" data-om-id="8b3fab4d:27"/>
+          <stop class="orb-stop" data-orb="large" data-role="mid" offset="31.76%" stop-color="#118dac" stop-opacity="0.95" data-om-id="8b3fab4d:28"/>
+          <stop class="orb-stop" data-orb="large" data-role="lo" offset="73.76%" stop-color="#1d4d72" stop-opacity="0.7" data-om-id="8b3fab4d:29"/>
+          <stop class="orb-stop" data-orb="large" data-role="edge" offset="100%" stop-color="#1a2643" stop-opacity="0" data-om-id="8b3fab4d:30"/>
+        </radialGradient>
+
+        <!-- Small orb: secondary-dominant, highlight top-right -->
+        <radialGradient id="orbSmall" cx="68%" cy="32%" r="68%" data-om-id="8b3fab4d:31">
+          <stop class="orb-stop" data-orb="small" data-role="hi" offset="0%" stop-color="#899fd2" stop-opacity="1" data-om-id="8b3fab4d:32"/>
+          <stop class="orb-stop" data-orb="small" data-role="mid" offset="31.76%" stop-color="#4160aa" stop-opacity="0.95" data-om-id="8b3fab4d:33"/>
+          <stop class="orb-stop" data-orb="small" data-role="lo" offset="73.76%" stop-color="#1a5071" stop-opacity="0.7" data-om-id="8b3fab4d:34"/>
+          <stop class="orb-stop" data-orb="small" data-role="edge" offset="100%" stop-color="#04222a" stop-opacity="0" data-om-id="8b3fab4d:35"/>
+        </radialGradient>
+
+        <!-- Tiny orb: 50/50 blend, highlight lower-left -->
+        <radialGradient id="orbTiny" cx="38%" cy="60%" r="65%" data-om-id="8b3fab4d:36">
+          <stop class="orb-stop" data-orb="tiny" data-role="hi" offset="0%" stop-color="#61a9d9" stop-opacity="1" data-om-id="8b3fab4d:37"/>
+          <stop class="orb-stop" data-orb="tiny" data-role="mid" offset="31.76%" stop-color="#2b7db3" stop-opacity="0.95" data-om-id="8b3fab4d:38"/>
+          <stop class="orb-stop" data-orb="tiny" data-role="lo" offset="73.76%" stop-color="#174361" stop-opacity="0.7" data-om-id="8b3fab4d:39"/>
+          <stop class="orb-stop" data-orb="tiny" data-role="edge" offset="100%" stop-color="#091b27" stop-opacity="0" data-om-id="8b3fab4d:40"/>
+        </radialGradient>
+
+        <!-- Per-orb halos, tinted to each orb's dominant color -->
+        <radialGradient id="orbGlowLarge" cx="50%" cy="50%" r="50%" data-om-id="8b3fab4d:41">
+          <stop class="orb-glow-stop" data-orb="large" data-role="g-hi" offset="0%" stop-color="#17bbe4" stop-opacity="0.35" data-om-id="8b3fab4d:42"/>
+          <stop class="orb-glow-stop" data-orb="large" data-role="g-mid" offset="60%" stop-color="#215882" stop-opacity="0.10" data-om-id="8b3fab4d:43"/>
+          <stop class="orb-glow-stop" data-orb="large" data-role="g-edge" offset="100%" stop-color="#1a2643" stop-opacity="0" data-om-id="8b3fab4d:44"/>
+        </radialGradient>
+        <radialGradient id="orbGlowSmall" cx="50%" cy="50%" r="50%" data-om-id="8b3fab4d:45">
+          <stop class="orb-glow-stop" data-orb="small" data-role="g-hi" offset="0%" stop-color="#6481c4" stop-opacity="0.35" data-om-id="8b3fab4d:46"/>
+          <stop class="orb-glow-stop" data-orb="small" data-role="g-mid" offset="60%" stop-color="#1e5c81" stop-opacity="0.10" data-om-id="8b3fab4d:47"/>
+          <stop class="orb-glow-stop" data-orb="small" data-role="g-edge" offset="100%" stop-color="#04222a" stop-opacity="0" data-om-id="8b3fab4d:48"/>
+        </radialGradient>
+        <radialGradient id="orbGlowTiny" cx="50%" cy="50%" r="50%" data-om-id="8b3fab4d:49">
+          <stop class="orb-glow-stop" data-orb="tiny" data-role="g-hi" offset="0%" stop-color="#3893cf" stop-opacity="0.35" data-om-id="8b3fab4d:50"/>
+          <stop class="orb-glow-stop" data-orb="tiny" data-role="g-mid" offset="60%" stop-color="#1d557a" stop-opacity="0.10" data-om-id="8b3fab4d:51"/>
+          <stop class="orb-glow-stop" data-orb="tiny" data-role="g-edge" offset="100%" stop-color="#0b2130" stop-opacity="0" data-om-id="8b3fab4d:52"/>
+        </radialGradient>
+
+        <clipPath id="discClip" data-om-id="8b3fab4d:53">
+          <circle cx="250" cy="250" r="208" data-om-id="8b3fab4d:54"/>
+        </clipPath>
+      </defs>
+
+      <rect width="500" height="500" fill="#000" data-om-id="8b3fab4d:55"/>
+      <circle cx="250" cy="250" r="220" fill="url(#bezelGrad)" data-om-id="8b3fab4d:56"/>
+      <circle cx="250" cy="250" r="208" fill="url(#discFill)" data-om-id="8b3fab4d:57"/>
+      <circle cx="250" cy="250" r="220" fill="none" stroke="url(#bezelHi)" stroke-width="3" data-om-id="8b3fab4d:58"/>
+      <circle cx="250" cy="250" r="208" fill="url(#innerShadow)" data-om-id="8b3fab4d:59"/>
+
+      <g clip-path="url(#discClip)" data-om-id="8b3fab4d:60">
+        <circle cx="290" cy="290" r="76.70" data-base-r="65" fill="url(#orbLarge)" data-om-id="8b3fab4d:61"/>
+        <circle cx="180" cy="220" r="31.86" data-base-r="27" fill="url(#orbSmall)" data-om-id="8b3fab4d:62"/>
+        <circle cx="200" cy="340" r="25.96" data-base-r="22" fill="url(#orbTiny)" data-om-id="8b3fab4d:63"/>
+      </g>
+
+      <circle cx="250" cy="250" r="208" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="1" data-om-id="8b3fab4d:64"/>
+    </svg>

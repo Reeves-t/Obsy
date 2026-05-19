@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
 import { getGradientEndpoints } from '@/lib/timeThemes';
+import { AuroraBackground } from '@/components/backgrounds/AuroraBackground';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -186,6 +187,10 @@ export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName
 
     // Determine overlay opacity (for ghosted gradient effect on focus screens)
     const overlayOpacity = screenSettings.overlayOpacity;
+
+    if (theme === 'obsy-default') {
+        return <AuroraBackground />;
+    }
 
     if (usesTimeTheme && activeGradient && gradientEndpoints) {
         return (

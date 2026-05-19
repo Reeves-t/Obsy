@@ -9,40 +9,70 @@ import Animated, {
     useAnimatedStyle,
 } from 'react-native-reanimated';
 import Svg, {
-    Ellipse,
+    Circle,
     Defs,
     LinearGradient,
+    RadialGradient,
     Stop,
 } from 'react-native-svg';
 
 const AnimatedView = Animated.createAnimatedComponent(View);
 
-// Display size and scale from the 1024x1024 SVG viewBox
+// Display size and scale from the new 500x500 SVG viewBox (obsy.cobalt.logo)
 const LOGO_SIZE = 150;
-const S = LOGO_SIZE / 1024;
+const VIEWBOX = 500;
+const S = LOGO_SIZE / VIEWBOX;
 
-// Orb data extracted from the SVG paths
-// Positions/sizes are in original 1024-viewBox coordinates, scaled at render time
-const ORBS = [
+// Orb data extracted from obsy.cobalt.logo.svg.
+// Positions/sizes are in original 500-viewBox coordinates, scaled at render time.
+type OrbDef = {
+    cx: number;
+    cy: number;
+    r: number;
+    grad: { cx: string; cy: string; r: string };
+    stops: { offset: string; color: string; opacity: string }[];
+    startOffsetY: number;
+    stagger: number;
+};
+
+const ORBS: OrbDef[] = [
     {
-        // Large orb — right of center
-        cx: 564, cy: 527, rx: 58, ry: 57,
-        color1: '#5A0C8A', color2: '#871E13',
+        // Large orb — right-bottom of center, cobalt primary
+        cx: 290, cy: 290, r: 76.70,
+        grad: { cx: '30%', cy: '30%', r: '70%' },
+        stops: [
+            { offset: '0%', color: '#41caec', opacity: '1' },
+            { offset: '31.76%', color: '#118dac', opacity: '0.95' },
+            { offset: '73.76%', color: '#1d4d72', opacity: '0.7' },
+            { offset: '100%', color: '#1a2643', opacity: '0' },
+        ],
         startOffsetY: -50,
         stagger: 0,
     },
     {
-        // Medium orb — lower center
-        cx: 493, cy: 631, rx: 32, ry: 26,
-        color1: '#5A0C8A', color2: '#076403',
-        startOffsetY: 50,
+        // Small orb — upper-left, slate-blue secondary
+        cx: 180, cy: 220, r: 31.86,
+        grad: { cx: '68%', cy: '32%', r: '68%' },
+        stops: [
+            { offset: '0%', color: '#899fd2', opacity: '1' },
+            { offset: '31.76%', color: '#4160aa', opacity: '0.95' },
+            { offset: '73.76%', color: '#1a5071', opacity: '0.7' },
+            { offset: '100%', color: '#04222a', opacity: '0' },
+        ],
+        startOffsetY: -35,
         stagger: 200,
     },
     {
-        // Small orb — left of center
-        cx: 436, cy: 483, rx: 23, ry: 23,
-        color1: '#5A0C8A', color2: '#871E13',
-        startOffsetY: -35,
+        // Tiny orb — lower-left, mid-blue blend
+        cx: 200, cy: 340, r: 25.96,
+        grad: { cx: '38%', cy: '60%', r: '65%' },
+        stops: [
+            { offset: '0%', color: '#61a9d9', opacity: '1' },
+            { offset: '31.76%', color: '#2b7db3', opacity: '0.95' },
+            { offset: '73.76%', color: '#174361', opacity: '0.7' },
+            { offset: '100%', color: '#091b27', opacity: '0' },
+        ],
+        startOffsetY: 50,
         stagger: 400,
     },
 ];
@@ -66,7 +96,7 @@ export const ObsyAnimatedSplash = ({ onAnimationComplete }: ObsyAnimatedSplashPr
     useEffect(() => {
         const easeOut = Easing.out(Easing.cubic);
 
-        // Phase 1: Ring + fill fade in
+        // Phase 1: Bezel ring + disc fill fade in
         ringOpacity.value = withDelay(200, withTiming(1, { duration: 800, easing: easeOut }));
 
         // Phase 2: Orbs fade in and drift to final position (staggered)
@@ -107,34 +137,51 @@ export const ObsyAnimatedSplash = ({ onAnimationComplete }: ObsyAnimatedSplashPr
         <AnimatedView style={[styles.container, containerStyle]}>
             <View style={styles.baseLayer} />
             <View style={[styles.logoWrapper, { width: LOGO_SIZE, height: LOGO_SIZE }]}>
-                {/* Ring + inner fill */}
+                {/* Bezel ring + disc fill + highlight + inner shadow */}
                 <AnimatedView style={[StyleSheet.absoluteFill, ringStyle]}>
-                    <Svg width={LOGO_SIZE} height={LOGO_SIZE} viewBox="0 0 1024 1024">
+                    <Svg width={LOGO_SIZE} height={LOGO_SIZE} viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
                         <Defs>
-                            <LinearGradient id="ringGrad" x1="511.5" y1="213" x2="511.5" y2="810" gradientUnits="userSpaceOnUse">
-                                <Stop offset="0.038" stopColor="#868080" />
-                                <Stop offset="0.221" stopColor="#434040" />
-                                <Stop offset="0.346" stopColor="#2E2C2C" />
-                                <Stop offset="0.538" stopColor="#121111" />
-                                <Stop offset="0.889" stopColor="#A9A2A2" />
+                            <RadialGradient id="discFill" cx="50%" cy="42%" r="62%">
+                                <Stop offset="0%" stopColor="#242424" />
+                                <Stop offset="55%" stopColor="#0a0a0a" />
+                                <Stop offset="100%" stopColor="#000000" />
+                            </RadialGradient>
+                            <LinearGradient id="bezelGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+                                <Stop offset="0%" stopColor="#9a9a9e" />
+                                <Stop offset="8%" stopColor="#cfcfd3" />
+                                <Stop offset="22%" stopColor="#5e5e63" />
+                                <Stop offset="55%" stopColor="#1f1f22" />
+                                <Stop offset="80%" stopColor="#3a3a3e" />
+                                <Stop offset="92%" stopColor="#b8b8bc" />
+                                <Stop offset="100%" stopColor="#5c5c60" />
                             </LinearGradient>
-                            <LinearGradient id="fillGrad" x1="511.5" y1="241" x2="511.5" y2="782" gradientUnits="userSpaceOnUse">
-                                <Stop offset="0" stopColor="#000000" />
-                                <Stop offset="0.538" stopColor="#222121" />
-                                <Stop offset="1" stopColor="#060606" />
+                            <LinearGradient id="bezelHi" x1="50%" y1="0%" x2="50%" y2="100%">
+                                <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
+                                <Stop offset="40%" stopColor="#ffffff" stopOpacity="0.05" />
+                                <Stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
                             </LinearGradient>
+                            <RadialGradient id="innerShadow" cx="50%" cy="50%" r="50%">
+                                <Stop offset="80%" stopColor="#000000" stopOpacity="0" />
+                                <Stop offset="100%" stopColor="#000000" stopOpacity="0.7" />
+                            </RadialGradient>
                         </Defs>
-                        {/* Outer metallic ring */}
-                        <Ellipse cx={511.5} cy={511.5} rx={308.5} ry={298.5} fill="url(#ringGrad)" />
-                        {/* Inner dark fill */}
-                        <Ellipse cx={511.5} cy={511.5} rx={279.578} ry={270.071} fill="url(#fillGrad)" />
+                        {/* Black backplate */}
+                        <Circle cx={250} cy={250} r={230} fill="#000000" />
+                        {/* Metallic bezel ring */}
+                        <Circle cx={250} cy={250} r={220} fill="url(#bezelGrad)" />
+                        {/* Inner disc fill */}
+                        <Circle cx={250} cy={250} r={208} fill="url(#discFill)" />
+                        {/* Bezel highlight stroke */}
+                        <Circle cx={250} cy={250} r={220} fill="none" stroke="url(#bezelHi)" strokeWidth={3} />
+                        {/* Inner vignette */}
+                        <Circle cx={250} cy={250} r={208} fill="url(#innerShadow)" />
                     </Svg>
                 </AnimatedView>
 
-                {/* Orbs — each in its own Animated.View for independent animation */}
+                {/* Orbs — each in its own Animated.View for independent fade + drift */}
                 {ORBS.map((orb, i) => {
-                    const orbW = orb.rx * 2 * S + 4;
-                    const orbH = orb.ry * 2 * S + 4;
+                    const orbW = orb.r * 2 * S + 6;
+                    const orbH = orb.r * 2 * S + 6;
                     const orbLeft = orb.cx * S - orbW / 2;
                     const orbTop = orb.cy * S - orbH / 2;
 
@@ -154,24 +201,22 @@ export const ObsyAnimatedSplash = ({ onAnimationComplete }: ObsyAnimatedSplashPr
                         >
                             <Svg width={orbW} height={orbH} viewBox={`0 0 ${orbW} ${orbH}`}>
                                 <Defs>
-                                    <LinearGradient id={`orbGrad${i}`} x1="0" y1="0" x2={String(orbW)} y2={String(orbH)} gradientUnits="userSpaceOnUse">
-                                        <Stop offset="0" stopColor={orb.color1} />
-                                        <Stop offset="1" stopColor={orb.color2} />
-                                    </LinearGradient>
-                                    <LinearGradient id={`orbStroke${i}`} x1="0" y1="0" x2={String(orbW)} y2="0" gradientUnits="userSpaceOnUse">
-                                        <Stop offset="0.038" stopColor="#868080" />
-                                        <Stop offset="0.35" stopColor="#2E2C2C" />
-                                        <Stop offset="0.889" stopColor="#A9A2A2" />
-                                    </LinearGradient>
+                                    <RadialGradient
+                                        id={`orbBody${i}`}
+                                        cx={orb.grad.cx}
+                                        cy={orb.grad.cy}
+                                        r={orb.grad.r}
+                                    >
+                                        {orb.stops.map((s, j) => (
+                                            <Stop key={j} offset={s.offset} stopColor={s.color} stopOpacity={s.opacity} />
+                                        ))}
+                                    </RadialGradient>
                                 </Defs>
-                                <Ellipse
+                                <Circle
                                     cx={orbW / 2}
                                     cy={orbH / 2}
-                                    rx={orb.rx * S}
-                                    ry={orb.ry * S}
-                                    fill={`url(#orbGrad${i})`}
-                                    stroke={`url(#orbStroke${i})`}
-                                    strokeWidth={0.5}
+                                    r={orb.r * S}
+                                    fill={`url(#orbBody${i})`}
                                 />
                             </Svg>
                         </AnimatedView>

@@ -53,6 +53,12 @@ const APP_THEME_OPTIONS: Array<{
     subtitle: 'Use the Obsy dark background across the app',
   },
   {
+    id: 'obsy-default',
+    icon: 'color-palette-outline',
+    title: 'Obsy Default',
+    subtitle: 'Soft aurora glow in Obsy brand colors across every screen',
+  },
+  {
     id: 'pack1',
     icon: 'sparkles-outline',
     title: 'Obsy Theme Pack 1',
