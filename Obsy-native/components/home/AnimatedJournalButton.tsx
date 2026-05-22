@@ -47,12 +47,30 @@ function SilverJournalGlyph({ size }: { size: number }) {
           <Stop offset="50%" stopColor="#ececef" />
           <Stop offset="100%" stopColor="#5b5b5f" />
         </LinearGradient>
+
+        <LinearGradient id="bookBrownPages" x1="0%" y1="50%" x2="100%" y2="50%">
+          <Stop offset="0%" stopColor="#6a4626" />
+          <Stop offset="50%" stopColor="#8a5e34" />
+          <Stop offset="100%" stopColor="#3e2814" />
+        </LinearGradient>
+
+        <LinearGradient id="bookBrownSpine" x1="0%" y1="50%" x2="100%" y2="50%">
+          <Stop offset="0%" stopColor="#2c1c0e" />
+          <Stop offset="50%" stopColor="#5a3a1f" />
+          <Stop offset="100%" stopColor="#1a0f06" />
+        </LinearGradient>
+
+        <LinearGradient id="bookPurpleEmboss" x1="0%" y1="50%" x2="100%" y2="50%">
+          <Stop offset="0%" stopColor="#6e3aa8" />
+          <Stop offset="50%" stopColor="#a868d8" />
+          <Stop offset="100%" stopColor="#4a2376" />
+        </LinearGradient>
       </Defs>
 
       {/* Page stack edge (visible right side, behind cover) */}
-      <Rect x={5.4} y={3.4} width={14.6} height={17.2} rx={1.2} fill="url(#bookPages)" />
-      <Line x1={19.6} y1={5} x2={19.6} y2={19} stroke="#8e8b80" strokeWidth={0.25} opacity={0.5} />
-      <Line x1={19.1} y1={5.4} x2={19.1} y2={18.6} stroke="#8e8b80" strokeWidth={0.25} opacity={0.4} />
+      <Rect x={5.4} y={3.4} width={14.6} height={17.2} rx={1.2} fill="url(#bookBrownPages)" />
+      <Line x1={19.6} y1={5} x2={19.6} y2={19} stroke="#2a1808" strokeWidth={0.25} opacity={0.5} />
+      <Line x1={19.1} y1={5.4} x2={19.1} y2={18.6} stroke="#2a1808" strokeWidth={0.25} opacity={0.4} />
 
       {/* Cover */}
       <Rect x={4} y={2.6} width={15} height={18.2} rx={1.4} fill="url(#bookChrome)" />
@@ -63,11 +81,11 @@ function SilverJournalGlyph({ size }: { size: number }) {
       <Rect x={4.6} y={19} width={13.8} height={1.3} rx={0.65} fill="#0a0a0b" opacity={0.5} />
 
       {/* Spine — left band */}
-      <Rect x={4} y={2.6} width={2.4} height={18.2} fill="url(#bookSpine)" />
-      <Rect x={5.7} y={2.6} width={0.4} height={18.2} fill="#ffffff" opacity={0.22} />
+      <Rect x={4} y={2.6} width={2.4} height={18.2} fill="url(#bookBrownSpine)" />
+      <Rect x={5.7} y={2.6} width={0.4} height={18.2} fill="#c69b6a" opacity={0.35} />
 
       {/* Center emboss — a thin metallic monogram bar */}
-      <Rect x={9.4} y={11.2} width={4.2} height={1.4} rx={0.55} fill="url(#penChrome)" />
+      <Rect x={9.4} y={11.2} width={4.2} height={1.4} rx={0.55} fill="url(#bookPurpleEmboss)" />
       <Rect x={9.6} y={11.4} width={3.8} height={0.35} rx={0.18} fill="#ffffff" opacity={0.55} />
 
       {/* Bookmark ribbon (subtle) */}

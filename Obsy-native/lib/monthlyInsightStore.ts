@@ -38,6 +38,7 @@ import { getMonthSignals } from '@/services/monthlySummaries';
 import { formatMonthKey } from '@/lib/dailyMoodFlows';
 import { fetchInsightHistory, fetchMostRecentMonthlyInsight, upsertInsightHistory } from '@/services/insightHistory';
 import { areAllMoodOnlyEntries, buildMoodOnlyInsight } from '@/lib/moodOnlyInsights';
+import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
 
 interface MonthlyInsightState {
     status: 'idle' | 'loading' | 'success' | 'error';
@@ -223,7 +224,17 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
 
             const monthLabel = format(targetMonth, 'MMMM yyyy');
 
-            const response = await callMonthly(monthLabel, aiSignals, tone, customTonePrompt, monthStart.toISOString());
+            const digestEntries: DigestEntry[] = monthCaptures.map((c) => ({
+                date: c.created_at,
+                mood: c.mood_name_snapshot,
+                note: c.note,
+                sourceType: c.source_type,
+                sharedLinkPlatform: c.shared_link_platform,
+                sharedLinkTitle: c.shared_link_title,
+            }));
+            const contextDigest = buildContextDigest(digestEntries) || undefined;
+
+            const response = await callMonthly(monthLabel, aiSignals, tone, customTonePrompt, monthStart.toISOString(), contextDigest);
 
             if (response.ok && response.text) {
                 const narrativeText = parseMonthlyContent(response.text) ?? response.text;

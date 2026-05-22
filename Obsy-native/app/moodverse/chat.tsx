@@ -23,6 +23,7 @@ import { ObsyIcon } from '@/components/moodverse/ObsyIcon';
 import type { GalaxyOrb, GalaxyCluster } from '@/components/moodverse/galaxyTypes';
 import { format } from 'date-fns';
 import { useAiFreeMode } from '@/hooks/useAiFreeMode';
+import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
 
 // ── Eclipse Loader ──────────────────────────────────────────────────────
 
@@ -224,12 +225,26 @@ function computeMoodverseContext(
         ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
     }));
 
+    // Build a digest scoped to whatever the user is actually looking at:
+    // their selection if any, otherwise the recent window.
+    const digestSource: GalaxyOrb[] = selectedOrbs.length > 0 ? selectedSorted : sorted.slice(-30);
+    const digestEntries: DigestEntry[] = digestSource.map((o) => ({
+        date: new Date(o.timestamp).toISOString(),
+        mood: o.moodLabel,
+        note: o.noteFull,
+        sourceType: o.sourceType,
+        sharedLinkPlatform: o.sharedLinkPlatform,
+        sharedLinkTitle: o.sharedLinkTitle,
+    }));
+    const contextDigest = buildContextDigest(digestEntries);
+
     const pack = {
         aggregates: { totalCaptures: allOrbs.length, moodCounts: topMoods, topTags },
         months,
         selected: { mode: selectionMode, captures: selected },
         patterns: { streaks, transitions, beforeSelection, afterSelection, sameMoodSameMonth },
         recency,
+        ...(contextDigest ? { contextDigest } : {}),
     };
 
     return JSON.stringify(pack);

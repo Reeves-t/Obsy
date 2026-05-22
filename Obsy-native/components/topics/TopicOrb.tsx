@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { CTAOrbShell } from '@/components/home/CTAOrbShell';
 
 interface TopicOrbProps {
     size: number;
@@ -10,7 +10,7 @@ interface TopicOrbProps {
 
 export function TopicOrb({ size, title, selected = false }: TopicOrbProps) {
     const fontSize = Math.max(10, Math.min(15, size * 0.155));
-    const innerInset = Math.max(2, size * 0.025);
+    const shellSize = Math.max(1, size - 8);
 
     return (
         <View style={[styles.root, { width: size, height: size }]}>
@@ -26,72 +26,18 @@ export function TopicOrb({ size, title, selected = false }: TopicOrbProps) {
                 }]} />
             )}
 
-            {/* Outer metallic ring */}
-            <View style={[
-                styles.outerRing,
-                {
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                },
-                selected ? styles.selectedShadow : styles.idleShadow,
-            ]}>
-                <LinearGradient
-                    colors={[
-                        'rgba(200,200,200,0.45)',
-                        'rgba(140,140,140,0.30)',
-                        'rgba(90,90,90,0.25)',
-                    ]}
-                    locations={[0, 0.45, 1]}
-                    start={{ x: 0.15, y: 0.08 }}
-                    end={{ x: 0.9, y: 0.95 }}
-                    style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }]}
-                />
-
-                {/* Dark inner inset */}
-                <View style={[styles.innerOrb, {
-                    top: innerInset,
-                    right: innerInset,
-                    bottom: innerInset,
-                    left: innerInset,
-                    borderRadius: (size - innerInset * 2) / 2,
-                }]}>
-                    <LinearGradient
-                        colors={['#242422', '#1A1A18', '#111110']}
-                        locations={[0, 0.45, 1]}
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                        style={StyleSheet.absoluteFillObject}
-                    />
-
-                    {/* Top glass shine */}
-                    <LinearGradient
-                        colors={[
-                            'rgba(255,255,255,0.14)',
-                            'rgba(255,255,255,0.05)',
-                            'transparent',
-                        ]}
-                        locations={[0, 0.45, 0.75]}
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                        style={[styles.topHighlight, { height: size * 0.42 }]}
-                    />
-
-                    {/* Inner rim */}
-                    <View style={styles.innerRim} />
-                </View>
-
-                {/* Title text */}
+            <CTAOrbShell size={shellSize}>
                 <Text
                     style={[styles.title, {
                         fontSize,
                         paddingHorizontal: size * 0.14,
+                        width: shellSize,
                     }]}
                     numberOfLines={3}
                 >
                     {title}
                 </Text>
-            </View>
+            </CTAOrbShell>
         </View>
     );
 }
@@ -108,48 +54,7 @@ const styles = StyleSheet.create({
         shadowRadius: 20,
         shadowOffset: { width: 0, height: 0 },
     },
-    outerRing: {
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    selectedShadow: {
-        shadowColor: '#000000',
-        shadowOpacity: 0.6,
-        shadowRadius: 36,
-        shadowOffset: { width: 0, height: 12 },
-        elevation: 24,
-    },
-    idleShadow: {
-        shadowColor: '#000000',
-        shadowOpacity: 0.5,
-        shadowRadius: 22,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 18,
-    },
-    innerOrb: {
-        position: 'absolute',
-        overflow: 'hidden',
-    },
-    topHighlight: {
-        position: 'absolute',
-        top: 0,
-        left: '8%',
-        right: '8%',
-        borderBottomLeftRadius: 999,
-        borderBottomRightRadius: 999,
-    },
-    innerRim: {
-        ...StyleSheet.absoluteFillObject,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
-        shadowColor: '#FFFFFF',
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
-        shadowOffset: { width: 0, height: 1 },
-    },
     title: {
-        position: 'absolute',
         color: '#fff',
         fontWeight: '500',
         letterSpacing: 0.1,

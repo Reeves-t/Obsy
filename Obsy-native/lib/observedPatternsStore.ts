@@ -8,6 +8,7 @@ import {
     upsertObservedPattern,
     ObservedPatternsCaptureData,
 } from '@/services/observedPatternsClient';
+import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
 
 const GENERATION_THRESHOLD = 5;
 
@@ -114,25 +115,38 @@ export const useObservedPatterns = create<ObservedPatternsState>((set, get) => (
         set({ status: 'loading', error: null, eligibleCount });
 
         try {
-            const captureData: ObservedPatternsCaptureData[] = eligible
-                .sort((a, b) =>
-                    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                )
-                .map(c => {
-                    const date = new Date(c.created_at);
-                    const mood = validateMoodString(c.mood_name_snapshot)
-                        || validateMoodString(getMoodLabel(c.mood_id))
-                        || 'Neutral';
-                    return {
-                        mood,
-                        note: c.note ?? undefined,
-                        obsyNote: c.obsy_note ?? undefined,
-                        capturedAt: c.created_at,
-                        tags: c.tags ?? [],
-                        timeBucket: getTimeBucketForDate(date),
-                        dayPart: getDayPart(date),
-                    };
-                });
+            const sortedEligible = [...eligible].sort((a, b) =>
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+
+            const captureData: ObservedPatternsCaptureData[] = sortedEligible.map(c => {
+                const date = new Date(c.created_at);
+                const mood = validateMoodString(c.mood_name_snapshot)
+                    || validateMoodString(getMoodLabel(c.mood_id))
+                    || 'Neutral';
+                return {
+                    mood,
+                    note: c.note ?? undefined,
+                    obsyNote: c.obsy_note ?? undefined,
+                    capturedAt: c.created_at,
+                    tags: c.tags ?? [],
+                    timeBucket: getTimeBucketForDate(date),
+                    dayPart: getDayPart(date),
+                    entry_type: (c.source_type as ObservedPatternsCaptureData['entry_type']) ?? 'capture',
+                    shared_link_platform: c.shared_link_platform ?? null,
+                    shared_link_title: c.shared_link_title ?? null,
+                };
+            });
+
+            const digestEntries: DigestEntry[] = sortedEligible.map(c => ({
+                date: c.created_at,
+                mood: c.mood_name_snapshot,
+                note: c.note,
+                sourceType: c.source_type,
+                sharedLinkPlatform: c.shared_link_platform,
+                sharedLinkTitle: c.shared_link_title,
+            }));
+            const contextDigest = buildContextDigest(digestEntries) || undefined;
 
             const newGenNumber = state.generationNumber + 1;
 
@@ -141,6 +155,7 @@ export const useObservedPatterns = create<ObservedPatternsState>((set, get) => (
                 state.text,
                 newGenNumber,
                 eligibleCount,
+                contextDigest,
             );
 
             if (response.ok && response.text) {

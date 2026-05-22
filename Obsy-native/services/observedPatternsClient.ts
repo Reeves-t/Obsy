@@ -8,6 +8,9 @@ export interface ObservedPatternsCaptureData {
   tags?: string[];
   timeBucket?: string;
   dayPart?: string;
+  entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link';
+  shared_link_platform?: string | null;
+  shared_link_title?: string | null;
 }
 
 export interface ObservedPatternsResponse {
@@ -33,6 +36,7 @@ export async function callObservedPatterns(
   previousPatternText: string | null,
   generationNumber: number,
   eligibleCount: number,
+  contextDigest?: string,
 ): Promise<ObservedPatternsResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const session = sessionData.session;
@@ -45,7 +49,7 @@ export async function callObservedPatterns(
 
   try {
     const response = await supabase.functions.invoke('generate-observed-patterns', {
-      body: { captures, previousPatternText, generationNumber, eligibleCount },
+      body: { captures, previousPatternText, generationNumber, eligibleCount, contextDigest },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 

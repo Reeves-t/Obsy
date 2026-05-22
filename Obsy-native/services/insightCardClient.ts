@@ -8,6 +8,9 @@ export interface CardCaptureData {
   note?: string;
   capturedAt: string;
   tags?: string[];
+  entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link';
+  shared_link_platform?: string | null;
+  shared_link_title?: string | null;
 }
 
 export interface InsightCardRequest {
@@ -19,6 +22,8 @@ export interface InsightCardRequest {
   tone: string;
   customTonePrompt?: string;
   captures: CardCaptureData[];
+  /** Optional summary block enumerating shared links, journals, and entry-type mix */
+  contextDigest?: string;
 }
 
 export interface InsightCardResult {

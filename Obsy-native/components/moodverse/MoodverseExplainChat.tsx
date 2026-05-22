@@ -12,6 +12,7 @@ import { useMoodverseStore, ChatMessage } from '@/lib/moodverseStore';
 import { callMoodverseExplain, CaptureContext } from '@/services/moodverseExplainClient';
 import type { GalaxyOrb, GalaxyCluster } from './galaxyTypes';
 import { format } from 'date-fns';
+import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
 
 interface MoodverseExplainChatProps {
     selectedOrbs: GalaxyOrb[];
@@ -278,6 +279,18 @@ function computeMoodverseContext(
         ...(o.sourceType && o.sourceType !== 'capture' ? { type: o.sourceType } : {}),
     }));
 
+    // ── Build digest scoped to user's focus ─────────────────────────────
+    const digestSource: GalaxyOrb[] = selectedOrbs.length > 0 ? selectedSorted : sorted.slice(-30);
+    const digestEntries: DigestEntry[] = digestSource.map((o) => ({
+        date: new Date(o.timestamp).toISOString(),
+        mood: o.moodLabel,
+        note: o.noteFull,
+        sourceType: o.sourceType,
+        sharedLinkPlatform: o.sharedLinkPlatform,
+        sharedLinkTitle: o.sharedLinkTitle,
+    }));
+    const contextDigest = buildContextDigest(digestEntries);
+
     // ── Build pack ──────────────────────────────────────────────────────
     const pack = {
         aggregates: {
@@ -295,6 +308,7 @@ function computeMoodverseContext(
             sameMoodSameMonth,
         },
         recency,
+        ...(contextDigest ? { contextDigest } : {}),
     };
 
     return JSON.stringify(pack);

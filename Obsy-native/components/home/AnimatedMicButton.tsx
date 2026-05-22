@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Path, Rect, Ellipse } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Stop, Path, Rect, Ellipse, Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { CTAOrbShell } from '@/components/home/CTAOrbShell';
 
@@ -40,6 +40,18 @@ function SilverMicGlyph({ size }: { size: number }) {
           <Stop offset="50%" stopColor="#e3e3e5" />
           <Stop offset="100%" stopColor="#7d7d80" />
         </LinearGradient>
+
+        <LinearGradient id="micStandBlack" x1="0%" y1="0%" x2="100%" y2="0%">
+          <Stop offset="0%" stopColor="#1a1a1c" />
+          <Stop offset="50%" stopColor="#3a3a3e" />
+          <Stop offset="100%" stopColor="#1a1a1c" />
+        </LinearGradient>
+
+        <LinearGradient id="micStemBlack" x1="0%" y1="50%" x2="100%" y2="50%">
+          <Stop offset="0%" stopColor="#2a2a2c" />
+          <Stop offset="50%" stopColor="#4a4a4e" />
+          <Stop offset="100%" stopColor="#1a1a1c" />
+        </LinearGradient>
       </Defs>
 
       {/* Capsule body */}
@@ -54,18 +66,20 @@ function SilverMicGlyph({ size }: { size: number }) {
       {/* Stand arc */}
       <Path
         d="M5 12 Q5 18.5 12 18.5 Q19 18.5 19 12"
-        stroke="url(#micStand)"
+        stroke="url(#micStandBlack)"
         strokeWidth={1.4}
         fill="none"
         strokeLinecap="round"
       />
 
       {/* Stem */}
-      <Rect x={11.1} y={18} width={1.8} height={2.6} rx={0.4} fill="url(#micStem)" />
+      <Rect x={11.1} y={18} width={1.8} height={2.6} rx={0.4} fill="url(#micStemBlack)" />
 
       {/* Base plate */}
-      <Rect x={7.2} y={20.3} width={9.6} height={1.5} rx={0.75} fill="url(#micStand)" />
-      <Ellipse cx={12} cy={20.3} rx={4.6} ry={0.45} fill="#ffffff" opacity={0.35} />
+      <Rect x={7.2} y={20.3} width={9.6} height={1.5} rx={0.75} fill="url(#micStandBlack)" />
+      <Ellipse cx={12} cy={20.3} rx={4.6} ry={0.45} fill="#ffffff" opacity={0.18} />
+      <Circle cx={12} cy={20.45} r={0.55} fill="#ff3b3b" />
+      <Circle cx={12} cy={20.45} r={0.55} fill="#ffffff" opacity={0.35} />
     </Svg>
   );
 }

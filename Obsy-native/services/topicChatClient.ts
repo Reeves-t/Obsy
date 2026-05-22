@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type { ChatMessage } from '@/lib/moodverseStore';
 import type { Capture } from '@/types/capture';
 import type { Topic, TopicStats } from '@/lib/topicStore';
+import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
 
 export interface TopicChatResponse {
     ok: boolean;
@@ -59,6 +60,20 @@ function buildTopicContext(topic: Topic, stats: TopicStats, captures: Capture[])
             const notePart = c.note ? ` — "${c.note}"` : '';
             lines.push(`- ${date}: ${c.mood_name_snapshot}${notePart}`);
         }
+        lines.push('');
+    }
+
+    const digestEntries: DigestEntry[] = linked.map((c) => ({
+        date: c.created_at,
+        mood: c.mood_name_snapshot,
+        note: c.note,
+        sourceType: c.source_type,
+        sharedLinkPlatform: c.shared_link_platform,
+        sharedLinkTitle: c.shared_link_title,
+    }));
+    const digest = buildContextDigest(digestEntries);
+    if (digest) {
+        lines.push(digest);
         lines.push('');
     }
 
@@ -145,11 +160,12 @@ export async function generateTopicNote(
 
     const historyWithRequest = [...messages, noteRequestMessage];
 
-    const noteContext = JSON.stringify({
-        ...JSON.parse(buildTopicContext(topic, stats, captures)),
-        noteGeneration: true,
-        noteInstructions: 'Generate only the note text. 1-3 sentences. Reflective, personal, mindful. Not a summary. No preamble or explanation.',
-    });
+    // Plain-text context so the edge function's formatContextPack falls through
+    // its catch block and passes this string to Claude as-is (mirrors callTopicChat).
+    const noteContext =
+        buildTopicContext(topic, stats, captures) +
+        '\n\nNOTE GENERATION MODE:\n' +
+        'Generate only the note text. 1-3 sentences. Reflective, personal, mindful. Not a summary. No preamble or explanation.';
 
     try {
         const response = await supabase.functions.invoke('moodverse-explain', {

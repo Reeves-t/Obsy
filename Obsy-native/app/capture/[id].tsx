@@ -16,7 +16,7 @@ import { useMoodResolver } from '@/hooks/useMoodResolver';
 import { classifyEntry } from '@/components/entries/EntryGridTile';
 import { StaticLinkPreview } from '@/components/entries/StaticLinkPreview';
 import { PlatformEmbed, isEmbeddablePlatform } from '@/components/entries/PlatformEmbed';
-import { platformToColor } from '@/services/sharedLinkService';
+import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
 import type { Capture } from '@/types/capture';
 
@@ -576,8 +576,9 @@ function LinkHero({ capture, moodDisplay, onBack, onDelete, isDeleting }: {
     onDelete: () => void;
     isDeleting: boolean;
 }) {
-    const platform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
     const url = capture.shared_link_url ?? '';
+    const savedPlatform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
+    const platform = savedPlatform === 'Web' && url ? detectPlatform(url) : savedPlatform;
     const title = capture.shared_link_title ?? null;
     const thumb = capture.shared_link_thumbnail_url ?? null;
     const platformColor = platformToColor(platform);

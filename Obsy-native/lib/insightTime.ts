@@ -18,7 +18,7 @@ export interface CaptureForInsight {
     imageUrl?: string;
     usePhotoForInsight: boolean;
     /** Entry format type — used by AI to interpret context correctly */
-    entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
+    entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link';
     /** For shared_link entries: the detected platform */
     shared_link_platform?: string | null;
     /** For shared_link entries: the parsed title */
@@ -75,7 +75,7 @@ export interface EnrichedCapture extends Capture {
     localTimeLabel: string;
     timeBucket: TimeBucket;
     dayPart: DayPart;
-    entry_type: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
+    entry_type: 'capture' | 'journal' | 'voice' | 'shared_link';
 }
 
 /**

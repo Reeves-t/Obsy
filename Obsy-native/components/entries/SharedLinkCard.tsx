@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Capture } from '@/types/capture';
 import { useMoodResolver } from '@/hooks/useMoodResolver';
-import { platformToColor } from '@/services/sharedLinkService';
+import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
 import { PlatformEmbed, isEmbeddablePlatform } from './PlatformEmbed';
 import { StaticLinkPreview } from './StaticLinkPreview';
@@ -48,10 +48,11 @@ export const SharedLinkCard = memo(function SharedLinkCard({
     const moodDisplay = getMoodDisplay(capture.mood_id, capture.mood_name_snapshot);
     const date = new Date(capture.created_at);
 
-    const platform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
     const title = capture.shared_link_title ?? null;
     const url = capture.shared_link_url ?? '';
     const thumbnail = capture.shared_link_thumbnail_url ?? null;
+    const savedPlatform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
+    const platform = savedPlatform === 'Web' && url ? detectPlatform(url) : savedPlatform;
 
     const cardBg = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)';
     const cardBorder = isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.08)';

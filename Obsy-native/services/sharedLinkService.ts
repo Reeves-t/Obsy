@@ -13,6 +13,8 @@ export type SharedLinkPlatform =
     | 'Instagram'
     | 'Spotify'
     | 'Twitter'
+    | 'Tumblr'
+    | 'Twitch'
     | 'Web';
 
 export interface SharedLinkMetadata {
@@ -30,6 +32,8 @@ const PLATFORM_MAP: Array<{ pattern: RegExp; label: SharedLinkPlatform }> = [
     { pattern: /instagram\.com/i, label: 'Instagram' },
     { pattern: /spotify\.com/i, label: 'Spotify' },
     { pattern: /twitter\.com|x\.com/i, label: 'Twitter' },
+    { pattern: /tumblr\.com/i, label: 'Tumblr' },
+    { pattern: /twitch\.tv/i, label: 'Twitch' },
 ];
 
 /**
@@ -117,6 +121,25 @@ export function extractTitleFromUrl(url: string, platform: SharedLinkPlatform): 
                 }
                 break;
             }
+            case 'Tumblr': {
+                const postIndex = parts.indexOf('post');
+                if (postIndex !== -1 && parts[postIndex + 2]) {
+                    return slugToTitle(parts[postIndex + 2]);
+                }
+                if (parts[0] && !['dashboard', 'explore', 'search'].includes(parts[0])) {
+                    return parts[0];
+                }
+                break;
+            }
+            case 'Twitch': {
+                if (parts[0] === 'videos' && parts[1]) {
+                    return `Twitch video ${parts[1]}`;
+                }
+                if (parts[0] && parts[0] !== 'directory') {
+                    return parts[0];
+                }
+                break;
+            }
             default: {
                 // Generic: use the last meaningful path segment
                 const lastSegment = parts[parts.length - 1];
@@ -165,6 +188,8 @@ export function platformToIcon(platform: SharedLinkPlatform): string {
         case 'Instagram': return 'logo-instagram';
         case 'Spotify': return 'musical-note';
         case 'Twitter': return 'logo-twitter';
+        case 'Tumblr': return 'logo-tumblr';
+        case 'Twitch': return 'logo-twitch';
         default: return 'globe-outline';
     }
 }
@@ -180,6 +205,8 @@ export function platformToColor(platform: SharedLinkPlatform): string {
         case 'Instagram': return '#E1306C';
         case 'Spotify': return '#1DB954';
         case 'Twitter': return '#1DA1F2';
+        case 'Tumblr': return '#36465D';
+        case 'Twitch': return '#9146FF';
         default: return 'rgba(255,255,255,0.4)';
     }
 }

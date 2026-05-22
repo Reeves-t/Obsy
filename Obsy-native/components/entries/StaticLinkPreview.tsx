@@ -17,10 +17,9 @@
 import React, { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/ui/ThemedText';
 import {
-    platformToIcon,
     platformToColor,
     type SharedLinkPlatform,
 } from '@/services/sharedLinkService';
@@ -119,6 +118,24 @@ function parseForDisplay(platform: SharedLinkPlatform, url: string, title: strin
                     subline: u.hostname.replace(/^www\./, ''),
                 };
             }
+            case 'Tumblr': {
+                const postIndex = parts.indexOf('post');
+                const blog = postIndex > 0 ? parts[postIndex - 1] : parts[0];
+                const slug = postIndex !== -1 ? parts[postIndex + 2] : null;
+                return {
+                    badge: blog ?? 'TUMBLR',
+                    headline: title ?? (slug ? slugToTitle(slug) : 'Tumblr post'),
+                    subline: u.hostname.replace(/^www\./, ''),
+                };
+            }
+            case 'Twitch': {
+                const channel = parts[0] && parts[0] !== 'videos' ? parts[0] : null;
+                return {
+                    badge: channel ?? 'TWITCH',
+                    headline: title ?? (channel ? `${channel} on Twitch` : 'Twitch video'),
+                    subline: 'twitch.tv',
+                };
+            }
             default: {
                 return {
                     headline: title ?? u.hostname.replace(/^www\./, ''),
@@ -131,6 +148,20 @@ function parseForDisplay(platform: SharedLinkPlatform, url: string, title: strin
     }
 }
 
+function PlatformPreviewIcon({ platform, size, color }: { platform: SharedLinkPlatform; size: number; color: string }) {
+    switch (platform) {
+        case 'YouTube': return <FontAwesome5 name="youtube" size={size} color={color} solid />;
+        case 'Spotify': return <FontAwesome5 name="spotify" size={size} color={color} solid />;
+        case 'TikTok': return <FontAwesome5 name="tiktok" size={size} color={color} solid />;
+        case 'Instagram': return <FontAwesome5 name="instagram" size={size} color={color} solid />;
+        case 'Twitter': return <FontAwesome5 name="twitter" size={size} color={color} solid />;
+        case 'Reddit': return <FontAwesome5 name="reddit-alien" size={size} color={color} solid />;
+        case 'Tumblr': return <FontAwesome5 name="tumblr" size={size} color={color} solid />;
+        case 'Twitch': return <FontAwesome5 name="twitch" size={size} color={color} solid />;
+        default: return <Ionicons name="globe-outline" size={size} color={color} />;
+    }
+}
+
 export const StaticLinkPreview = memo(function StaticLinkPreview({
     url,
     platform,
@@ -140,7 +171,6 @@ export const StaticLinkPreview = memo(function StaticLinkPreview({
 }: StaticLinkPreviewProps) {
     const bits = useMemo(() => parseForDisplay(platform, url, title), [platform, url, title]);
     const platformColor = platformToColor(platform);
-    const platformIcon = platformToIcon(platform);
 
     // ── YouTube: real thumbnail with play overlay ──────────────────────
     if (platform === 'YouTube' && bits.youtubeId) {
@@ -175,7 +205,7 @@ export const StaticLinkPreview = memo(function StaticLinkPreview({
     return (
         <View style={[styles.brandCard, { backgroundColor: tint, borderColor: border }]}>
             <View style={[styles.brandIconBubble, { backgroundColor: platformColor + 'EE' }]}>
-                <Ionicons name={platformIcon as any} size={22} color="#fff" />
+                <PlatformPreviewIcon platform={platform} size={22} color="#fff" />
             </View>
             <View style={styles.brandTextArea}>
                 <View style={styles.brandBadgeRow}>

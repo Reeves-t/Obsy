@@ -18,7 +18,6 @@ export function buildCaptureTimelineBlock(captures: CaptureForInsight[]): string
                 journal: 'Journal (written reflection)',
                 voice: 'Mic (spoken reflection)',
                 shared_link: `Shared Link (external content the user saved)`,
-                mood_checkin: 'Mood check-in (quick emotional note)',
             }[entryType] ?? entryType;
 
             const linkMeta = entryType === 'shared_link'

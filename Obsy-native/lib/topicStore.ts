@@ -45,9 +45,18 @@ const IMPACT_UP = ['Building momentum', 'Improving focus', 'Steady lift', 'Quiet
 const IMPACT_FLAT = ['Holding steady', 'Finding rhythm', 'A gentle plateau'];
 const IMPACT_DOWN = ['Bumpy stretch', 'Mixed lately', 'Worth a pause'];
 
-function pickImpact(trend: number): string {
+function stableHash(value: string): number {
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+        hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash);
+}
+
+function pickImpact(topicId: string, trend: number, totalEntries: number): string {
     const pool = trend > 0.15 ? IMPACT_UP : trend < -0.15 ? IMPACT_DOWN : IMPACT_FLAT;
-    return pool[Math.floor(Math.random() * pool.length)];
+    const trendBucket = trend > 0.15 ? 'up' : trend < -0.15 ? 'down' : 'flat';
+    return pool[stableHash(`${topicId}:${trendBucket}:${totalEntries}`) % pool.length];
 }
 
 // ── Mood scoring (1–10 valence scale) ────────────────────────
@@ -215,7 +224,7 @@ function computeStatsForTopic(topicId: string): TopicStats {
         moodSegments,
         mostFelt,
         lastLogged,
-        impact: pickImpact(moodTrend),
+        impact: pickImpact(topicId, moodTrend, totalEntries),
         lastNote,
     };
 }

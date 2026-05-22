@@ -60,9 +60,13 @@ const BUTTON_RING_PADDING = 8;
 const STAGE_SIZE = MAIN_BUTTON_SIZE + BUTTON_RING_PADDING;
 const CONTAINER_WIDTH = 360;
 const CONTAINER_HEIGHT = 300;
-const CAPTION_SWAP_OUT_DURATION = 130;
-const CAPTION_SWAP_DELAY = 140;
-const ORBIT_ANIMATION_DURATION = 820;
+const CAPTION_SWAP_OUT_DURATION = 100;
+const CAPTION_SWAP_DELAY = 110;
+const ORBIT_ANIMATION_DURATION = 680;
+const TRANSLATE_DURATION = 500;
+const SCALE_DURATION = 500;
+const OPACITY_DURATION = 440;
+const STAGGER_DELAY = 180;
 const SWIPE_THRESHOLD = 36;
 
 const SLOT_LAYOUTS: Record<OrbitSlotName, OrbitLayout> = {
@@ -77,7 +81,7 @@ const SLOT_LAYOUTS: Record<OrbitSlotName, OrbitLayout> = {
   left: {
     hitSize: 112,
     opacity: 0.95,
-    scale: 0.46,
+    scale: 0.40,
     translateX: -134,
     translateY: -6,
     zIndex: 3,
@@ -85,19 +89,26 @@ const SLOT_LAYOUTS: Record<OrbitSlotName, OrbitLayout> = {
   right: {
     hitSize: 112,
     opacity: 0.95,
-    scale: 0.46,
+    scale: 0.40,
     translateX: 134,
     translateY: -6,
     zIndex: 3,
   },
   top: {
     hitSize: 84,
-    opacity: 0.75,
-    scale: 0.34,
+    opacity: 0.55,
+    scale: 0.26,
     translateX: 0,
-    translateY: -88,
+    translateY: -100,
     zIndex: 2,
   },
+};
+
+const SLOT_DEPTHS: Record<OrbitSlotName, number> = {
+  front: 0,
+  left: 1,
+  right: 1,
+  top: 2,
 };
 
 const ACTIONS: ActionConfig[] = [
@@ -491,24 +502,42 @@ function OrbitItem({
   const swayRotation = useSharedValue(0);
   const swayLift = useSharedValue(0);
 
+  const prevSlotRef = useRef<OrbitSlotName>(slot);
+
   useEffect(() => {
-    translateX.value = withTiming(layout.translateX, {
-      duration: ORBIT_ANIMATION_DURATION,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
-    });
-    translateY.value = withTiming(layout.translateY, {
-      duration: ORBIT_ANIMATION_DURATION,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
-    });
-    scale.value = withTiming(layout.scale, {
-      duration: ORBIT_ANIMATION_DURATION,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
-    });
+    const prevDepth = SLOT_DEPTHS[prevSlotRef.current];
+    const newDepth = SLOT_DEPTHS[slot];
+    prevSlotRef.current = slot;
+
+    const movingForward = newDepth < prevDepth;
+    const movingBackward = newDepth > prevDepth;
+
+    // Forward: translate first, scale resolves after. Backward: scale shrinks first, translate drifts after.
+    const translateDelay = movingBackward ? STAGGER_DELAY : 0;
+    const scaleDelay = movingForward ? STAGGER_DELAY : 0;
+
+    const translateEasing = Easing.bezier(0.22, 1, 0.36, 1);
+    const scaleEasing = movingForward
+      ? Easing.bezier(0.34, 1.2, 0.64, 1)
+      : Easing.bezier(0.22, 1, 0.36, 1);
+
+    translateX.value = withDelay(
+      translateDelay,
+      withTiming(layout.translateX, { duration: TRANSLATE_DURATION, easing: translateEasing })
+    );
+    translateY.value = withDelay(
+      translateDelay,
+      withTiming(layout.translateY, { duration: TRANSLATE_DURATION, easing: translateEasing })
+    );
+    scale.value = withDelay(
+      scaleDelay,
+      withTiming(layout.scale, { duration: SCALE_DURATION, easing: scaleEasing })
+    );
     opacity.value = withTiming(layout.opacity, {
-      duration: ORBIT_ANIMATION_DURATION - 60,
+      duration: OPACITY_DURATION,
       easing: Easing.out(Easing.cubic),
     });
-  }, [layout.opacity, layout.scale, layout.translateX, layout.translateY, opacity, scale, translateX, translateY]);
+  }, [slot, layout.opacity, layout.scale, layout.translateX, layout.translateY, opacity, scale, translateX, translateY]);
 
   useEffect(() => {
     if (slot !== 'front') return;

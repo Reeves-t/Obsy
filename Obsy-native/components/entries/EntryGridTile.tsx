@@ -14,7 +14,7 @@ import Animated, {
 import { ThemedText } from '@/components/ui/ThemedText';
 import type { Capture } from '@/types/capture';
 import { useMoodResolver } from '@/hooks/useMoodResolver';
-import { platformToColor } from '@/services/sharedLinkService';
+import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
 
 /**
@@ -89,7 +89,7 @@ export const EntryGridTile = memo(function EntryGridTile({
         tile = (
             <TouchableOpacity activeOpacity={0.85} onPress={handlePress} style={baseTileStyle}>
                 {kind === 'photo' && <PhotoTile capture={capture} />}
-                {kind === 'link' && <LinkTile capture={capture} isLight={isLight} />}
+                {kind === 'link' && <LinkTile capture={capture} size={size} />}
                 {kind === 'journal' && <JournalTile capture={capture} size={size} isLight={isLight} />}
             </TouchableOpacity>
         );
@@ -152,7 +152,7 @@ const PhotoTile = memo(function PhotoTile({ capture }: { capture: Capture }) {
 /**
  * Renders the brand icon for a platform. Uses FontAwesome5 brand logos for the
  * platforms it ships proper logos for (YouTube, Spotify, TikTok, Instagram,
- * Twitter, Reddit) and Ionicons globe for generic Web links.
+ * Twitter, Reddit, Tumblr, Twitch) and Ionicons globe for generic Web links.
  */
 function PlatformBrandIcon({ platform, size, color }: { platform: SharedLinkPlatform; size: number; color: string }) {
     switch (platform) {
@@ -162,13 +162,18 @@ function PlatformBrandIcon({ platform, size, color }: { platform: SharedLinkPlat
         case 'Instagram': return <FontAwesome5 name="instagram" size={size} color={color} solid />;
         case 'Twitter': return <FontAwesome5 name="twitter" size={size} color={color} solid />;
         case 'Reddit': return <FontAwesome5 name="reddit-alien" size={size} color={color} solid />;
+        case 'Tumblr': return <FontAwesome5 name="tumblr" size={size} color={color} solid />;
+        case 'Twitch': return <FontAwesome5 name="twitch" size={size} color={color} solid />;
         default: return <Ionicons name="globe-outline" size={size} color={color} />;
     }
 }
 
-const LinkTile = memo(function LinkTile({ capture, isLight }: { capture: Capture; isLight: boolean }) {
+const LinkTile = memo(function LinkTile({ capture, size }: { capture: Capture; size: number }) {
     const thumbnail = capture.shared_link_thumbnail_url;
-    const platform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
+    const savedPlatform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
+    const platform = savedPlatform === 'Web' && capture.shared_link_url
+        ? detectPlatform(capture.shared_link_url)
+        : savedPlatform;
     const platformColor = platformToColor(platform);
 
     if (thumbnail) {
@@ -182,29 +187,20 @@ const LinkTile = memo(function LinkTile({ capture, isLight }: { capture: Capture
                     recyclingKey={`link-${capture.id}`}
                 />
                 <View style={[styles.linkBadge, { backgroundColor: platformColor }]}>
-                    <PlatformBrandIcon platform={platform} size={11} color="#FFFFFF" />
+                    <PlatformBrandIcon platform={platform} size={16} color="#FFFFFF" />
                 </View>
             </View>
         );
     }
 
-    // No thumbnail — render a platform-colored card with title + platform brand icon
-    const title = capture.shared_link_title ?? '';
-    const fg = isLight ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.9)';
+    // No thumbnail — let the platform mark own the whole square in grid view.
+    const iconSize = Math.round(size * 0.58);
 
     return (
-        <View style={[styles.linkFallback, { backgroundColor: platformColor + '22' }]}>
-            <View style={[styles.linkIconCircle, { backgroundColor: platformColor }]}>
-                <PlatformBrandIcon platform={platform} size={20} color="#FFFFFF" />
+        <View style={[styles.linkFallback, { backgroundColor: platformColor }]}>
+            <View style={styles.linkFullIconWrap}>
+                <PlatformBrandIcon platform={platform} size={iconSize} color="#FFFFFF" />
             </View>
-            {!!title && (
-                <ThemedText
-                    numberOfLines={2}
-                    style={[styles.linkFallbackText, { color: fg }]}
-                >
-                    {title}
-                </ThemedText>
-            )}
         </View>
     );
 });
@@ -485,30 +481,22 @@ const styles = StyleSheet.create({
     // Link fallback (no thumbnail)
     linkFallback: {
         flex: 1,
-        padding: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    linkIconCircle: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    linkFallbackText: {
-        fontSize: 10,
-        textAlign: 'center',
-        lineHeight: 13,
+    linkFullIconWrap: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     linkBadge: {
         position: 'absolute',
         top: 6,
         right: 6,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
         backgroundColor: 'rgba(0,0,0,0.55)',
         alignItems: 'center',
         justifyContent: 'center',

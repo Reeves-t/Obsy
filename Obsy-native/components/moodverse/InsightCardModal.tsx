@@ -22,6 +22,7 @@ import type { Capture } from '@/types/capture';
 import { callInsightCard, type CardType, type CardScope, type InsightCardResult } from '@/services/insightCardClient';
 import { useInsightCardStore } from '@/lib/insightCardStore';
 import { InsightCardView } from './InsightCardView';
+import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
 
 // ─── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -255,7 +256,20 @@ export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardM
                 note: c.note ?? undefined,
                 capturedAt: c.created_at,
                 tags: c.tags ?? undefined,
+                entry_type: (c.source_type as 'capture' | 'journal' | 'voice' | 'shared_link' | undefined) ?? 'capture',
+                shared_link_platform: c.shared_link_platform ?? null,
+                shared_link_title: c.shared_link_title ?? null,
             }));
+
+            const digestEntries: DigestEntry[] = filteredCaptures.map((c) => ({
+                date: c.created_at,
+                mood: c.mood_name_snapshot,
+                note: c.note,
+                sourceType: c.source_type,
+                sharedLinkPlatform: c.shared_link_platform,
+                sharedLinkTitle: c.shared_link_title,
+            }));
+            const contextDigest = buildContextDigest(digestEntries) || undefined;
 
             const response = await callInsightCard({
                 cardType,
@@ -266,6 +280,7 @@ export function InsightCardModal({ visible, onClose, allCaptures }: InsightCardM
                 tone: toneId,
                 customTonePrompt,
                 captures,
+                contextDigest,
             });
 
             if (!response.ok) {
