@@ -8,11 +8,14 @@ import { MoodSegment } from './dailyMoodFlows';
 
 // ── Types ────────────────────────────────────────────────────
 
+export type TopicNoteKind = 'note' | 'insight' | 'missing_gaps';
+
 export type TopicNote = {
     id: string;
     topicId: string;
     text: string;
     createdAt: string;
+    kind?: TopicNoteKind; // undefined treated as 'note' for backward compat
 };
 
 export type Topic = {
@@ -238,7 +241,8 @@ type TopicState = {
     removeTopic: (id: string) => void;
     updateTopicTone: (topicId: string, toneId: string) => void;
     getStats: (topicId: string) => TopicStats;
-    addTopicNote: (topicId: string, text: string) => void;
+    addTopicNote: (topicId: string, text: string, kind?: TopicNoteKind) => void;
+    removeTopicNote: (noteId: string) => void;
     getTopicNotes: (topicId: string) => TopicNote[];
 };
 
@@ -277,14 +281,19 @@ export const useTopicStore = create<TopicState>()(
                 return computeStatsForTopic(topicId);
             },
 
-            addTopicNote: (topicId, text) => {
+            addTopicNote: (topicId, text, kind = 'note') => {
                 const note: TopicNote = {
-                    id: `note-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
                     topicId,
                     text: text.trim(),
                     createdAt: new Date().toISOString(),
+                    kind,
                 };
                 set(state => ({ topicNotes: [note, ...state.topicNotes] }));
+            },
+
+            removeTopicNote: (noteId) => {
+                set(state => ({ topicNotes: state.topicNotes.filter(n => n.id !== noteId) }));
             },
 
             getTopicNotes: (topicId) => {

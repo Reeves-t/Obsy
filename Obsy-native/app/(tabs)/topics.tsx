@@ -307,6 +307,10 @@ export default function TopicsScreen() {
                             pathname: '/topics/chat',
                             params: { topicId: focusedTopic.id, topicTitle: focusedTopic.title },
                         })}
+                        onBrowseEntries={() => router.push({
+                            pathname: '/topics/entries',
+                            params: { topicId: focusedTopic.id, topicTitle: focusedTopic.title },
+                        })}
                     />
                 )}
 

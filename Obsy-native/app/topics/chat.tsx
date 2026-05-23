@@ -276,6 +276,7 @@ export default function TopicChatScreen() {
     const [draftNote, setDraftNote] = useState('');
     const [isNoteApprovalVisible, setIsNoteApprovalVisible] = useState(false);
     const [noteDismissedThisSession, setNoteDismissedThisSession] = useState(false);
+    const [noteError, setNoteError] = useState<string | null>(null);
 
     const flatListRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
@@ -377,15 +378,18 @@ export default function TopicChatScreen() {
         if (!topic || !stats) return;
         setShowNoteHelper(false);
         setIsGeneratingNote(true);
+        setNoteError(null);
         try {
             const result = await generateTopicNote(topic, stats, captures, messages);
             if (result.ok && result.text) {
                 setDraftNote(result.text);
                 setIsNoteApprovalVisible(true);
             } else {
+                setNoteError("Couldn't draft a note from this chat. Try again in a moment.");
                 setShowNoteHelper(true);
             }
         } catch {
+            setNoteError('Lost the connection. Try again.');
             setShowNoteHelper(true);
         } finally {
             setIsGeneratingNote(false);
@@ -498,6 +502,9 @@ export default function TopicChatScreen() {
                         onPress={handleCreateNote}
                         isGenerating={isGeneratingNote}
                     />
+                )}
+                {noteError && !isGeneratingNote && !isNoteApprovalVisible && (
+                    <Text style={styles.noteErrorText}>{noteError}</Text>
                 )}
 
                 {/* Input bar */}
@@ -656,5 +663,12 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.05)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
+    },
+    noteErrorText: {
+        marginHorizontal: 16,
+        marginBottom: 6,
+        fontSize: 12,
+        color: 'rgba(232,147,90,0.85)',
+        textAlign: 'center',
     },
 });

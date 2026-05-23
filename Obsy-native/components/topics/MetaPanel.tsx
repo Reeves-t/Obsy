@@ -17,6 +17,8 @@ import { ToneSelector } from '@/components/insights/ToneSelector';
 import { useCustomTones } from '@/hooks/useCustomTones';
 import { useSubscription } from '@/hooks/useSubscription';
 import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
+import { TopicInsightModal } from '@/components/topics/TopicInsightModal';
+import { MissingGapsModal } from '@/components/topics/MissingGapsModal';
 import * as Haptics from 'expo-haptics';
 
 interface MetaPanelProps {
@@ -25,6 +27,7 @@ interface MetaPanelProps {
     onClose: () => void;
     onAddEntry?: () => void;
     onAskObsy?: () => void;
+    onBrowseEntries?: () => void;
 }
 
 // ── Trend helpers ─────────────────────────────────────────────
@@ -227,6 +230,21 @@ function SparkleIcon() {
     );
 }
 
+// ── Gap icon ────────────────────────────────────────────────
+
+function GapIcon() {
+    return (
+        <Svg width={14} height={14} viewBox="0 0 16 16" fill="none">
+            <Path
+                d="M3 3h4v4H3V3zm6 0h4v4H9V3zM3 9h4v4H3V9zm6 3h4M9 10v3"
+                stroke="rgba(255,255,255,0.85)"
+                strokeWidth={1.4}
+                strokeLinecap="round"
+            />
+        </Svg>
+    );
+}
+
 // ── Chat bubble icon ─────────────────────────────────────────
 
 function ChatBubbleIcon() {
@@ -242,22 +260,72 @@ function ChatBubbleIcon() {
 
 // ── Notes section ────────────────────────────────────────────
 
-function NoteItem({ note }: { note: TopicNote }) {
+const NOTE_PREVIEW_LINES = 2;
+
+function NoteItem({ note, onRemove }: { note: TopicNote; onRemove: (id: string) => void }) {
+    const kind = note.kind ?? 'note';
+    const isInsight = kind === 'insight';
+    const isGaps = kind === 'missing_gaps';
+    const isCollapsible = isInsight || isGaps;
+    const [expanded, setExpanded] = useState(false);
     const date = new Date(note.createdAt).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
     });
+
+    const handleRemove = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onRemove(note.id);
+    };
+
     return (
         <View style={styles.noteItem}>
-            <Text style={styles.noteText}>{note.text}</Text>
-            <Text style={styles.noteDate}>{date}</Text>
+            <Pressable
+                onPress={isCollapsible ? () => setExpanded(e => !e) : undefined}
+                style={{ flex: 1 }}
+            >
+                <View style={styles.noteHeaderRow}>
+                    {isInsight && (
+                        <View style={styles.insightBadge}>
+                            <Text style={styles.insightBadgeText}>INSIGHT</Text>
+                        </View>
+                    )}
+                    {isGaps && (
+                        <View style={styles.gapsBadge}>
+                            <Text style={styles.gapsBadgeText}>GAPS</Text>
+                        </View>
+                    )}
+                    <Text style={styles.noteDate}>{date}</Text>
+                </View>
+                <Text
+                    style={styles.noteText}
+                    numberOfLines={isCollapsible && !expanded ? NOTE_PREVIEW_LINES : undefined}
+                >
+                    {note.text}
+                </Text>
+                {isCollapsible && (
+                    <Text style={styles.noteToggle}>
+                        {expanded ? 'Tap to collapse' : 'Tap to expand'}
+                    </Text>
+                )}
+            </Pressable>
+            {isCollapsible && (
+                <Pressable
+                    onPress={handleRemove}
+                    style={styles.noteRemoveBtn}
+                    hitSlop={8}
+                    accessibilityLabel={`Remove ${isGaps ? 'gap analysis' : 'insight'} from feed`}
+                >
+                    <Text style={styles.noteRemoveGlyph}>✕</Text>
+                </Pressable>
+            )}
         </View>
     );
 }
 
 // ── Main panel ────────────────────────────────────────────────
 
-export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: MetaPanelProps) {
+export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrowseEntries }: MetaPanelProps) {
     const trendColor = getTrendColor(stats.moodTrend);
     const trendArrow = getTrendArrow(stats.moodTrend);
     const moodDisplay = stats.moodAvg > 0 ? stats.moodAvg.toFixed(1) : '—';
@@ -266,9 +334,14 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: Meta
 
     // ── Tone ─────────────────────────────────────────────────────
     const updateTopicTone = useTopicStore(s => s.updateTopicTone);
-    const getTopicNotes = useTopicStore(s => s.getTopicNotes);
+    // Subscribe directly to topicNotes so the panel re-renders when notes
+    // or insights are added/removed from anywhere in the app.
+    const topicNotes = useTopicStore(s => s.topicNotes);
+    const removeTopicNote = useTopicStore(s => s.removeTopicNote);
     const { tones: customTones } = useCustomTones();
     const [toneSelectorVisible, setToneSelectorVisible] = useState(false);
+    const [insightModalVisible, setInsightModalVisible] = useState(false);
+    const [gapsModalVisible, setGapsModalVisible] = useState(false);
     const activeToneId = (topic.toneId ?? 'neutral') as AiToneId;
     const activeToneName = isPresetTone(activeToneId)
         ? getToneDefinition(activeToneId).label
@@ -288,8 +361,21 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: Meta
         onAskObsy?.();
     };
 
+    const handleGenerateInsight = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setInsightModalVisible(true);
+    };
+
+    const handleFindMissingGaps = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setGapsModalVisible(true);
+    };
+
     // ── Notes ─────────────────────────────────────────────────────
-    const savedNotes = useMemo(() => getTopicNotes(topic.id), [topic.id, getTopicNotes]);
+    const savedNotes = useMemo(
+        () => topicNotes.filter(n => n.topicId === topic.id),
+        [topic.id, topicNotes],
+    );
 
     // ── Entry animation ───────────────────────────────────────────
     const translateY = useSharedValue(8);
@@ -403,7 +489,7 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: Meta
                         <Text style={styles.sectionLabel}>Notes</Text>
                         <View style={styles.notesList}>
                             {savedNotes.slice(0, 5).map(note => (
-                                <NoteItem key={note.id} note={note} />
+                                <NoteItem key={note.id} note={note} onRemove={removeTopicNote} />
                             ))}
                         </View>
                     </View>
@@ -422,8 +508,23 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: Meta
                         <Text style={styles.ctaCaption}>voice {'·'} journal {'·'} mood {'·'} capture</Text>
                     </Pressable>
 
+                    {/* Browse entries */}
+                    {onBrowseEntries && (
+                        <Pressable style={styles.ctaBrowse} onPress={onBrowseEntries}>
+                            <View style={styles.ctaLeft}>
+                                <View style={styles.ctaBrowseChip}>
+                                    <Text style={styles.ctaBrowseChipGlyph}>▤</Text>
+                                </View>
+                                <Text style={styles.ctaBrowseLabel}>Browse entries</Text>
+                            </View>
+                            <Text style={styles.ctaBrowseCaption}>
+                                {stats.totalEntries + savedNotes.length}
+                            </Text>
+                        </Pressable>
+                    )}
+
                     {/* Generate insight */}
-                    <Pressable style={styles.ctaPrimary}>
+                    <Pressable style={styles.ctaPrimary} onPress={handleGenerateInsight}>
                         <LinearGradient
                             colors={['rgba(255,255,255,0.96)', 'rgba(232,234,240,0.92)']}
                             start={{ x: 0.5, y: 0 }}
@@ -439,6 +540,17 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: Meta
                         <Text style={[styles.ctaPrimaryCaption, { zIndex: 1 }]}>
                             {activeToneName !== 'Neutral' ? `${activeToneName} · ` : ''}from your reflections
                         </Text>
+                    </Pressable>
+
+                    {/* Find missing gaps */}
+                    <Pressable style={styles.ctaGaps} onPress={handleFindMissingGaps}>
+                        <View style={styles.ctaLeft}>
+                            <View style={styles.ctaGapsChip}>
+                                <GapIcon />
+                            </View>
+                            <Text style={styles.ctaGapsLabel}>Find missing gaps</Text>
+                        </View>
+                        <Text style={styles.ctaGapsCaption}>meta-cognition</Text>
                     </Pressable>
 
                     {/* Ask Obsy — premium only */}
@@ -470,6 +582,21 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy }: Meta
                 visible={showPaywall}
                 onClose={() => setShowPaywall(false)}
                 featureName="topic_chat"
+            />
+
+            <TopicInsightModal
+                visible={insightModalVisible}
+                topic={topic}
+                stats={stats}
+                toneLabel={activeToneName}
+                onClose={() => setInsightModalVisible(false)}
+            />
+
+            <MissingGapsModal
+                visible={gapsModalVisible}
+                topic={topic}
+                stats={stats}
+                onClose={() => setGapsModalVisible(false)}
             />
         </Animated.View>
     );
@@ -693,13 +820,49 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     noteItem: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
         paddingVertical: 8,
         paddingHorizontal: 10,
         borderRadius: 10,
         backgroundColor: 'rgba(255,255,255,0.03)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.06)',
-        gap: 4,
+        gap: 6,
+    },
+    noteHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 4,
+    },
+    insightBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 4,
+        backgroundColor: 'rgba(139,34,82,0.30)',
+        borderWidth: 1,
+        borderColor: 'rgba(139,34,82,0.50)',
+    },
+    insightBadgeText: {
+        fontSize: 8.5,
+        fontWeight: '700',
+        letterSpacing: 0.6,
+        color: 'rgba(255,210,225,0.95)',
+    },
+    gapsBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 4,
+        backgroundColor: 'rgba(70,90,140,0.32)',
+        borderWidth: 1,
+        borderColor: 'rgba(120,150,210,0.55)',
+    },
+    gapsBadgeText: {
+        fontSize: 8.5,
+        fontWeight: '700',
+        letterSpacing: 0.6,
+        color: 'rgba(200,220,255,0.95)',
     },
     noteText: {
         fontSize: 13,
@@ -713,6 +876,27 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         letterSpacing: 0.2,
         textTransform: 'uppercase',
+    },
+    noteToggle: {
+        fontSize: 10.5,
+        color: 'rgba(255,255,255,0.4)',
+        marginTop: 4,
+        letterSpacing: 0.2,
+    },
+    noteRemoveBtn: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 2,
+    },
+    noteRemoveGlyph: {
+        fontSize: 10,
+        color: 'rgba(255,255,255,0.55)',
     },
 
     // ── Mood flow bar ──────────────────────────────────────────
@@ -866,5 +1050,71 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: 'rgba(255,255,255,0.45)',
         fontWeight: '500',
+    },
+    ctaGaps: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 14,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        backgroundColor: 'rgba(70,90,140,0.10)',
+        borderWidth: 1,
+        borderColor: 'rgba(120,150,210,0.30)',
+    },
+    ctaGapsChip: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: 'rgba(70,90,140,0.30)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ctaGapsLabel: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#fff',
+        letterSpacing: -0.1,
+    },
+    ctaGapsCaption: {
+        fontSize: 12,
+        color: 'rgba(200,220,255,0.55)',
+        fontWeight: '500',
+        letterSpacing: 0.2,
+    },
+    ctaBrowse: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 14,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.07)',
+    },
+    ctaBrowseChip: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ctaBrowseChipGlyph: {
+        color: 'rgba(255,255,255,0.85)',
+        fontSize: 14,
+        lineHeight: 16,
+    },
+    ctaBrowseLabel: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#fff',
+        letterSpacing: -0.1,
+    },
+    ctaBrowseCaption: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.55)',
+        fontWeight: '600',
     },
 });
