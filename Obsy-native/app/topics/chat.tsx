@@ -18,8 +18,9 @@ import { ThemedText } from '@/components/ui/ThemedText';
 import type { ChatMessage } from '@/lib/moodverseStore';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTopicStore } from '@/lib/topicStore';
+import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
 import { useAuth } from '@/contexts/AuthContext';
-import { callTopicChat, generateTopicNote } from '@/services/topicChatClient';
+import { callTopicChat, generateTopicNote, type TopicContext } from '@/services/topicChatClient';
 import { ObsyIcon } from '@/components/moodverse/ObsyIcon';
 import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
@@ -262,7 +263,9 @@ export default function TopicChatScreen() {
     const insets = useSafeAreaInsets();
     const { topicId, topicTitle } = useLocalSearchParams<{ topicId: string; topicTitle: string }>();
     const { captures } = useCaptureStore();
-    const { topics, getStats, addTopicNote } = useTopicStore();
+    const { topics, getStats, addTopicNote, topicNotes } = useTopicStore();
+    const attachments = useTopicAttachmentStore(s => s.attachments);
+    const loadAttachmentsForTopic = useTopicAttachmentStore(s => s.loadForTopic);
     const { aiFreeMode } = useAiFreeMode();
 
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -306,11 +309,22 @@ export default function TopicChatScreen() {
         }
     }, [aiResponseCount, noteDismissedThisSession, isNoteApprovalVisible, showNoteHelper]);
 
+    // Refresh attachment list when this chat opens so AI sees the latest.
+    useEffect(() => {
+        if (topicId) loadAttachmentsForTopic(topicId);
+    }, [topicId, loadAttachmentsForTopic]);
+
+    const buildCtx = useCallback((): TopicContext | null => {
+        if (!topic || !stats) return null;
+        return { topic, stats, captures, topicNotes, attachments };
+    }, [topic, stats, captures, topicNotes, attachments]);
+
     const sendToAI = useCallback(async (history: ChatMessage[]) => {
-        if (!topic || !stats || aiFreeMode) return;
+        const ctx = buildCtx();
+        if (!ctx || aiFreeMode) return;
         setIsLoading(true);
         try {
-            const result = await callTopicChat(topic, stats, captures, history);
+            const result = await callTopicChat(ctx, history);
             if (result.ok && result.text) {
                 setMessages(prev => [...prev, {
                     id: result.requestId || `ai-${Date.now()}`,
@@ -333,7 +347,7 @@ export default function TopicChatScreen() {
         } finally {
             setIsLoading(false);
         }
-    }, [topic, stats, captures, aiFreeMode]);
+    }, [buildCtx, aiFreeMode]);
 
     // Auto-initialize with Obsy's opening message
     useEffect(() => {
@@ -375,12 +389,13 @@ export default function TopicChatScreen() {
     }, [inputText, isLoading, messages, sendToAI]);
 
     const handleCreateNote = useCallback(async () => {
-        if (!topic || !stats) return;
+        const ctx = buildCtx();
+        if (!ctx) return;
         setShowNoteHelper(false);
         setIsGeneratingNote(true);
         setNoteError(null);
         try {
-            const result = await generateTopicNote(topic, stats, captures, messages);
+            const result = await generateTopicNote(ctx, messages);
             if (result.ok && result.text) {
                 setDraftNote(result.text);
                 setIsNoteApprovalVisible(true);
@@ -394,7 +409,7 @@ export default function TopicChatScreen() {
         } finally {
             setIsGeneratingNote(false);
         }
-    }, [topic, stats, captures, messages]);
+    }, [buildCtx, messages]);
 
     const handleSaveNote = useCallback(() => {
         if (!topicId || !draftNote.trim()) return;

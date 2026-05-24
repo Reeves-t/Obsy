@@ -11,11 +11,12 @@ import { AnimatedMicButton } from '@/components/home/AnimatedMicButton';
 import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { QuickMoodButton } from '@/components/home/QuickMoodButton';
+import { AnimatedDocumentsButton } from '@/components/home/AnimatedDocumentsButton';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type ActionKey = 'voice' | 'capture' | 'journal' | 'quick-mood';
-type OrbitSlot = 'front' | 'left' | 'right' | 'top';
+type ActionKey = 'voice' | 'capture' | 'journal' | 'quick-mood' | 'documents';
+type OrbitSlot = 'front' | 'left' | 'right' | 'topLeft' | 'topRight';
 
 const BTN = 80;
 const RING_PAD = 6;
@@ -36,11 +37,14 @@ interface SlotLayout {
     zIndex: number;
 }
 
+// Pentagon arrangement: front (bottom-center, large), left/right at the sides,
+// topLeft/topRight as smaller items spread along the upper arc.
 const SLOT_LAYOUTS: Record<OrbitSlot, SlotLayout> = {
-    front: { hitSize: STAGE, opacity: 1,    scale: 1,    translateX: 0,   translateY: 14,  zIndex: 4 },
-    left:  { hitSize: 72,    opacity: 0.9,  scale: 0.46, translateX: -88, translateY: -3,  zIndex: 3 },
-    right: { hitSize: 72,    opacity: 0.9,  scale: 0.46, translateX: 88,  translateY: -3,  zIndex: 3 },
-    top:   { hitSize: 56,    opacity: 0.7,  scale: 0.34, translateX: 0,   translateY: -54, zIndex: 2 },
+    front:    { hitSize: STAGE, opacity: 1,    scale: 1,    translateX: 0,    translateY: 14,  zIndex: 5 },
+    right:    { hitSize: 72,    opacity: 0.9,  scale: 0.46, translateX: 92,   translateY: -8,  zIndex: 4 },
+    topRight: { hitSize: 56,    opacity: 0.7,  scale: 0.34, translateX: 56,   translateY: -54, zIndex: 3 },
+    topLeft:  { hitSize: 56,    opacity: 0.7,  scale: 0.34, translateX: -56,  translateY: -54, zIndex: 3 },
+    left:     { hitSize: 72,    opacity: 0.9,  scale: 0.46, translateX: -92,  translateY: -8,  zIndex: 4 },
 };
 
 interface ActionConfig {
@@ -78,17 +82,26 @@ const ACTIONS: ActionConfig[] = [
             <QuickMoodButton size={size} disabled={disabled} onPress={onPress} />
         ),
     },
+    {
+        key: 'documents',
+        label: 'attach a file or photo',
+        render: ({ size, disabled, onPress }) => (
+            <AnimatedDocumentsButton size={size} disabled={disabled} onPress={onPress} />
+        ),
+    },
 ];
 
 function wrap(i: number) {
     return ((i % ACTIONS.length) + ACTIONS.length) % ACTIONS.length;
 }
 
+// Pentagon mapping: distance 0 = front, then walk around clockwise.
 function slotFor(actionIdx: number, activeIdx: number): OrbitSlot {
     const rel = wrap(actionIdx - activeIdx);
     if (rel === 0) return 'front';
     if (rel === 1) return 'right';
-    if (rel === 2) return 'top';
+    if (rel === 2) return 'topRight';
+    if (rel === 3) return 'topLeft';
     return 'left';
 }
 
@@ -131,6 +144,12 @@ function OrbitItem({
         onPress: slot === 'front' ? onFrontPress : undefined,
     });
 
+    // Left-side slots rotate right (bringing them forward); right-side slots
+    // rotate left. Either way, a tap pulls the tapped button toward "front".
+    const onSlotTap = slot === 'left' || slot === 'topLeft'
+        ? onRotateRight
+        : onRotateLeft;
+
     return (
         <Animated.View
             style={[
@@ -145,7 +164,7 @@ function OrbitItem({
             ) : (
                 <Pressable
                     style={[styles.touchZone, { width: layout.hitSize, height: layout.hitSize }]}
-                    onPress={slot === 'left' ? onRotateRight : onRotateLeft}
+                    onPress={onSlotTap}
                 >
                     <View pointerEvents="none">{btn}</View>
                 </Pressable>
@@ -160,9 +179,10 @@ export interface TopicEntrySheetProps {
     topicId: string;
     topicTitle: string;
     onClose: () => void;
+    onSelectDocuments?: () => void;
 }
 
-export function TopicEntrySheet({ topicId, topicTitle, onClose }: TopicEntrySheetProps) {
+export function TopicEntrySheet({ topicId, topicTitle, onClose, onSelectDocuments }: TopicEntrySheetProps) {
     const router = useRouter();
     const [activeIdx, setActiveIdx] = useState(1);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -199,12 +219,16 @@ export function TopicEntrySheet({ topicId, topicTitle, onClose }: TopicEntryShee
 
     const navigate = useCallback((key: ActionKey) => {
         onClose();
+        if (key === 'documents') {
+            onSelectDocuments?.();
+            return;
+        }
         const params = { topicId, topicTitle };
         if (key === 'journal') router.push({ pathname: '/journal', params } as never);
         else if (key === 'voice') router.push({ pathname: '/voice', params } as never);
         else if (key === 'quick-mood') router.push({ pathname: '/quick-mood', params } as never);
         else if (key === 'capture') router.push({ pathname: '/capture', params } as never);
-    }, [onClose, router, topicId, topicTitle]);
+    }, [onClose, router, topicId, topicTitle, onSelectDocuments]);
 
     const activeAction = ACTIONS[activeIdx];
 

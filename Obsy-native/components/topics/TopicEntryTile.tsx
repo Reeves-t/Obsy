@@ -3,17 +3,20 @@ import { StyleSheet, View, Text, Pressable, Image } from 'react-native';
 import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
 import type { Capture } from '@/types/capture';
 import type { TopicNote } from '@/lib/topicStore';
+import type { TopicAttachment } from '@/services/topicAttachments';
 import { getMoodTheme } from '@/lib/moods';
 
 export type TopicEntryItem =
     | { kind: 'capture'; capture: Capture }
-    | { kind: 'note' | 'insight' | 'missing_gaps'; note: TopicNote };
+    | { kind: 'note' | 'insight' | 'missing_gaps'; note: TopicNote }
+    | { kind: 'attachment'; attachment: TopicAttachment };
 
 export const TOPIC_ENTRY_TYPE_LABELS: Record<TopicEntryItem['kind'], string> = {
     capture: 'Captures',
     note: 'Notes',
     insight: 'Insights',
     missing_gaps: 'Gaps',
+    attachment: 'Files',
 };
 
 interface TopicEntryTileProps {
@@ -146,6 +149,22 @@ function previewForNote(note: TopicNote): { title: string; body: string } {
     return { title, body: firstLine };
 }
 
+function formatBytes(bytes: number | null): string {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function previewForAttachment(a: TopicAttachment): { title: string; body: string } {
+    const sizeLabel = formatBytes(a.size_bytes);
+    const typeLabel = a.kind === 'image' ? 'Image' : (a.mime_type?.split('/')[1]?.toUpperCase() || 'Document');
+    return {
+        title: a.file_name,
+        body: sizeLabel ? `${typeLabel} · ${sizeLabel}` : typeLabel,
+    };
+}
+
 function glyphForCapture(c: Capture) {
     switch (c.source_type) {
         case 'voice': return <VoiceGlyph />;
@@ -161,39 +180,86 @@ function glyphForKind(kind: 'note' | 'insight' | 'missing_gaps') {
     return <NoteGlyph />;
 }
 
+function glyphForAttachment(a: TopicAttachment) {
+    if (a.kind === 'image') {
+        return (
+            <Svg width={11} height={11} viewBox="0 0 16 16" fill="none">
+                <Path
+                    d="M2 3.5h12v9H2z M2 11l3-3 2 2 3-3 4 4"
+                    stroke="rgba(255,255,255,0.85)"
+                    strokeWidth={1.2}
+                    strokeLinejoin="round"
+                />
+                <SvgCircle cx={5} cy={6} r={1} stroke="rgba(255,255,255,0.85)" strokeWidth={1.2} />
+            </Svg>
+        );
+    }
+    // Document glyph (page with folded corner)
+    return (
+        <Svg width={11} height={11} viewBox="0 0 16 16" fill="none">
+            <Path
+                d="M3.5 2h6.5L13 5v8.5H3.5V2z M10 2v3h3"
+                stroke="rgba(255,255,255,0.85)"
+                strokeWidth={1.2}
+                strokeLinejoin="round"
+            />
+        </Svg>
+    );
+}
+
 // ── Tile ───────────────────────────────────────────────────
 
 export function TopicEntryTile({ item, size, onPress }: TopicEntryTileProps) {
-    const isCapture = item.kind === 'capture';
-    const moodColor = isCapture
-        ? (getMoodTheme(item.capture.mood_id || item.capture.mood_name_snapshot)?.solid ?? 'rgba(255,255,255,0.10)')
-        : null;
+    // Derive accent color, glyph, date, title/body, optional thumbnail per kind.
+    let accent = 'rgba(255,255,255,0.20)';
+    let glyph: React.ReactNode = null;
+    let date = '';
+    let title = '';
+    let body = '';
+    let thumbnail: string | null = null;
 
-    const accent =
-        item.kind === 'insight'
+    if (item.kind === 'capture') {
+        const moodColor = getMoodTheme(item.capture.mood_id || item.capture.mood_name_snapshot)?.solid;
+        accent = moodColor || 'rgba(255,255,255,0.20)';
+        glyph = glyphForCapture(item.capture);
+        date = formatDate(item.capture.created_at);
+        const p = previewForCapture(item.capture);
+        title = p.title;
+        body = p.body;
+        thumbnail = item.capture.source_type === 'shared_link'
+            ? item.capture.shared_link_thumbnail_url ?? null
+            : (item.capture.image_url && !item.capture.image_url.startsWith('blank://')
+                ? item.capture.image_url
+                : null);
+    } else if (item.kind === 'attachment') {
+        accent = item.attachment.kind === 'image'
+            ? 'rgba(255,200,120,0.55)'
+            : 'rgba(180,170,230,0.55)';
+        glyph = glyphForAttachment(item.attachment);
+        date = formatDate(item.attachment.created_at);
+        const p = previewForAttachment(item.attachment);
+        title = p.title;
+        body = p.body;
+    } else {
+        accent = item.kind === 'insight'
             ? 'rgba(139,34,82,0.65)'
             : item.kind === 'missing_gaps'
                 ? 'rgba(120,150,210,0.55)'
-                : item.kind === 'note'
-                    ? 'rgba(255,255,255,0.20)'
-                    : moodColor || 'rgba(255,255,255,0.20)';
-
-    const date = isCapture ? formatDate(item.capture.created_at) : formatDate(item.note.createdAt);
-    const { title, body } = isCapture ? previewForCapture(item.capture) : previewForNote(item.note);
-
-    const thumbnail =
-        isCapture && (item.capture.source_type === 'shared_link'
-            ? item.capture.shared_link_thumbnail_url
-            : item.capture.image_url && !item.capture.image_url.startsWith('blank://')
-                ? item.capture.image_url
-                : null);
+                : 'rgba(255,255,255,0.20)';
+        glyph = glyphForKind(item.kind);
+        date = formatDate(item.note.createdAt);
+        const p = previewForNote(item.note);
+        title = p.title;
+        body = p.body;
+    }
 
     return (
         <Pressable
             style={[styles.tile, { width: size, height: size, borderLeftColor: accent }]}
             onPress={() => onPress(item)}
         >
-            {/* Optional thumbnail layer */}
+            {/* Optional thumbnail layer (captures only — attachment image previews
+                need a signed URL fetched on demand, handled in the viewer modal) */}
             {thumbnail ? (
                 <Image source={{ uri: thumbnail }} style={styles.thumbnail} blurRadius={0} />
             ) : null}
@@ -202,7 +268,7 @@ export function TopicEntryTile({ item, size, onPress }: TopicEntryTileProps) {
             {/* Top row: type chip + date */}
             <View style={styles.topRow}>
                 <View style={[styles.typeChip, { backgroundColor: accent }]}>
-                    {isCapture ? glyphForCapture(item.capture) : glyphForKind(item.kind)}
+                    {glyph}
                 </View>
                 <Text style={styles.dateText}>{date}</Text>
             </View>

@@ -19,6 +19,7 @@ import {
     FOCUS_RING,
 } from '@/components/topics/useGardenPhysics';
 import { TopicEntrySheet } from '@/components/topics/TopicEntrySheet';
+import { UploadPickerSheet } from '@/components/topics/UploadPickerSheet';
 import { useTopicStore } from '@/lib/topicStore';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -39,6 +40,7 @@ export default function TopicsScreen() {
     const [showHint, setShowHint] = useState(true);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [entrySheetOpen, setEntrySheetOpen] = useState(false);
+    const [uploadSheetOpen, setUploadSheetOpen] = useState(false);
     const [, setTick] = useState(0);
     const [screenHeight, setScreenHeight] = useState(0);
 
@@ -319,6 +321,16 @@ export default function TopicsScreen() {
                         topicId={focusedTopic.id}
                         topicTitle={focusedTopic.title}
                         onClose={() => setEntrySheetOpen(false)}
+                        onSelectDocuments={() => setUploadSheetOpen(true)}
+                    />
+                )}
+
+                {focusedTopic && (
+                    <UploadPickerSheet
+                        visible={uploadSheetOpen}
+                        topicId={focusedTopic.id}
+                        topicTitle={focusedTopic.title}
+                        onClose={() => setUploadSheetOpen(false)}
                     />
                 )}
 

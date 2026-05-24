@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -12,12 +12,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTopicStore } from '@/lib/topicStore';
+import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
 import {
     TopicEntryTile,
     TopicEntryItem,
     TOPIC_ENTRY_TYPE_LABELS,
 } from '@/components/topics/TopicEntryTile';
 import { TopicNoteViewerModal } from '@/components/topics/TopicNoteViewerModal';
+import { TopicAttachmentViewerModal } from '@/components/topics/TopicAttachmentViewerModal';
 
 const SCREEN_W = Dimensions.get('window').width;
 const GRID_PADDING = 18;
@@ -29,12 +31,13 @@ type FilterKey = 'all' | TopicEntryItem['kind'];
 const FILTERS: { key: FilterKey; label: string }[] = [
     { key: 'all', label: 'All' },
     { key: 'capture', label: 'Captures' },
+    { key: 'attachment', label: 'Files' },
     { key: 'note', label: 'Notes' },
     { key: 'insight', label: 'Insights' },
     { key: 'missing_gaps', label: 'Gaps' },
 ];
 
-const GROUP_ORDER: TopicEntryItem['kind'][] = ['capture', 'note', 'insight', 'missing_gaps'];
+const GROUP_ORDER: TopicEntryItem['kind'][] = ['capture', 'attachment', 'note', 'insight', 'missing_gaps'];
 
 export default function TopicEntriesScreen() {
     const router = useRouter();
@@ -47,9 +50,17 @@ export default function TopicEntriesScreen() {
     const captures = useCaptureStore(s => s.captures);
     const topicNotes = useTopicStore(s => s.topicNotes);
     const topic = useTopicStore(s => s.topics.find(t => t.id === topicId));
+    const attachments = useTopicAttachmentStore(s => s.attachments);
+    const loadAttachmentsForTopic = useTopicAttachmentStore(s => s.loadForTopic);
 
     const [filter, setFilter] = useState<FilterKey>('all');
     const [viewingNoteId, setViewingNoteId] = useState<string | null>(null);
+    const [viewingAttachmentId, setViewingAttachmentId] = useState<string | null>(null);
+
+    // Refresh attachments from the server whenever this screen mounts or topic changes.
+    useEffect(() => {
+        if (topicId) loadAttachmentsForTopic(topicId);
+    }, [topicId, loadAttachmentsForTopic]);
 
     // Build unified entry list for this topic.
     const allItems: TopicEntryItem[] = useMemo(() => {
@@ -66,18 +77,26 @@ export default function TopicEntriesScreen() {
                 return { kind, note: n };
             });
 
-        return [...captureItems, ...noteItems].sort((a, b) => {
-            const aDate = a.kind === 'capture' ? a.capture.created_at : a.note.createdAt;
-            const bDate = b.kind === 'capture' ? b.capture.created_at : b.note.createdAt;
-            return new Date(bDate).getTime() - new Date(aDate).getTime();
-        });
-    }, [topicId, captures, topicNotes]);
+        const attachmentItems: TopicEntryItem[] = attachments
+            .filter(a => a.topic_id === topicId && !a.deleted_at)
+            .map(a => ({ kind: 'attachment' as const, attachment: a }));
+
+        const getDate = (i: TopicEntryItem): string =>
+            i.kind === 'capture' ? i.capture.created_at
+                : i.kind === 'attachment' ? i.attachment.created_at
+                    : i.note.createdAt;
+
+        return [...captureItems, ...noteItems, ...attachmentItems].sort(
+            (a, b) => new Date(getDate(b)).getTime() - new Date(getDate(a)).getTime(),
+        );
+    }, [topicId, captures, topicNotes, attachments]);
 
     // Filter + group by kind for display.
     const grouped = useMemo(() => {
         const filtered = filter === 'all' ? allItems : allItems.filter(i => i.kind === filter);
         const groups: Record<TopicEntryItem['kind'], TopicEntryItem[]> = {
             capture: [],
+            attachment: [],
             note: [],
             insight: [],
             missing_gaps: [],
@@ -95,10 +114,19 @@ export default function TopicEntriesScreen() {
         return topicNotes.find(n => n.id === viewingNoteId) ?? null;
     }, [viewingNoteId, topicNotes]);
 
+    const viewingAttachment = useMemo(() => {
+        if (!viewingAttachmentId) return null;
+        return attachments.find(a => a.id === viewingAttachmentId) ?? null;
+    }, [viewingAttachmentId, attachments]);
+
     const handleTilePress = useCallback(
         (item: TopicEntryItem) => {
             if (item.kind === 'capture') {
                 router.push(`/capture/${item.capture.id}`);
+                return;
+            }
+            if (item.kind === 'attachment') {
+                setViewingAttachmentId(item.attachment.id);
                 return;
             }
             setViewingNoteId(item.note.id);
@@ -111,6 +139,7 @@ export default function TopicEntriesScreen() {
         () => ({
             all: allItems.length,
             capture: allItems.filter(i => i.kind === 'capture').length,
+            attachment: allItems.filter(i => i.kind === 'attachment').length,
             note: allItems.filter(i => i.kind === 'note').length,
             insight: allItems.filter(i => i.kind === 'insight').length,
             missing_gaps: allItems.filter(i => i.kind === 'missing_gaps').length,
@@ -188,9 +217,9 @@ export default function TopicEntriesScreen() {
                                 <View style={styles.grid}>
                                     {items.map(item => {
                                         const key =
-                                            item.kind === 'capture'
-                                                ? item.capture.id
-                                                : item.note.id;
+                                            item.kind === 'capture' ? item.capture.id
+                                                : item.kind === 'attachment' ? item.attachment.id
+                                                    : item.note.id;
                                         return (
                                             <TopicEntryTile
                                                 key={key}
@@ -210,6 +239,11 @@ export default function TopicEntriesScreen() {
             <TopicNoteViewerModal
                 note={viewingNote}
                 onClose={() => setViewingNoteId(null)}
+            />
+
+            <TopicAttachmentViewerModal
+                attachment={viewingAttachment}
+                onClose={() => setViewingAttachmentId(null)}
             />
         </View>
     );

@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import type { Topic, TopicStats } from '@/lib/topicStore';
 import { useTopicStore } from '@/lib/topicStore';
 import { useCaptureStore } from '@/lib/captureStore';
+import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
 import { generateMissingGaps } from '@/services/topicChatClient';
 
 interface MissingGapsModalProps {
@@ -104,16 +105,13 @@ export function MissingGapsModal({
     const topicNotes = useTopicStore(s => s.topicNotes);
     const addTopicNote = useTopicStore(s => s.addTopicNote);
     const removeTopicNote = useTopicStore(s => s.removeTopicNote);
+    const attachments = useTopicAttachmentStore(s => s.attachments);
+    const loadAttachmentsForTopic = useTopicAttachmentStore(s => s.loadForTopic);
 
     const [rawOutput, setRawOutput] = useState<string>('');
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
-
-    const priorNotesForTopic = useMemo(
-        () => topicNotes.filter(n => n.topicId === topic.id),
-        [topicNotes, topic.id],
-    );
 
     const parsed = useMemo(() => parseGapsOutput(rawOutput), [rawOutput]);
 
@@ -123,11 +121,13 @@ export function MissingGapsModal({
     const topicRef = useRef(topic);
     const statsRef = useRef(stats);
     const capturesRef = useRef(captures);
-    const priorNotesRef = useRef(priorNotesForTopic);
+    const topicNotesRef = useRef(topicNotes);
+    const attachmentsRef = useRef(attachments);
     useEffect(() => { topicRef.current = topic; }, [topic]);
     useEffect(() => { statsRef.current = stats; }, [stats]);
     useEffect(() => { capturesRef.current = captures; }, [captures]);
-    useEffect(() => { priorNotesRef.current = priorNotesForTopic; }, [priorNotesForTopic]);
+    useEffect(() => { topicNotesRef.current = topicNotes; }, [topicNotes]);
+    useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
 
     const runGenerate = useCallback(async () => {
         setLoading(true);
@@ -135,12 +135,13 @@ export function MissingGapsModal({
         setRawOutput('');
         setSavedNoteId(null);
         try {
-            const result = await generateMissingGaps(
-                topicRef.current,
-                statsRef.current,
-                capturesRef.current,
-                priorNotesRef.current,
-            );
+            const result = await generateMissingGaps({
+                topic: topicRef.current,
+                stats: statsRef.current,
+                captures: capturesRef.current,
+                topicNotes: topicNotesRef.current,
+                attachments: attachmentsRef.current,
+            });
             if (result.ok && result.text) {
                 setRawOutput(result.text.trim());
             } else {
@@ -162,8 +163,9 @@ export function MissingGapsModal({
         }
         if (generatedForOpenRef.current) return;
         generatedForOpenRef.current = true;
+        loadAttachmentsForTopic(topic.id);
         runGenerate();
-    }, [visible, runGenerate]);
+    }, [visible, runGenerate, loadAttachmentsForTopic, topic.id]);
 
     // If the saved note is removed externally, clear our reference.
     useEffect(() => {

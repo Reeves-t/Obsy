@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import type { Topic, TopicStats } from '@/lib/topicStore';
 import { useTopicStore } from '@/lib/topicStore';
 import { useCaptureStore } from '@/lib/captureStore';
+import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
 import { generateTopicInsight } from '@/services/topicChatClient';
 
 interface TopicInsightModalProps {
@@ -50,6 +51,8 @@ export function TopicInsightModal({
     const topicNotes = useTopicStore(s => s.topicNotes);
     const addTopicNote = useTopicStore(s => s.addTopicNote);
     const removeTopicNote = useTopicStore(s => s.removeTopicNote);
+    const attachments = useTopicAttachmentStore(s => s.attachments);
+    const loadAttachmentsForTopic = useTopicAttachmentStore(s => s.loadForTopic);
 
     const [insight, setInsight] = useState<string>('');
     const [loading, setLoading] = useState(false);
@@ -62,9 +65,13 @@ export function TopicInsightModal({
     const topicRef = useRef(topic);
     const statsRef = useRef(stats);
     const capturesRef = useRef(captures);
+    const topicNotesRef = useRef(topicNotes);
+    const attachmentsRef = useRef(attachments);
     useEffect(() => { topicRef.current = topic; }, [topic]);
     useEffect(() => { statsRef.current = stats; }, [stats]);
     useEffect(() => { capturesRef.current = captures; }, [captures]);
+    useEffect(() => { topicNotesRef.current = topicNotes; }, [topicNotes]);
+    useEffect(() => { attachmentsRef.current = attachments; }, [attachments]);
 
     const runGenerate = useCallback(async () => {
         setLoading(true);
@@ -72,11 +79,13 @@ export function TopicInsightModal({
         setInsight('');
         setPostedId(null);
         try {
-            const result = await generateTopicInsight(
-                topicRef.current,
-                statsRef.current,
-                capturesRef.current,
-            );
+            const result = await generateTopicInsight({
+                topic: topicRef.current,
+                stats: statsRef.current,
+                captures: capturesRef.current,
+                topicNotes: topicNotesRef.current,
+                attachments: attachmentsRef.current,
+            });
             if (result.ok && result.text) {
                 setInsight(result.text.trim());
             } else {
@@ -99,6 +108,8 @@ export function TopicInsightModal({
         }
         if (generatedForOpenRef.current) return;
         generatedForOpenRef.current = true;
+        // Refresh attachments so the digest sees the latest extracted text.
+        loadAttachmentsForTopic(topic.id);
         runGenerate();
     }, [visible, runGenerate]);
 
