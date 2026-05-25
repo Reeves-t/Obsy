@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import * as Crypto from 'expo-crypto';
 import { decode } from 'base64-arraybuffer';
 
 export type AttachmentKind = 'document' | 'image';
@@ -118,10 +119,11 @@ export async function uploadTopicAttachment(
         return { ok: false, error: `Could not read file: ${err?.message || 'unknown error'}` };
     }
 
-    // 2. Generate a stable storage path. The id will also be the DB row id.
-    const attachmentId = (typeof globalThis.crypto?.randomUUID === 'function')
-        ? globalThis.crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // 2. Generate a stable storage path. The id will also be the DB row id —
+    // must be a valid UUID since the column type is `uuid`. expo-crypto is
+    // used here because globalThis.crypto.randomUUID isn't reliably present
+    // in React Native's runtime.
+    const attachmentId = Crypto.randomUUID();
     const ext = extOf(file.name, file.kind === 'image' ? 'jpg' : 'bin');
     const storagePath = `${userId}/${topicId}/${attachmentId}.${ext}`;
     const contentType = file.mimeType || (file.kind === 'image' ? 'image/jpeg' : 'application/octet-stream');
