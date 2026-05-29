@@ -180,7 +180,8 @@ function ThemedNavigator() {
         <Stack.Screen name="voice" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="quick-mood" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="topics" options={{ headerShown: false }} />
-        <Stack.Screen name="moodverse" options={{ headerShown: false }} />
+        {/* MOODVERSE_MVP_HIDDEN — restore for post-MVP launch */}
+        {/* <Stack.Screen name="moodverse" options={{ headerShown: false }} /> */}
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

@@ -208,7 +208,8 @@ const AmbientMoodFieldInline: React.FC = () => {
   const { enabled, mode, toggleEnabled, setMode } = useAmbientMoodFieldStore();
 
   const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-  const isMoodverse = mode === 'moodverse';
+  // MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
+  // const isMoodverse = mode === 'moodverse';
 
   return (
     <View style={styles.floatingInlineContainer}>
@@ -227,6 +228,7 @@ const AmbientMoodFieldInline: React.FC = () => {
           />
         }
       />
+      {/* MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
       {enabled && (
         <View style={styles.modeToggleRow}>
           <TouchableOpacity
@@ -266,6 +268,7 @@ const AmbientMoodFieldInline: React.FC = () => {
           </TouchableOpacity>
         </View>
       )}
+      */}
     </View>
   );
 };

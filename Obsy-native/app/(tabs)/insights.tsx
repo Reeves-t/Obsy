@@ -41,7 +41,7 @@ import { ToneSelector } from '@/components/insights/ToneSelector';
 import { MoodChart } from '@/components/insights/MoodChart';
 import { MoodBreakGame } from '@/components/insights/MoodBreakGame';
 import { MoodFlow } from '@/components/insights/MoodFlow';
-import { ChronotypeDial } from '@/components/insights/ChronotypeDial';
+import { PatternKeywords } from '@/components/insights/patterns/PatternKeywords';
 import { MoodConnectionDial } from '@/components/insights/MoodConnectionDial';
 import { WeeklySummaryCard } from '@/components/insights/WeeklySummaryCard';
 import { ObjectOfWeek } from '@/components/insights/ObjectOfWeek';
@@ -899,14 +899,10 @@ export default function InsightsScreen() {
                                     <MoodChart captures={captures} timeframe={selectedTimeframe} />
                                 )}
 
-                                {/* ROUTINES - Chronotype dial as hero artifact */}
+                                {/* PATTERN KEYWORDS - AI-driven emotional themes */}
                                 <SoftFadeDivider />
-                                <SectionHeader title="ROUTINES" />
-                                <ChronotypeDial
-                                    captures={captures}
-                                    totalEntries={totalEntries}
-                                    flat
-                                />
+                                <SectionHeader title="PATTERN KEYWORDS" />
+                                <PatternKeywords />
 
                                 {/* WEEKLY RECAP - Text narrative */}
                                 <SoftFadeDivider />

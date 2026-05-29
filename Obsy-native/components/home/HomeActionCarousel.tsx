@@ -13,6 +13,7 @@ import { AnimatedMicButton } from '@/components/home/AnimatedMicButton';
 import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { QuickMoodButton } from '@/components/home/QuickMoodButton';
+import { OrbBurst } from '@/components/home/OrbBurst';
 
 type ActionKey = 'voice' | 'capture' | 'journal' | 'quick-mood';
 type OrbitSlotName = 'front' | 'left' | 'right' | 'top';
@@ -55,7 +56,7 @@ interface OrbitItemProps {
   motionKey: number;
 }
 
-const MAIN_BUTTON_SIZE = 156;
+const MAIN_BUTTON_SIZE = 172;
 const BUTTON_RING_PADDING = 8;
 const STAGE_SIZE = MAIN_BUTTON_SIZE + BUTTON_RING_PADDING;
 const CONTAINER_WIDTH = 360;
@@ -75,7 +76,7 @@ const SLOT_LAYOUTS: Record<OrbitSlotName, OrbitLayout> = {
     opacity: 1,
     scale: 1,
     translateX: 0,
-    translateY: 28,
+    translateY: 44,
     zIndex: 4,
   },
   left: {
@@ -505,12 +506,14 @@ function OrbitItem({
   const prevSlotRef = useRef<OrbitSlotName>(slot);
 
   useEffect(() => {
-    const prevDepth = SLOT_DEPTHS[prevSlotRef.current];
+    const prevSlot = prevSlotRef.current;
+    const prevDepth = SLOT_DEPTHS[prevSlot];
     const newDepth = SLOT_DEPTHS[slot];
     prevSlotRef.current = slot;
 
     const movingForward = newDepth < prevDepth;
     const movingBackward = newDepth > prevDepth;
+    const isBecomingFront = slot === 'front';
 
     // Forward: translate first, scale resolves after. Backward: scale shrinks first, translate drifts after.
     const translateDelay = movingBackward ? STAGGER_DELAY : 0;
@@ -533,10 +536,20 @@ function OrbitItem({
       scaleDelay,
       withTiming(layout.scale, { duration: SCALE_DURATION, easing: scaleEasing })
     );
-    opacity.value = withTiming(layout.opacity, {
-      duration: OPACITY_DURATION,
-      easing: Easing.out(Easing.cubic),
-    });
+
+    // Front stays as the anchor (normal opacity). Non-front transitions dissolve into orbs
+    // at their origin and reform at their destination as the slot's burst converges.
+    if (isBecomingFront) {
+      opacity.value = withTiming(layout.opacity, {
+        duration: OPACITY_DURATION,
+        easing: Easing.out(Easing.cubic),
+      });
+    } else {
+      opacity.value = withSequence(
+        withTiming(0, { duration: 120, easing: Easing.out(Easing.cubic) }),
+        withDelay(580, withTiming(layout.opacity, { duration: 240, easing: Easing.out(Easing.cubic) }))
+      );
+    }
   }, [slot, layout.opacity, layout.scale, layout.translateX, layout.translateY, opacity, scale, translateX, translateY]);
 
   useEffect(() => {
@@ -738,6 +751,15 @@ export function HomeActionCarousel() {
             motionKey={motionKey}
           />
         ))}
+        <View style={styles.leftBurstOverlay} pointerEvents="none">
+          <OrbBurst motionKey={motionKey} orbCount={14} maxDistance={46} sizeMin={3} sizeMax={6} duration={1000} seedOffset={11} />
+        </View>
+        <View style={styles.rightBurstOverlay} pointerEvents="none">
+          <OrbBurst motionKey={motionKey} orbCount={14} maxDistance={46} sizeMin={3} sizeMax={6} duration={1000} seedOffset={29} />
+        </View>
+        <View style={styles.topBurstOverlay} pointerEvents="none">
+          <OrbBurst motionKey={motionKey} orbCount={10} maxDistance={28} sizeMin={2} sizeMax={4} duration={1000} seedOffset={53} />
+        </View>
       </View>
 
       <View style={styles.captionWrap}>
@@ -799,6 +821,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  leftBurstOverlay: {
+    position: 'absolute',
+    top: CONTAINER_HEIGHT / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.left.translateY,
+    left: CONTAINER_WIDTH / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.left.translateX,
+    width: STAGE_SIZE,
+    height: STAGE_SIZE,
+    zIndex: 3,
+  },
+  rightBurstOverlay: {
+    position: 'absolute',
+    top: CONTAINER_HEIGHT / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.right.translateY,
+    left: CONTAINER_WIDTH / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.right.translateX,
+    width: STAGE_SIZE,
+    height: STAGE_SIZE,
+    zIndex: 3,
+  },
+  topBurstOverlay: {
+    position: 'absolute',
+    top: CONTAINER_HEIGHT / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.top.translateY,
+    left: CONTAINER_WIDTH / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.top.translateX,
+    width: STAGE_SIZE,
+    height: STAGE_SIZE,
+    zIndex: 2,
+  },
   slot: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -816,7 +862,7 @@ const styles = StyleSheet.create({
   captionWrap: {
     width: CONTAINER_WIDTH,
     minHeight: 32,
-    marginTop: 20,
+    marginTop: 68,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingHorizontal: 28,

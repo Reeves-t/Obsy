@@ -3,7 +3,6 @@ import { StyleSheet, View, ScrollView, Dimensions, NativeSyntheticEvent, NativeS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
-import { TodayCollectionStack } from '@/components/home/TodayCollectionStack';
 import { YearInPixelsSection } from '@/components/home/YearInPixelsSection';
 import { DailyMonthlyPixelsSection } from '@/components/home/DailyMonthlyPixelsSection';
 import { HomeActionCarousel } from '@/components/home/HomeActionCarousel';
@@ -12,7 +11,7 @@ import { useCaptureStore } from '@/lib/captureStore';
 import { useTimeFormatStore, getFormattedTime } from '@/lib/timeFormatStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
-import { format, isSameDay } from 'date-fns';
+import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { isDevUser } from '@/lib/devConfig';
 import { DevPortalModal } from '@/components/dev/DevPortalModal';
@@ -24,9 +23,10 @@ import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
 import { useHorizonStarsStore } from '@/lib/horizonStarsStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
-import { MoodverseEntryCard } from '@/components/moodverse/MoodverseEntryCard';
-import { GalaxyBackground } from '@/components/moodverse/GalaxyBackground';
-import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
+// MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
+// import { MoodverseEntryCard } from '@/components/moodverse/MoodverseEntryCard';
+// import { GalaxyBackground } from '@/components/moodverse/GalaxyBackground';
+// import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 
 const { height, width } = Dimensions.get('window');
@@ -60,7 +60,6 @@ export default function HomeScreen() {
 
   const onBgText = colors.text;
   const onBgTextSecondary = colors.textSecondary;
-  const onBgTextTertiary = colors.textTertiary;
 
   const { enabled: ambientEnabled, mode: ambientMode, loadSavedState } = useAmbientMoodFieldStore();
   const { enabled: horizonStarsEnabled, loadSavedState: loadHorizonStarsSavedState } = useHorizonStarsStore();
@@ -102,13 +101,14 @@ export default function HomeScreen() {
   const isThemeDotsPaused = !isScreenFocused || !isAppActive;
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
-  const galaxyData = useMemo(() => {
-    if (ambientMode !== 'moodverse' || !user?.id) return null;
-    const src = captures.length > 0 ? captures : generateMockCaptures(user.id, currentYear);
-    return computeGalaxyLayout(src, user.id, currentYear);
-  }, [ambientMode, captures, user?.id, currentYear]);
-
-  const shouldMountGalaxy = ambientEnabled && ambientMode === 'moodverse' && isScreenFocused && isAppActive;
+  // MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
+  // const galaxyData = useMemo(() => {
+  //   if (ambientMode !== 'moodverse' || !user?.id) return null;
+  //   const src = captures.length > 0 ? captures : generateMockCaptures(user.id, currentYear);
+  //   return computeGalaxyLayout(src, user.id, currentYear);
+  // }, [ambientMode, captures, user?.id, currentYear]);
+  //
+  // const shouldMountGalaxy = ambientEnabled && ambientMode === 'moodverse' && isScreenFocused && isAppActive;
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     // Scroll tracking removed with Lens removal
@@ -137,17 +137,12 @@ export default function HomeScreen() {
     fetchCaptures(user);
   }, [user]);
 
-  const todayCaptures = useMemo(() => {
-    const today = new Date();
-    return captures.filter((capture) => isSameDay(new Date(capture.created_at), today));
-  }, [captures]);
-
   return (
     <ScreenWrapper
       edges={['top', 'left', 'right', 'bottom']}
       screenName="home"
       bottomInset={DEFAULT_TAB_BAR_HEIGHT}
-      hideFloatingBackground={ambientEnabled && ambientMode === 'moodverse'}
+      hideFloatingBackground={false /* MOODVERSE_MVP_HIDDEN — was: ambientEnabled && ambientMode === 'moodverse' */}
     >
       {usesTimeTheme && activeGradient && horizonStarsReady && horizonStarsEnabled && (
         <View pointerEvents="none" style={styles.horizonStarsLayer}>
@@ -169,6 +164,7 @@ export default function HomeScreen() {
         />
       )}
 
+      {/* MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
       {shouldMountGalaxy && galaxyData && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <View style={{ flex: 1, opacity: 0.45 }}>
@@ -180,6 +176,7 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
+      */}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -215,9 +212,11 @@ export default function HomeScreen() {
             <HomeActionCarousel />
           </View>
 
+          {/* MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
           <View style={[styles.moodverseContainer, { bottom: insets.bottom + 48 }]}>
             <MoodverseEntryCard />
           </View>
+          */}
         </View>
 
         {SHOW_YEAR_IN_PIXELS_MVP && (
@@ -232,16 +231,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {todayCaptures.length > 0 && (
-          <View style={[styles.section, { height: pageHeight }]}> 
-            <View style={styles.collectionHeader}>
-              <ThemedText type="caption" style={[styles.collectionTitle, { color: onBgTextTertiary }]}>TODAY'S COLLECTION</ThemedText>
-              <ThemedText type="caption" style={[styles.collectionDate, { color: onBgTextTertiary }]}>{format(new Date(), 'MMM d')}</ThemedText>
-            </View>
-
-            <TodayCollectionStack captures={todayCaptures} />
-          </View>
-        )}
       </ScrollView>
 
       {pendingSaveAnimationUri && (
@@ -326,17 +315,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     transform: [{ translateY: -184 }],
   },
-  collectionHeader: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
-  collectionTitle: {
-    letterSpacing: 1,
-  },
-  collectionDate: {},
   moodverseContainer: {
     position: 'absolute',
     left: 20,
