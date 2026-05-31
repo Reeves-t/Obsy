@@ -49,18 +49,20 @@ function SilverCameraGlyph({ size }: { size: number }) {
           <Stop offset="100%" stopColor="#222225" />
         </LinearGradient>
 
-        <LinearGradient id="camYellowRing" x1="50%" y1="0%" x2="50%" y2="100%">
-          <Stop offset="0%" stopColor="#ffe070" />
-          <Stop offset="35%" stopColor="#f5b820" />
-          <Stop offset="65%" stopColor="#a07208" />
-          <Stop offset="100%" stopColor="#d99b18" />
+        {/* Lens ring — brushed silver */}
+        <LinearGradient id="camSilverRing" x1="50%" y1="0%" x2="50%" y2="100%">
+          <Stop offset="0%" stopColor="#f1f1f4" />
+          <Stop offset="20%" stopColor="#c8c8cc" />
+          <Stop offset="50%" stopColor="#82828a" />
+          <Stop offset="70%" stopColor="#4a4a50" />
+          <Stop offset="100%" stopColor="#9c9ca2" />
         </LinearGradient>
 
-        {/* Lens glass — dark inner with cobalt hint */}
+        {/* Lens glass — teal blue */}
         <RadialGradient id="lensGlass" cx="38%" cy="32%" r="70%">
-          <Stop offset="0%" stopColor="#3a4762" stopOpacity="1" />
-          <Stop offset="40%" stopColor="#101422" stopOpacity="1" />
-          <Stop offset="100%" stopColor="#000000" stopOpacity="1" />
+          <Stop offset="0%" stopColor="#3aaac0" stopOpacity="1" />
+          <Stop offset="40%" stopColor="#0c424e" stopOpacity="1" />
+          <Stop offset="100%" stopColor="#000c10" stopOpacity="1" />
         </RadialGradient>
 
         {/* Lens iris ring (thin metallic accent) */}
@@ -92,7 +94,7 @@ function SilverCameraGlyph({ size }: { size: number }) {
       <Rect x={4.2} y={8.8} width={2} height={0.5} rx={0.25} fill="#ffffff" opacity={0.7} />
 
       {/* Lens outer ring */}
-      <Circle cx={12} cy={14.4} r={4.6} fill="url(#camYellowRing)" />
+      <Circle cx={12} cy={14.4} r={4.6} fill="url(#camSilverRing)" />
       {/* Lens inner ring */}
       <Circle cx={12} cy={14.4} r={3.7} fill="url(#camBlackHump)" />
       {/* Lens glass */}

@@ -60,10 +60,10 @@ function SilverJournalGlyph({ size }: { size: number }) {
           <Stop offset="100%" stopColor="#1a0f06" />
         </LinearGradient>
 
-        <LinearGradient id="bookPurpleEmboss" x1="0%" y1="50%" x2="100%" y2="50%">
-          <Stop offset="0%" stopColor="#6e3aa8" />
-          <Stop offset="50%" stopColor="#a868d8" />
-          <Stop offset="100%" stopColor="#4a2376" />
+        <LinearGradient id="bookWhiteEmboss" x1="0%" y1="50%" x2="100%" y2="50%">
+          <Stop offset="0%" stopColor="#e6e6e8" />
+          <Stop offset="50%" stopColor="#ffffff" />
+          <Stop offset="100%" stopColor="#c0c0c4" />
         </LinearGradient>
       </Defs>
 
@@ -85,11 +85,11 @@ function SilverJournalGlyph({ size }: { size: number }) {
       <Rect x={5.7} y={2.6} width={0.4} height={18.2} fill="#c69b6a" opacity={0.35} />
 
       {/* Center emboss — a thin metallic monogram bar */}
-      <Rect x={9.4} y={11.2} width={4.2} height={1.4} rx={0.55} fill="url(#bookPurpleEmboss)" />
+      <Rect x={9.4} y={11.2} width={4.2} height={1.4} rx={0.55} fill="url(#bookWhiteEmboss)" />
       <Rect x={9.6} y={11.4} width={3.8} height={0.35} rx={0.18} fill="#ffffff" opacity={0.55} />
 
       {/* Bookmark ribbon (subtle) */}
-      <Path d="M14.6 2.6 L14.6 8.5 L15.6 7.5 L16.6 8.5 L16.6 2.6 Z" fill="#7c2a2a" opacity={0.85} />
+      <Path d="M14.6 2.6 L14.6 8.5 L15.6 7.5 L16.6 8.5 L16.6 2.6 Z" fill="#2a7a8e" opacity={0.9} />
       <Rect x={14.6} y={2.6} width={2} height={0.5} fill="#ffffff" opacity={0.25} />
     </Svg>
   );

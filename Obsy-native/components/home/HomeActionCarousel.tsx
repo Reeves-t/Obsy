@@ -1,19 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
-  SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { AnimatedMicButton } from '@/components/home/AnimatedMicButton';
 import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { QuickMoodButton } from '@/components/home/QuickMoodButton';
-import { OrbBurst } from '@/components/home/OrbBurst';
 
 type ActionKey = 'voice' | 'capture' | 'journal' | 'quick-mood';
 type OrbitSlotName = 'front' | 'left' | 'right' | 'top';
@@ -80,27 +77,27 @@ const SLOT_LAYOUTS: Record<OrbitSlotName, OrbitLayout> = {
     zIndex: 4,
   },
   left: {
-    hitSize: 112,
+    hitSize: 96,
     opacity: 0.95,
-    scale: 0.40,
-    translateX: -134,
+    scale: 0.30,
+    translateX: -118,
     translateY: -6,
     zIndex: 3,
   },
   right: {
-    hitSize: 112,
+    hitSize: 96,
     opacity: 0.95,
-    scale: 0.40,
-    translateX: 134,
+    scale: 0.30,
+    translateX: 118,
     translateY: -6,
     zIndex: 3,
   },
   top: {
-    hitSize: 84,
+    hitSize: 72,
     opacity: 0.55,
-    scale: 0.26,
+    scale: 0.20,
     translateX: 0,
-    translateY: -100,
+    translateY: -94,
     zIndex: 2,
   },
 };
@@ -146,302 +143,34 @@ const CTA_DESCRIPTIONS: Record<ActionKey, string> = {
   'quick-mood': 'no words needed, just log the mood',
 };
 
-// ─── Per-action caption animations ───────────────────────────────────
+// ─── Caption fade ───────────────────────────────────────────────────
 
-function splitTextToWords(text: string): { char: string; index: number }[][] {
-  const words = text.split(' ');
-  let idx = 0;
-  return words.map((word, wi) => {
-    const chars = word.split('').map(c => ({ char: c, index: idx++ }));
-    if (wi < words.length - 1) {
-      chars.push({ char: ' ', index: idx++ });
-    }
-    return chars;
-  });
-}
-
-function VoiceWaveChar({
-  char,
-  index,
-  progress,
-  totalChars,
+function FadeInCaption({
+  text,
+  animKey,
 }: {
-  char: string;
-  index: number;
-  progress: SharedValue<number>;
-  totalChars: number;
+  text: string;
+  animKey: number;
 }) {
-  const animStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    const waveCenter = p * (totalChars + 10) - 5;
-    const dist = index - waveCenter;
-    const spread = 5;
-    let y = 0;
-    if (Math.abs(dist) < spread) {
-      const normalized = dist / spread;
-      y = -7 * (1 + Math.cos(normalized * Math.PI)) / 2;
-    }
-    return {
-      transform: [{ translateY: y }],
-      opacity: Math.min(1, p * 3),
-    };
-  });
+  const opacity = useSharedValue(0);
+  const lift = useSharedValue(6);
+
+  useEffect(() => {
+    opacity.value = 0;
+    lift.value = 6;
+    opacity.value = withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) });
+    lift.value = withTiming(0, { duration: 240, easing: Easing.out(Easing.cubic) });
+  }, [animKey, opacity, lift]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: lift.value }],
+  }));
 
   return (
     <Animated.View style={animStyle}>
-      <Text style={styles.captionCharText}>{char}</Text>
-    </Animated.View>
-  );
-}
-
-function VoiceWaveCaption({
-  text,
-  animKey,
-}: {
-  text: string;
-  animKey: number;
-}) {
-  const progress = useSharedValue(0);
-  const totalChars = text.length;
-  const wordGroups = useMemo(() => splitTextToWords(text), [text]);
-
-  useEffect(() => {
-    progress.value = 0;
-    progress.value = withDelay(
-      280,
-      withTiming(1, {
-        duration: 2200,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      })
-    );
-  }, [animKey, progress]);
-
-  return (
-    <View style={styles.captionCharRow}>
-      {wordGroups.map((group, gi) => (
-        <View key={gi} style={styles.captionWordGroup}>
-          {group.map(({ char, index }) => (
-            <VoiceWaveChar
-              key={index}
-              char={char}
-              index={index}
-              progress={progress}
-              totalChars={totalChars}
-            />
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function CaptureFlashCaption({
-  text,
-  animKey,
-}: {
-  text: string;
-  animKey: number;
-}) {
-  const baseProgress = useSharedValue(0);
-  const flashIntensity = useSharedValue(0);
-
-  useEffect(() => {
-    baseProgress.value = 0;
-    flashIntensity.value = 0;
-
-    flashIntensity.value = withDelay(
-      600,
-      withSequence(
-        withTiming(1, { duration: 100, easing: Easing.out(Easing.cubic) }),
-        withTiming(0, { duration: 400, easing: Easing.out(Easing.cubic) })
-      )
-    );
-
-    baseProgress.value = withDelay(
-      650,
-      withTiming(1, { duration: 350, easing: Easing.out(Easing.cubic) })
-    );
-  }, [animKey, baseProgress, flashIntensity]);
-
-  const baseStyle = useAnimatedStyle(() => ({
-    opacity: 0.35 + baseProgress.value * 0.65,
-  }));
-
-  const flashStyle = useAnimatedStyle(() => ({
-    opacity: flashIntensity.value * 0.85,
-  }));
-
-  return (
-    <View style={styles.captionRevealWrap}>
-      <Animated.Text style={[styles.captionText, baseStyle]}>
-        {text}
-      </Animated.Text>
-      <Animated.Text
-        style={[styles.captionText, styles.captionFlashOverlay, flashStyle]}
-      >
-        {text}
-      </Animated.Text>
-    </View>
-  );
-}
-
-function JournalTypewriterChar({
-  char,
-  index,
-  progress,
-  totalChars,
-}: {
-  char: string;
-  index: number;
-  progress: SharedValue<number>;
-  totalChars: number;
-}) {
-  const animStyle = useAnimatedStyle(() => {
-    const threshold = index / totalChars;
-    const fadeWidth = 1.5 / totalChars;
-    return {
-      opacity: Math.min(1, Math.max(0, (progress.value - threshold) / fadeWidth)),
-    };
-  });
-
-  return <Animated.Text style={animStyle}>{char}</Animated.Text>;
-}
-
-function JournalTypewriterCaption({
-  text,
-  animKey,
-}: {
-  text: string;
-  animKey: number;
-}) {
-  const progress = useSharedValue(0);
-  const totalChars = text.length;
-  const chars = useMemo(() => text.split(''), [text]);
-
-  useEffect(() => {
-    progress.value = 0;
-    progress.value = withDelay(
-      280,
-      withTiming(1, {
-        duration: 1600,
-        easing: Easing.bezier(0.2, 0, 0.35, 1),
-      })
-    );
-  }, [animKey, progress]);
-
-  return (
-    <View style={styles.captionRevealWrap}>
-      <Text style={styles.captionText}>
-        {chars.map((char, i) => (
-          <JournalTypewriterChar
-            key={i}
-            char={char}
-            index={i}
-            progress={progress}
-            totalChars={totalChars}
-          />
-        ))}
-      </Text>
-    </View>
-  );
-}
-
-const ORB_CONFIGS = [
-  { xPct: 0.12, yPct: 0.3, size: 6, delay: 0 },
-  { xPct: 0.38, yPct: 0.65, size: 5, delay: 0.12 },
-  { xPct: 0.68, yPct: 0.2, size: 7, delay: 0.18 },
-  { xPct: 0.88, yPct: 0.55, size: 4, delay: 0.28 },
-];
-
-function FloatingOrb({
-  xPct,
-  yPct,
-  size,
-  delay,
-  progress,
-  width,
-  height,
-}: {
-  xPct: number;
-  yPct: number;
-  size: number;
-  delay: number;
-  progress: SharedValue<number>;
-  width: number;
-  height: number;
-}) {
-  const animStyle = useAnimatedStyle(() => {
-    const raw = progress.value;
-    const p = Math.max(0, Math.min(1, (raw - delay) / (1 - delay)));
-    let opacity: number;
-    if (p < 0.3) {
-      opacity = p / 0.3;
-    } else if (p < 0.55) {
-      opacity = 1;
-    } else {
-      opacity = 1 - (p - 0.55) / 0.45;
-    }
-    return {
-      opacity: Math.max(0, opacity) * 0.55,
-      transform: [{ translateY: -10 * p }],
-    };
-  });
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: 'absolute',
-          left: width * xPct - size / 2,
-          top: height * yPct - size / 2,
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: 'rgba(255,255,255,0.5)',
-        },
-        animStyle,
-      ]}
-    />
-  );
-}
-
-function QuickMoodOrbCaption({
-  text,
-  width,
-  height,
-  animKey,
-}: {
-  text: string;
-  width: number;
-  height: number;
-  animKey: number;
-}) {
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    progress.value = 0;
-    progress.value = withDelay(
-      100,
-      withTiming(1, {
-        duration: 1400,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      })
-    );
-  }, [animKey, progress]);
-
-  return (
-    <View style={styles.captionRevealWrap}>
-      {ORB_CONFIGS.map((orb, i) => (
-        <FloatingOrb
-          key={i}
-          {...orb}
-          progress={progress}
-          width={width}
-          height={height}
-        />
-      ))}
       <Text style={styles.captionText}>{text}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -532,41 +261,40 @@ function OrbitItem({
       translateDelay,
       withTiming(layout.translateY, { duration: TRANSLATE_DURATION, easing: translateEasing })
     );
-    scale.value = withDelay(
-      scaleDelay,
-      withTiming(layout.scale, { duration: SCALE_DURATION, easing: scaleEasing })
-    );
 
-    // Front stays as the anchor (normal opacity). Non-front transitions dissolve into orbs
-    // at their origin and reform at their destination as the slot's burst converges.
     if (isBecomingFront) {
-      opacity.value = withTiming(layout.opacity, {
-        duration: OPACITY_DURATION,
-        easing: Easing.out(Easing.cubic),
-      });
+      // Snap arrival: hold near origin scale during travel, then punchy overshoot landing
+      scale.value = withDelay(
+        280,
+        withTiming(layout.scale, { duration: 320, easing: Easing.bezier(0.34, 1.55, 0.64, 1) })
+      );
     } else {
-      opacity.value = withSequence(
-        withTiming(0, { duration: 120, easing: Easing.out(Easing.cubic) }),
-        withDelay(580, withTiming(layout.opacity, { duration: 240, easing: Easing.out(Easing.cubic) }))
+      scale.value = withDelay(
+        scaleDelay,
+        withTiming(layout.scale, { duration: SCALE_DURATION, easing: scaleEasing })
       );
     }
+
+    opacity.value = withTiming(layout.opacity, {
+      duration: OPACITY_DURATION,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [slot, layout.opacity, layout.scale, layout.translateX, layout.translateY, opacity, scale, translateX, translateY]);
 
   useEffect(() => {
     if (slot !== 'front') return;
 
-    swayRotation.value = -5;
-    swayLift.value = -2;
-    swayRotation.value = withSequence(
-      withTiming(3, { duration: 490, easing: Easing.bezier(0.22, 1, 0.36, 1) }),
-      withTiming(-1.5, { duration: 350, easing: Easing.out(Easing.cubic) }),
-      withTiming(0.6, { duration: 280, easing: Easing.out(Easing.cubic) }),
+    // Hold a small tilt + lift during translation, then kick back to upright synced with the snap
+    swayRotation.value = -3;
+    swayLift.value = -1;
+    swayRotation.value = withDelay(
+      280,
       withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) })
     );
-    swayLift.value = withTiming(0, {
-      duration: 520,
-      easing: Easing.out(Easing.cubic),
-    });
+    swayLift.value = withDelay(
+      280,
+      withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) })
+    );
   }, [motionKey, slot, swayLift, swayRotation]);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -643,7 +371,6 @@ export function HomeActionCarousel() {
   const [displayedActionKey, setDisplayedActionKey] = useState<ActionKey>(ACTIONS[1].key);
   const [isAnimating, setIsAnimating] = useState(false);
   const [motionKey, setMotionKey] = useState(0);
-  const [captionLayout, setCaptionLayout] = useState({ width: 0, height: 0 });
   const animationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionOpacity = useSharedValue(1);
@@ -685,18 +412,6 @@ export function HomeActionCarousel() {
   const captionStyle = useAnimatedStyle(() => ({
     opacity: captionOpacity.value,
   }));
-
-  const handleCaptionLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    if (width > 0 && height > 0) {
-      setCaptionLayout((current) => {
-        if (current.width === width && current.height === height) {
-          return current;
-        }
-        return { width, height };
-      });
-    }
-  }, []);
 
   const rotate = useCallback((direction: 'left' | 'right') => {
     if (isAnimating) return;
@@ -751,50 +466,14 @@ export function HomeActionCarousel() {
             motionKey={motionKey}
           />
         ))}
-        <View style={styles.leftBurstOverlay} pointerEvents="none">
-          <OrbBurst motionKey={motionKey} orbCount={14} maxDistance={46} sizeMin={3} sizeMax={6} duration={1000} seedOffset={11} />
-        </View>
-        <View style={styles.rightBurstOverlay} pointerEvents="none">
-          <OrbBurst motionKey={motionKey} orbCount={14} maxDistance={46} sizeMin={3} sizeMax={6} duration={1000} seedOffset={29} />
-        </View>
-        <View style={styles.topBurstOverlay} pointerEvents="none">
-          <OrbBurst motionKey={motionKey} orbCount={10} maxDistance={28} sizeMin={2} sizeMax={4} duration={1000} seedOffset={53} />
-        </View>
       </View>
 
       <View style={styles.captionWrap}>
         <Animated.View style={[styles.captionInner, captionStyle]}>
-          <Text
-            onLayout={handleCaptionLayout}
-            style={[styles.captionText, { opacity: 0 }]}
-          >
-            {CTA_DESCRIPTIONS[displayedActionKey]}
-          </Text>
-          {captionLayout.width > 0 && captionLayout.height > 0 ? (
-            displayedActionKey === 'voice' ? (
-              <VoiceWaveCaption
-                text={CTA_DESCRIPTIONS.voice}
-                animKey={captionAnimKey}
-              />
-            ) : displayedActionKey === 'capture' ? (
-              <CaptureFlashCaption
-                text={CTA_DESCRIPTIONS.capture}
-                animKey={captionAnimKey}
-              />
-            ) : displayedActionKey === 'journal' ? (
-              <JournalTypewriterCaption
-                text={CTA_DESCRIPTIONS.journal}
-                animKey={captionAnimKey}
-              />
-            ) : (
-              <QuickMoodOrbCaption
-                text={CTA_DESCRIPTIONS['quick-mood']}
-                width={captionLayout.width}
-                height={captionLayout.height}
-                animKey={captionAnimKey}
-              />
-            )
-          ) : null}
+          <FadeInCaption
+            text={CTA_DESCRIPTIONS[displayedActionKey]}
+            animKey={captionAnimKey}
+          />
         </Animated.View>
       </View>
     </View>
@@ -820,30 +499,6 @@ const styles = StyleSheet.create({
     height: STAGE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  leftBurstOverlay: {
-    position: 'absolute',
-    top: CONTAINER_HEIGHT / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.left.translateY,
-    left: CONTAINER_WIDTH / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.left.translateX,
-    width: STAGE_SIZE,
-    height: STAGE_SIZE,
-    zIndex: 3,
-  },
-  rightBurstOverlay: {
-    position: 'absolute',
-    top: CONTAINER_HEIGHT / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.right.translateY,
-    left: CONTAINER_WIDTH / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.right.translateX,
-    width: STAGE_SIZE,
-    height: STAGE_SIZE,
-    zIndex: 3,
-  },
-  topBurstOverlay: {
-    position: 'absolute',
-    top: CONTAINER_HEIGHT / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.top.translateY,
-    left: CONTAINER_WIDTH / 2 - STAGE_SIZE / 2 + SLOT_LAYOUTS.top.translateX,
-    width: STAGE_SIZE,
-    height: STAGE_SIZE,
-    zIndex: 2,
   },
   slot: {
     alignItems: 'center',
@@ -884,34 +539,5 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(180,190,210,0.18)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 12,
-  },
-  captionRevealWrap: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  captionCharRow: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignContent: 'center',
-  },
-  captionWordGroup: {
-    flexDirection: 'row',
-  },
-  captionCharText: {
-    color: 'rgba(210,212,218,0.72)',
-    fontSize: 18,
-    lineHeight: 26,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-    textShadowColor: 'rgba(180,190,210,0.18)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
-  },
-  captionFlashOverlay: {
-    position: 'absolute',
-    color: '#FFFFFF',
   },
 });
