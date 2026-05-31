@@ -11,6 +11,7 @@ import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from '@/
 import { BookmarkButton } from '@/components/insights/BookmarkButton';
 import Colors from '@/constants/Colors';
 import { countPendingDailyCaptures } from '@/lib/pendingCaptureUtils';
+import { useHabitGoalStore, countPendingHabitGoals } from '@/lib/habitGoalStore';
 import { useI18n } from '@/i18n/config';
 import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
 import { getLocalDayKey } from '@/lib/utils';
@@ -47,8 +48,12 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
     const [saving, setSaving] = React.useState(false);
 
 
-    // Count pending captures
-    const pendingCount = countPendingDailyCaptures(lastUpdated, captures);
+    // Count pending entries — new captures + daily habit/goal completions
+    // logged since the insight was last generated.
+    const habitItems = useHabitGoalStore(s => s.items);
+    const pendingCount =
+        countPendingDailyCaptures(lastUpdated, captures) +
+        countPendingHabitGoals(habitItems, lastUpdated, 'daily');
 
     // Preload last daily insight on mount (fast-load path)
     useEffect(() => {

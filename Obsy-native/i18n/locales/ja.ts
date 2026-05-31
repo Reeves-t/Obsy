@@ -22,10 +22,10 @@ export const ja: TranslationDictionary = {
   },
   insight: {
     dailyTitle: '今日のインサイト',
-    dailyTitleFlat: 'デイリーインサイト',
+    dailyTitleFlat: '今日のひと目',
     emptyDaily: '今日はまだ記録がありません。1つキャプチャして始めましょう。',
-    pendingCaptureOne: '未反映のキャプチャが{{count}}件あります。更新してください',
-    pendingCaptureOther: '未反映のキャプチャが{{count}}件あります。更新してください',
+    pendingCaptureOne: '未反映のエントリーが{{count}}件あります。更新してください',
+    pendingCaptureOther: '未反映のエントリーが{{count}}件あります。更新してください',
     weekInReview: '週のレビュー',
     weekSubline: '今週の流れを振り返る',
     viewHistory: '履歴を見る',

@@ -57,10 +57,10 @@ export const en: TranslationDictionary = {
   },
   insight: {
     dailyTitle: "Today's Insight",
-    dailyTitleFlat: 'DAILY INSIGHT',
+    dailyTitleFlat: 'Day in a glance',
     emptyDaily: 'No entries for today yet. Capture a moment to start your day.',
-    pendingCaptureOne: '{{count}} new capture not yet included. Refresh to update',
-    pendingCaptureOther: '{{count}} new captures not yet included. Refresh to update',
+    pendingCaptureOne: '{{count}} new entry not yet included. Refresh to update',
+    pendingCaptureOther: '{{count}} new entries not yet included. Refresh to update',
     weekInReview: 'Week in Review',
     weekSubline: 'A reflection across your days so far',
     viewHistory: 'View history',

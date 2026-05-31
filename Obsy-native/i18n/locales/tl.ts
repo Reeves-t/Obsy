@@ -22,10 +22,10 @@ export const tl: TranslationDictionary = {
   },
   insight: {
     dailyTitle: 'Insight Ngayon',
-    dailyTitleFlat: 'DAILY INSIGHT',
+    dailyTitleFlat: 'Sulyap sa Araw',
     emptyDaily: 'Wala pang entry ngayon. Mag-capture ng moment para magsimula.',
-    pendingCaptureOne: '{{count}} bagong capture ang hindi pa naisama. I-refresh para ma-update',
-    pendingCaptureOther: '{{count}} bagong capture ang hindi pa naisama. I-refresh para ma-update',
+    pendingCaptureOne: '{{count}} bagong entry ang hindi pa naisama. I-refresh para ma-update',
+    pendingCaptureOther: '{{count}} bagong entry ang hindi pa naisama. I-refresh para ma-update',
     weekInReview: 'Review ng Linggo',
     weekSubline: 'Maikling pagninilay sa mga araw mo',
     viewHistory: 'Tingnan ang history',

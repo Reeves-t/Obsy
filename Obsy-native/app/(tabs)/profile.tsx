@@ -827,6 +827,12 @@ export default function ProfileScreen() {
         <SectionHeader title="FEATURES" flat />
         <View style={styles.flatSection}>
           <SettingRow
+            icon="archive-outline"
+            title="Archive"
+            subtitle="Browse all past insights by type"
+            onPress={() => router.push('/archive')}
+          />
+          <SettingRow
             icon="newspaper-outline"
             title="Weekly Digest"
             subtitle="Coming soon"

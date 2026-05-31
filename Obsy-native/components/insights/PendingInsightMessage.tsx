@@ -30,7 +30,7 @@ export const PendingInsightMessage: React.FC<PendingInsightMessageProps> = ({
         >
             <View style={[styles.dot, { backgroundColor: color }]} />
             <ThemedText style={[styles.text, { color }]}>
-                {pendingCount} new capture{pendingCount > 1 ? 's' : ''} not yet included · Refresh to update
+                {pendingCount} new {pendingCount > 1 ? 'entries' : 'entry'} not yet included · Refresh to update
             </ThemedText>
         </TouchableOpacity>
     );

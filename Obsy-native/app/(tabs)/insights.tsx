@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, LayoutAnimation, Platform, UIManager, InteractionManager, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
@@ -11,11 +11,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { Sunrise, Sun, SunMedium, CloudSun, MoonStar, Moon } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { resolveMoodThemeById } from '@/lib/moodUtils';
-import { generateOrbEffect } from '@/lib/moods';
-import type { TimeBucket } from '@/hooks/useInsightsStats';
 import type { InsightError } from '@/lib/insightErrorUtils';
 import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -26,7 +21,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useCaptureStore } from '@/lib/captureStore';
 import { ensureRecentSnapshots } from '@/lib/dailySnapshotSync';
-import { generateTagInsight } from '@/lib/tagInsights';
 import { buildWeeklyStatsFromDaily, buildWeeklyStatsFromCaptures, DailyInsightSnapshot, WeeklyStats } from '@/lib/insightsAnalytics';
 import { getWeekRangeForUser } from '@/lib/dateUtils';
 import { useWeeklyInsight } from '@/lib/weeklyInsightStore';
@@ -38,15 +32,16 @@ import { getProfile, updateProfile } from '@/services/profile';
 import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { archiveInsight } from '@/services/archive';
 import { ToneSelector } from '@/components/insights/ToneSelector';
-import { MoodChart } from '@/components/insights/MoodChart';
 import { MoodBreakGame } from '@/components/insights/MoodBreakGame';
 import { MoodFlow } from '@/components/insights/MoodFlow';
 import { PatternKeywords } from '@/components/insights/patterns/PatternKeywords';
 import { MoodConnectionDial } from '@/components/insights/MoodConnectionDial';
+import { MoodByTimeStack } from '@/components/insights/MoodByTimeStack';
+import { HabitGoalOrbSection } from '@/components/insights/habitsGoals/HabitGoalOrbSection';
+import { useHabitGoalStore, countPendingHabitGoals } from '@/lib/habitGoalStore';
+import { countPendingWeeklyCaptures } from '@/lib/pendingCaptureUtils';
 import { WeeklySummaryCard } from '@/components/insights/WeeklySummaryCard';
-import { ObjectOfWeek } from '@/components/insights/ObjectOfWeek';
 import { PastInsightsStrip } from '@/components/insights/PastInsightsStrip';
-import { TagReflections } from '@/components/insights/TagReflections';
 import { MonthView } from '@/components/insights/MonthView';
 import { ArchiveStorageIndicator } from '@/components/insights/ArchiveStorageIndicator';
 import { ArchiveFullModal } from '@/components/insights/ArchiveFullModal';
@@ -111,10 +106,9 @@ export default function InsightsScreen() {
     const { user } = useAuth();
     const captures = useCaptureStore(s => s.captures);
     const fetchCaptures = useCaptureStore(s => s.fetchCaptures);
-    const getAllTags = useCaptureStore(s => s.getAllTags);
     const capturesCount = captures.length;
     const { colors, isLight } = useObsyTheme();
-    const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month'>('week');
+    const [selectedTimeframe, setSelectedTimeframe] = useState<'day' | 'week' | 'month'>('day');
     const {
         status: dailyStatus,
         text: dailyText,
@@ -128,7 +122,15 @@ export default function InsightsScreen() {
         text: weeklyText,
         error: weeklyError,
         refreshWeeklyInsight,
+        lastUpdated: weeklyLastUpdated,
     } = useWeeklyInsight();
+
+    // Subscribe to habit/goal items so completing one re-renders the
+    // "refresh to update" nudge on the weekly card.
+    const habitGoalItems = useHabitGoalStore(s => s.items);
+    const weeklyPendingCount =
+        countPendingWeeklyCaptures(weeklyLastUpdated, captures) +
+        countPendingHabitGoals(habitGoalItems, weeklyLastUpdated, 'weekly');
 
     const {
         status: monthlyStatus,
@@ -146,8 +148,6 @@ export default function InsightsScreen() {
     const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null);
     const [selectedPastDay, setSelectedPastDay] = useState<DailyInsightSnapshot | null>(null);
     const [selectedPastInsight, setSelectedPastInsight] = useState<InsightHistory | null>(null);
-    const [generatedTagInsight, setGeneratedTagInsight] = useState<string | null>(null);
-    const [loadingTagInsight, setLoadingTagInsight] = useState(false);
 
     const [isExpanded, setIsExpanded] = useState(false);
     const [monthDailyFlows, setMonthDailyFlows] = useState<Record<string, DailyMoodFlowData>>({});
@@ -188,7 +188,6 @@ export default function InsightsScreen() {
     const [currentTone, setCurrentTone] = useState<AiToneId>(DEFAULT_AI_TONE_ID);
 
     const { streak, bestStreak, activeHours, peakTimeLabel, totalEntries, mostCapturesDay, avgCapturesPerDay, morningMood, afternoonMood, eveningMood, timeBuckets } = useInsightsStats(user?.id);
-    const topTags = useMemo(() => getAllTags().slice(0, 5), [captures, getAllTags]);
     const { tones: customTones } = useCustomTones();
 
     const getCurrentToneName = () => {
@@ -213,7 +212,6 @@ export default function InsightsScreen() {
     useEffect(() => {
         if (!aiFreeMode) return;
         setTodayMoodFlow(null);
-        setGeneratedTagInsight(null);
         setAiReasoning(null);
         setMonthPhrase(null);
     }, [aiFreeMode]);
@@ -617,22 +615,6 @@ export default function InsightsScreen() {
         }
     };
 
-    const handleGenerateTagInsight = async (tag: string) => {
-        if (aiFreeMode) return;
-        setLoadingTagInsight(true);
-        try {
-            const config = await buildAiSettings();
-            if (!config) return;
-            const result = await generateTagInsight(captures, tag, config.settings);
-            setGeneratedTagInsight(result);
-
-        } catch (error) {
-            console.error("Error generating tag insight:", error);
-        } finally {
-            setLoadingTagInsight(false);
-        }
-    };
-
     const handleSelectPastDay = (day: DailyInsightSnapshot) => {
         setSelectedPastDay(day);
     };
@@ -666,36 +648,28 @@ export default function InsightsScreen() {
                             styles.toggleContainer,
                             { backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)', borderColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }
                         ]}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.toggleBtn,
-                                    selectedTimeframe === 'week' && [styles.toggleBtnActive, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]
-                                ]}
-                                onPress={() => setSelectedTimeframe('week')}
-                            >
-                                <ThemedText style={[
-                                    styles.toggleText,
-                                    { color: onBgTextTertiary },
-                                    selectedTimeframe === 'week' && { color: onBgText }
-                                ]}>
-                                    Week
-                                </ThemedText>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[
-                                    styles.toggleBtn,
-                                    selectedTimeframe === 'month' && [styles.toggleBtnActive, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]
-                                ]}
-                                onPress={() => setSelectedTimeframe('month')}
-                            >
-                                <ThemedText style={[
-                                    styles.toggleText,
-                                    { color: onBgTextTertiary },
-                                    selectedTimeframe === 'month' && { color: onBgText }
-                                ]}>
-                                    Month
-                                </ThemedText>
-                            </TouchableOpacity>
+                            {([
+                                { key: 'day' as const, label: 'Day' },
+                                { key: 'week' as const, label: 'Week' },
+                                { key: 'month' as const, label: 'Month' },
+                            ]).map(({ key, label }) => (
+                                <TouchableOpacity
+                                    key={key}
+                                    style={[
+                                        styles.toggleBtn,
+                                        selectedTimeframe === key && [styles.toggleBtnActive, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)' }]
+                                    ]}
+                                    onPress={() => setSelectedTimeframe(key)}
+                                >
+                                    <ThemedText style={[
+                                        styles.toggleText,
+                                        { color: onBgTextTertiary },
+                                        selectedTimeframe === key && { color: onBgText }
+                                    ]}>
+                                        {label}
+                                    </ThemedText>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </View>
                 </View>
@@ -732,6 +706,45 @@ export default function InsightsScreen() {
                             />
                         </>
                     )
+                ) : selectedTimeframe === 'week' ? (
+                    isReady && (
+                        <>
+                            {/* WEEK IN REVIEW - Text narrative at the top */}
+                            <SectionHeader title="WEEK IN REVIEW" />
+                            <WeeklySummaryCard
+                                text={aiFreeMode ? null : weeklyText}
+                                weeklyStats={weeklyStats}
+                                isGenerating={weeklyStatus === 'loading'}
+                                onGenerate={() => { if (!aiFreeMode) loadWeeklyInsight(true); }}
+                                onViewHistory={() => { }}
+                                flat
+                                onArchiveFull={() => setIsArchiveFullModalVisible(true)}
+                                pendingCount={weeklyPendingCount}
+                                error={weeklyError as InsightError | null}
+                            />
+
+                            {/* MOOD SIGNAL - Weekly pattern analytics */}
+                            <SoftFadeDivider />
+                            <SectionHeader title="MOOD SIGNAL" />
+                            <MoodSignal captures={captures} flat />
+
+                            {/* HABITS & GOALS - Floating weekly awareness orbs */}
+                            <HabitGoalOrbSection frequency="weekly" />
+
+                            {/* MOOD CONNECTIONS - How moods lead into one another */}
+                            <SoftFadeDivider />
+                            <SectionHeader title="MOOD CONNECTIONS" />
+                            <MoodConnectionDial captures={captures} flat />
+
+                            {/* MOOD BREAK - Mood breakdown game, anchored at the bottom */}
+                            <SoftFadeDivider />
+                            <SectionHeader title="MOOD BREAK" />
+                            <ThemedText style={{ fontSize: 13, color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.35)', marginBottom: 10, marginTop: -4 }}>
+                                Your week in moods.
+                            </ThemedText>
+                            <MoodBreakGame captures={captures} tone={currentTone} isLight={isLight} onRefresh={() => fetchCaptures(user)} />
+                        </>
+                    )
                 ) : (
                     <>
                         {dailyStatus === 'loading' && <ActivityIndicator style={{ marginVertical: 12 }} />}
@@ -757,10 +770,6 @@ export default function InsightsScreen() {
                                 <SoftFadeDivider />
                                 <SectionHeader title="DAILY FLOW" />
                                 <MoodFlow moodFlow={aiFreeMode ? null : todayMoodFlow} loading={!aiFreeMode && dailyStatus === 'loading'} flat />
-
-                                {/* MOOD SIGNAL - Weekly pattern analytics */}
-                                <SectionHeader title="MOOD SIGNAL" />
-                                <MoodSignal captures={captures} flat />
 
                                 {/* STATS - Key metrics in 2x2 grid */}
                                 <SectionHeader title="STATS" />
@@ -833,129 +842,20 @@ export default function InsightsScreen() {
                                     </View>
                                 </View>
 
+                                {/* HABITS & GOALS - Floating daily awareness orbs */}
+                                <HabitGoalOrbSection frequency="daily" />
+
                                 {/* MOOD BY TIME - Time-of-day mood patterns */}
                                 <SectionHeader title="MOOD BY TIME" />
-                                <MoodConnectionDial captures={captures} flat />
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeOfDayScroll} contentContainerStyle={styles.timeOfDayScrollContent}>
-                                    {([
-                                        { bucket: 'early_morning' as TimeBucket, label: 'EARLY MORNING', Icon: Sunrise, gradient: ['#1a1a2e', '#3d2c4f', '#c4723a'] },
-                                        { bucket: 'morning' as TimeBucket, label: 'MORNING', Icon: Sun, gradient: ['#2d1b4e', '#6b3fa0', '#e8a87c'] },
-                                        { bucket: 'midday' as TimeBucket, label: 'MIDDAY', Icon: SunMedium, gradient: ['#1a4a5e', '#3d8b9e', '#a8d8ea'] },
-                                        { bucket: 'afternoon' as TimeBucket, label: 'AFTERNOON', Icon: CloudSun, gradient: ['#1e3a5f', '#4a7c9b', '#e8c07a'] },
-                                        { bucket: 'evening' as TimeBucket, label: 'EVENING', Icon: MoonStar, gradient: ['#1a1a2e', '#2d1b4e', '#c97b3d'] },
-                                        { bucket: 'night' as TimeBucket, label: 'NIGHT', Icon: Moon, gradient: ['#0a0a1a', '#1a1a2e', '#2d2d4e'] },
-                                    ]).map(({ bucket, label, Icon, gradient }) => {
-                                        const data = timeBuckets[bucket];
-                                        const moodTheme = data.moodId ? resolveMoodThemeById(data.moodId, data.dominant ?? undefined) : null;
-                                        const orbEffect = data.dominant ? generateOrbEffect(data.dominant) : null;
-                                        return (
-                                            <LinearGradient
-                                                key={bucket}
-                                                colors={gradient as [string, string, ...string[]]}
-                                                start={{ x: 0, y: 0 }}
-                                                end={{ x: 0.5, y: 1 }}
-                                                style={styles.timeOfDayCard}
-                                            >
-                                                <View style={styles.timeOfDayHeader}>
-                                                    <Icon size={16} strokeWidth={1.5} color="rgba(255,255,255,0.85)" />
-                                                    <ThemedText style={styles.timeOfDayLabel}>{label}</ThemedText>
-                                                </View>
-                                                <ThemedText style={styles.timeOfDayMood}>
-                                                    {data.dominant || '—'}
-                                                </ThemedText>
-                                                <View style={styles.timeOfDayBottom}>
-                                                    {moodTheme && (
-                                                        <LinearGradient
-                                                            colors={[moodTheme.gradient.primary, moodTheme.gradient.mid, moodTheme.gradient.secondary]}
-                                                            start={{ x: 0.25, y: 0.2 }}
-                                                            end={{ x: 0.9, y: 1 }}
-                                                            style={styles.timeOfDayOrb}
-                                                        >
-                                                            {orbEffect?.type === 'grain' && <View style={styles.timeOrbGrain} />}
-                                                            {orbEffect?.type === 'splash' && <View style={[styles.timeOrbSplash, { backgroundColor: orbEffect.splashColor ?? 'rgba(255,255,255,0.25)' }]} />}
-                                                            {orbEffect?.type === 'streak' && <View style={styles.timeOrbStreak} />}
-                                                        </LinearGradient>
-                                                    )}
-                                                    <ThemedText style={styles.timeOfDayMeta}>
-                                                        {data.count > 0 ? `${data.count} of ${data.totalCaptures}` : 'No data'}
-                                                    </ThemedText>
-                                                </View>
-                                            </LinearGradient>
-                                        );
-                                    })}
-                                </ScrollView>
-
-                                {/* WEEKLY MOOD - Mood breakdown / Mood Break game */}
-                                <SoftFadeDivider />
-                                <SectionHeader title={selectedTimeframe === 'week' ? "MOOD BREAK" : "MONTHLY MOOD"} />
-                                {selectedTimeframe === 'week' && (
-                                    <ThemedText style={{ fontSize: 13, color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.35)', marginBottom: 10, marginTop: -4 }}>
-                                        Your week in moods.
-                                    </ThemedText>
-                                )}
-                                {selectedTimeframe === 'week' ? (
-                                    <MoodBreakGame captures={captures} tone={currentTone} isLight={isLight} onRefresh={() => fetchCaptures(user)} />
-                                ) : (
-                                    <MoodChart captures={captures} timeframe={selectedTimeframe} />
-                                )}
+                                <ThemedText style={[styles.sectionDescription, { color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)' }]}>
+                                    Your go-to mood for each part of the day, drawn from everything you've captured. Swipe through the cards to see how your mood shifts from sunrise to night.
+                                </ThemedText>
+                                <MoodByTimeStack timeBuckets={timeBuckets} isLight={isLight} />
 
                                 {/* PATTERN KEYWORDS - AI-driven emotional themes */}
                                 <SoftFadeDivider />
                                 <SectionHeader title="PATTERN KEYWORDS" />
                                 <PatternKeywords />
-
-                                {/* WEEKLY RECAP - Text narrative */}
-                                <SoftFadeDivider />
-                                <SectionHeader title="WEEKLY RECAP" />
-                                <WeeklySummaryCard
-                                    text={aiFreeMode ? null : weeklyText}
-                                    weeklyStats={weeklyStats}
-                                    isGenerating={weeklyStatus === 'loading'}
-                                    onGenerate={() => { if (!aiFreeMode) loadWeeklyInsight(true); }}
-                                    onViewHistory={() => { }}
-                                    flat
-                                    onArchiveFull={() => setIsArchiveFullModalVisible(true)}
-                                    pendingCount={0}
-                                    error={weeklyError as InsightError | null}
-                                />
-                                <MicroDivider width="40%" />
-                                <ObjectOfWeek objectOfWeek={weeklyStats?.objectOfWeek || undefined} flat />
-
-
-                                {/* REFLECTIONS - Tag insights */}
-                                <SectionHeader title="REFLECTIONS" />
-                                {!aiFreeMode ? (
-                                    <TagReflections
-                                        tags={topTags}
-                                        onGenerateTagInsight={handleGenerateTagInsight}
-                                        generatedInsight={generatedTagInsight}
-                                        loading={loadingTagInsight}
-                                        onClose={() => setGeneratedTagInsight(null)}
-                                        flat
-                                        onArchiveFull={() => setIsArchiveFullModalVisible(true)}
-                                    />
-                                ) : (
-                                    <ThemedText style={[styles.insightMutedText, { color: onBgTextSecondary }]}>
-                                        AI-Free mode is on, so tag reflections are disabled.
-                                    </ThemedText>
-                                )}
-
-                                {/* ARCHIVE - Quiet, secondary placement */}
-                                <SoftFadeDivider />
-                                <TouchableOpacity
-                                    activeOpacity={0.8}
-                                    onPress={() => router.push('/archive')}
-                                    style={styles.archiveRow}
-                                >
-                                    <View style={styles.archiveContent}>
-                                        <View>
-                                            <ThemedText type="defaultSemiBold" style={[styles.archiveTitle, { color: onBgText }]}>Open Archive</ThemedText>
-                                            <ThemedText style={[styles.archiveSubtitle, { color: onBgTextSecondary }]}>Browse all past insights by type</ThemedText>
-                                        </View>
-                                        <Ionicons name="chevron-forward" size={20} color={onBgTextSecondary} />
-                                    </View>
-                                </TouchableOpacity>
-
                             </>
                         )}
                     </>
@@ -1346,73 +1246,11 @@ const styles = StyleSheet.create({
         // color applied via inline override using colors.textTertiary
         letterSpacing: 0.5,
     },
-    // MOOD BY TIME Styles
-    timeOfDayScroll: {
-        marginHorizontal: -16,
-    },
-    timeOfDayScrollContent: {
-        paddingHorizontal: 16,
-        gap: 12,
-    },
-    timeOfDayCard: {
-        width: 150,
-        padding: 16,
-        borderRadius: 16,
-        gap: 10,
-        overflow: 'hidden',
-    },
-    timeOfDayHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    timeOfDayLabel: {
-        fontSize: 10,
-        fontWeight: '600',
-        letterSpacing: 1,
-        color: 'rgba(255,255,255,0.8)',
-    },
-    timeOfDayMood: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#fff',
-    },
-    timeOfDayBottom: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginTop: 4,
-    },
-    timeOfDayOrb: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.24)',
-        overflow: 'hidden',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    timeOrbGrain: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-    } as any,
-    timeOrbSplash: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        opacity: 0.3,
-    },
-    timeOrbStreak: {
-        position: 'absolute',
-        width: 1.5,
-        height: 14,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        transform: [{ rotate: '35deg' }],
-    },
-    timeOfDayMeta: {
-        fontSize: 11,
-        fontWeight: '500',
-        color: 'rgba(255,255,255,0.6)',
+    // Section description (intro copy under a SectionHeader)
+    sectionDescription: {
+        fontSize: 13,
+        lineHeight: 19,
+        marginTop: -4,
+        marginBottom: 14,
     },
 });

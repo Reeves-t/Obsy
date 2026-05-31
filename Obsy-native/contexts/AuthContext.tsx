@@ -5,6 +5,7 @@ import { useRouter, useSegments } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { initializeMoodStore } from '@/lib/customMoodStore';
 import { moodCache } from '@/lib/moodCache';
+import { useHabitGoalStore } from '@/lib/habitGoalStore';
 
 type AuthContextType = {
     session: Session | null;
@@ -49,6 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // Initialize mood cache for reliable mood resolution
             moodCache.fetchAllMoods(session?.user?.id ?? null);
+
+            // Hydrate habits/goals from the cloud (non-blocking; local is fallback)
+            useHabitGoalStore.getState().hydrateFromCloud(session?.user?.id ?? null);
         };
 
         fetchSession();
@@ -64,6 +68,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 // Re-initialize mood cache when auth state changes
                 moodCache.fetchAllMoods(session?.user?.id ?? null);
+
+                // Re-hydrate habits/goals on login/logout/refresh
+                useHabitGoalStore.getState().hydrateFromCloud(session?.user?.id ?? null);
             }
         );
 
