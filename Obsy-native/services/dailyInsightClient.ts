@@ -1,6 +1,14 @@
 import { supabase } from '@/lib/supabase';
 import { CaptureData } from '@/lib/captureData';
 
+// Lightweight habit/goal context handed to the insight model so it can reference
+// the user's completed / unfinished commitments for the period.
+export interface HabitGoalContext {
+  title: string;
+  type: 'habit' | 'goal';
+  completed: boolean;
+}
+
 export interface DailyInsightResponse {
   ok: boolean;
   text?: string;
@@ -18,6 +26,7 @@ export async function callDaily(
   captures: CaptureData[],
   tone: string,
   customTonePrompt?: string,
+  habitGoals?: HabitGoalContext[],
 ): Promise<DailyInsightResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const session = sessionData.session;
@@ -34,7 +43,7 @@ export async function callDaily(
 
   try {
     const response = await supabase.functions.invoke('generate-daily-insight', {
-      body: { dateLabel, captures, tone, customTonePrompt },
+      body: { dateLabel, captures, tone, customTonePrompt, habitGoals },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 

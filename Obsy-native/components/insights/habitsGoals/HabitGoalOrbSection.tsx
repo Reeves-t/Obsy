@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text, Pressable, PanResponder, PanResponderInstance, LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, Text, Pressable, PanResponder, PanResponderInstance, LayoutChangeEvent, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { HabitGoalOrb } from './HabitGoalOrb';
 import { HabitGoalCreateModal } from './HabitGoalCreateModal';
 import { HabitGoalConfirmModal } from './HabitGoalConfirmModal';
+import { HabitGoalDetailsList } from './HabitGoalDetailsList';
 import { useHabitOrbPhysics } from './useHabitOrbPhysics';
 import { useHabitGoalStore, HabitGoalFrequency } from '@/lib/habitGoalStore';
 
@@ -14,6 +16,10 @@ interface HabitGoalOrbSectionProps {
 }
 
 const BOX_HEIGHT = 210;
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSectionProps) {
     const { isLight } = useObsyTheme();
@@ -32,6 +38,12 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
     const [creating, setCreating] = useState(false);
     const [confirmId, setConfirmId] = useState<string | null>(null);
     const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [showDetails, setShowDetails] = useState(false);
+
+    const toggleDetails = () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setShowDetails((v) => !v);
+    };
 
     // Reset stale completion state when the screen regains focus (handles day/week rollover).
     useEffect(() => {
@@ -129,14 +141,33 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
             <View style={[styles.dividerLine, { backgroundColor: lineColor }]} />
             <View style={styles.header}>
                 <Text style={[styles.headerTitle, { color: labelColor }]}>HABITS &amp; GOALS</Text>
-                <Pressable
-                    style={[styles.plusBtn, { borderColor: lineColor, backgroundColor: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.08)' }]}
-                    onPress={() => setCreating(true)}
-                    hitSlop={8}
-                    accessibilityLabel={`New ${frequency} habit or goal`}
-                >
-                    <Text style={[styles.plusGlyph, { color: isLight ? 'rgba(0,0,0,0.7)' : '#fff' }]}>+</Text>
-                </Pressable>
+                <View style={styles.headerActions}>
+                    {myItems.length > 0 && (
+                        <Pressable
+                            style={[styles.detailsBtn, { borderColor: lineColor, backgroundColor: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.08)' }]}
+                            onPress={toggleDetails}
+                            hitSlop={8}
+                            accessibilityLabel={showDetails ? 'Hide details' : 'Show details'}
+                        >
+                            <Text style={[styles.detailsLabel, { color: isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.6)' }]}>
+                                Details
+                            </Text>
+                            <Ionicons
+                                name={showDetails ? 'chevron-up' : 'chevron-down'}
+                                size={13}
+                                color={isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.6)'}
+                            />
+                        </Pressable>
+                    )}
+                    <Pressable
+                        style={[styles.plusBtn, { borderColor: lineColor, backgroundColor: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.08)' }]}
+                        onPress={() => setCreating(true)}
+                        hitSlop={8}
+                        accessibilityLabel={`New ${frequency} habit or goal`}
+                    >
+                        <Text style={[styles.plusGlyph, { color: isLight ? 'rgba(0,0,0,0.7)' : '#fff' }]}>+</Text>
+                    </Pressable>
+                </View>
             </View>
 
             {/* Floating area */}
@@ -193,6 +224,11 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
                 )}
             </View>
 
+            {/* Metadata dropdown */}
+            {showDetails && myItems.length > 0 && (
+                <HabitGoalDetailsList items={myItems} isLight={isLight} onPressItem={(id) => setConfirmId(id)} />
+            )}
+
             <HabitGoalCreateModal
                 visible={creating}
                 defaultFrequency={frequency}
@@ -236,6 +272,24 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 1.8,
         textTransform: 'uppercase',
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    detailsBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        height: 30,
+        paddingHorizontal: 12,
+        borderRadius: 15,
+        borderWidth: 1,
+    },
+    detailsLabel: {
+        fontSize: 12,
+        fontWeight: '500',
     },
     plusBtn: {
         width: 30,

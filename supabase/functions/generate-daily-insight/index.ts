@@ -21,11 +21,18 @@ interface CaptureData {
   shared_link_title?: string | null;
 }
 
+interface HabitGoalContext {
+  title: string;
+  type: "habit" | "goal";
+  completed: boolean;
+}
+
 interface DailyInsightRequest {
   dateLabel?: string;
   captures?: CaptureData[];
   tone?: string;
   customTonePrompt?: string;
+  habitGoals?: HabitGoalContext[];
 }
 
 interface SuccessResponse {
@@ -259,6 +266,7 @@ serve(async (req) => {
       dateLabel: body.dateLabel ?? "Today",
       captures,
       toneStyle: resolveToneStyle(tone, body.customTonePrompt),
+      habitGoals: Array.isArray(body.habitGoals) ? body.habitGoals : [],
     });
 
     let sanitized = "";
@@ -330,7 +338,20 @@ function resolveToneStyle(tone: string, customPrompt?: string): string {
   return TONE_STYLES[tone] ?? TONE_STYLES.neutral;
 }
 
-function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; toneStyle: string }): string {
+function buildHabitGoalSection(habitGoals: HabitGoalContext[]): string[] {
+  if (!habitGoals || habitGoals.length === 0) return [];
+  const done = habitGoals.filter((h) => h.completed).map((h) => h.title);
+  const open = habitGoals.filter((h) => !h.completed).map((h) => h.title);
+  return [
+    "",
+    "COMMITMENTS (personal intentions the user set for themselves for the day):",
+    `- Followed through on: ${done.length ? done.join(", ") : "none"}`,
+    `- Still open: ${open.length ? open.join(", ") : "none"}`,
+    "Treat these as real intentions, not app data. If any were followed through, you may acknowledge the follow-through woven naturally into the day (e.g., \"you made time for your morning walk\"). If some were left open, you may note it gently, never as a scolding. Do NOT use the words habit, goal, task, tracker, checklist, or app. Only reference these if they fit the day's emotional arc; never list them mechanically or force them in.",
+  ];
+}
+
+function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; toneStyle: string; habitGoals: HabitGoalContext[] }): string {
   const lines = input.captures.map((c) => {
     const time = c.localTimeLabel ??
       new Date(c.capturedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -371,6 +392,7 @@ function buildDailyPrompt(input: { dateLabel: string; captures: CaptureData[]; t
     "",
     "CAPTURES (chronological order):",
     lines.join("\n"),
+    ...buildHabitGoalSection(input.habitGoals),
     "",
     paragraphGuidance,
     "Focus on the day's key moments and moods, not a complete recap.",

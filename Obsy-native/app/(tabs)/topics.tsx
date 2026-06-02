@@ -6,12 +6,16 @@ import Animated, {
     useAnimatedStyle,
     withTiming,
     withSpring,
+    withDelay,
+    interpolate,
+    Extrapolation,
+    Easing,
 } from 'react-native-reanimated';
 
 import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { TopicOrb } from '@/components/topics/TopicOrb';
 import { FocusRing } from '@/components/topics/FocusRing';
-import { MetaPanel } from '@/components/topics/MetaPanel';
+import { TopicFocusPager } from '@/components/topics/focus/TopicFocusPager';
 import { CreateTopicModal } from '@/components/topics/CreateTopicModal';
 import {
     useGardenPhysics,
@@ -23,6 +27,18 @@ import { UploadPickerSheet } from '@/components/topics/UploadPickerSheet';
 import { useTopicStore } from '@/lib/topicStore';
 
 const SCREEN_W = Dimensions.get('window').width;
+
+// ── Focus-mode orb "dock" intro ───────────────────────────────
+// On focus open the big orb appears centred in the ring, then flies up into the
+// top-left corner where the embedded MetaPanel header orb sits — so Observe ends
+// up reading like the Discover / Evolve pages. Target ≈ that small orb's centre.
+const RING_CENTER_X = SCREEN_W / 2;
+const RING_CENTER_Y = FOCUS_RING.topOffset + FOCUS_RING.size / 2;
+const DOCK_CENTER_X = 41; // page padding (18) + titleRow padding (4) + orb radius (19)
+const DOCK_CENTER_Y = 72; // pager page-0 top inset (52) + orb radius (~20)
+const DOCK_DX = DOCK_CENTER_X - RING_CENTER_X;
+const DOCK_DY = DOCK_CENTER_Y - RING_CENTER_Y;
+const DOCK_SCALE = 0.27; // 140px hero orb → ~38px header orb
 
 // ── Velocity tracker for flick detection ──────────────────────
 
@@ -67,22 +83,39 @@ export default function TopicsScreen() {
         }
     }, [topics.length]);
 
-    // Snap-in animation for focused orb
+    // Focus-mode orb intro: snap-in at centre, then dock into the top-left corner.
     const snapScale = useSharedValue(1);
     const snapOpacity = useSharedValue(1);
+    const dock = useSharedValue(0); // 0 = centred hero, 1 = docked in the corner
 
     useEffect(() => {
         if (focusedId) {
             snapScale.value = 0.4;
             snapOpacity.value = 0;
             snapScale.value = withSpring(1, { damping: 14, stiffness: 120 });
-            snapOpacity.value = withTiming(1, { duration: 400 });
+            snapOpacity.value = withTiming(1, { duration: 320 });
+            // Hold a beat at centre, then fly into the corner.
+            dock.value = 0;
+            dock.value = withDelay(
+                320,
+                withTiming(1, { duration: 520, easing: Easing.bezier(0.22, 1, 0.36, 1) }),
+            );
+        } else {
+            dock.value = 0;
+            snapScale.value = 1;
+            snapOpacity.value = 1;
         }
     }, [focusedId]);
 
-    const snapStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: snapScale.value }],
-        opacity: snapOpacity.value,
+    // Whole ring+orb appears, then translates + shrinks into the corner and
+    // dissolves — handing identity off to the embedded MetaPanel header orb.
+    const orbIntroStyle = useAnimatedStyle(() => ({
+        opacity: snapOpacity.value * interpolate(dock.value, [0.15, 0.6], [1, 0], Extrapolation.CLAMP),
+        transform: [
+            { translateX: dock.value * DOCK_DX },
+            { translateY: dock.value * DOCK_DY },
+            { scale: snapScale.value * (1 + dock.value * (DOCK_SCALE - 1)) },
+        ],
     }));
 
     // Focused topic data
@@ -273,17 +306,20 @@ export default function TopicsScreen() {
 
                 {/* Focus ring (when topics exist) */}
                 {topics.length > 0 && (
-                    <View style={styles.focusRingWrap}>
+                    <Animated.View
+                        style={[styles.focusRingWrap, orbIntroStyle]}
+                        pointerEvents={focusedTopic ? 'none' : 'auto'}
+                    >
                         <FocusRing active={!!focusedTopic}>
                             {focusedTopic ? (
-                                <Animated.View style={[styles.focusedOrbWrap, snapStyle]}>
+                                <View style={styles.focusedOrbWrap}>
                                     <TopicOrb size={140} title={focusedTopic.title} selected />
-                                </Animated.View>
+                                </View>
                             ) : (
                                 <Text style={styles.focusLabel}>FOCUS</Text>
                             )}
                         </FocusRing>
-                    </View>
+                    </Animated.View>
                 )}
 
                 {/* Hint text */}
@@ -298,9 +334,9 @@ export default function TopicsScreen() {
                 {/* Orbs (rendered at screen level for free dragging) */}
                 {topics.length > 0 && !focusedTopic && renderOrbs()}
 
-                {/* Meta panel (when focused) */}
+                {/* Focus pager (when focused): Observe · Discover · Evolve */}
                 {focusedTopic && focusedStats && (
-                    <MetaPanel
+                    <TopicFocusPager
                         topic={focusedTopic}
                         stats={focusedStats}
                         onClose={() => setFocusedId(null)}

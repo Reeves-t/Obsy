@@ -19,6 +19,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
 import { TopicInsightModal } from '@/components/topics/TopicInsightModal';
 import { MissingGapsModal } from '@/components/topics/MissingGapsModal';
+import { TopicOrb } from '@/components/topics/TopicOrb';
 import * as Haptics from 'expo-haptics';
 
 interface MetaPanelProps {
@@ -28,6 +29,11 @@ interface MetaPanelProps {
     onAddEntry?: () => void;
     onAskObsy?: () => void;
     onBrowseEntries?: () => void;
+    /**
+     * When true, fills its parent (flex) instead of absolutely positioning
+     * itself below the focus ring — used as page 0 of the Focus Mode pager.
+     */
+    embedded?: boolean;
 }
 
 // ── Trend helpers ─────────────────────────────────────────────
@@ -325,7 +331,7 @@ function NoteItem({ note, onRemove }: { note: TopicNote; onRemove: (id: string) 
 
 // ── Main panel ────────────────────────────────────────────────
 
-export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrowseEntries }: MetaPanelProps) {
+export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrowseEntries, embedded }: MetaPanelProps) {
     const trendColor = getTrendColor(stats.moodTrend);
     const trendArrow = getTrendArrow(stats.moodTrend);
     const moodDisplay = stats.moodAvg > 0 ? stats.moodAvg.toFixed(1) : '—';
@@ -392,7 +398,7 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
     }));
 
     return (
-        <Animated.View style={[styles.container, animatedStyle]}>
+        <Animated.View style={[styles.container, embedded && styles.containerEmbedded, animatedStyle]}>
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
@@ -400,6 +406,11 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
             >
                 {/* ── Title row ── */}
                 <View style={styles.titleRow}>
+                    {embedded && (
+                        <View style={styles.headerOrb}>
+                            <TopicOrb size={38} title="" selected />
+                        </View>
+                    )}
                     <View style={{ flex: 1 }}>
                         <View style={styles.titleChipRow}>
                             <Text style={styles.topicTitle}>{topic.title}</Text>
@@ -610,6 +621,14 @@ const styles = StyleSheet.create({
         right: 18,
         bottom: 0,
     },
+    containerEmbedded: {
+        position: 'relative',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        flex: 1,
+    },
     scroll: {
         flex: 1,
     },
@@ -626,6 +645,9 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: 12,
         paddingHorizontal: 4,
+    },
+    headerOrb: {
+        marginTop: -1,
     },
     titleChipRow: {
         flexDirection: 'row',

@@ -19,6 +19,12 @@ interface HabitGoalCreateModalProps {
     defaultFrequency: HabitGoalFrequency;
     onClose: () => void;
     onSave: (input: NewHabitGoal) => void;
+    // Optional prefill — used when opening from an AI suggestion (e.g. the Topics
+    // Evolve page). When omitted, the modal opens blank as before.
+    initialType?: HabitGoalType;
+    initialTitle?: string;
+    initialNote?: string;
+    initialLinkedTopicId?: string;
 }
 
 // ── Small inline segmented control ───────────────────────────
@@ -49,7 +55,16 @@ function Segmented<T extends string>({
     );
 }
 
-export function HabitGoalCreateModal({ visible, defaultFrequency, onClose, onSave }: HabitGoalCreateModalProps) {
+export function HabitGoalCreateModal({
+    visible,
+    defaultFrequency,
+    onClose,
+    onSave,
+    initialType,
+    initialTitle,
+    initialNote,
+    initialLinkedTopicId,
+}: HabitGoalCreateModalProps) {
     const topics = useTopicStore((s) => s.topics);
 
     const [type, setType] = useState<HabitGoalType>('habit');
@@ -58,16 +73,16 @@ export function HabitGoalCreateModal({ visible, defaultFrequency, onClose, onSav
     const [linkedTopicId, setLinkedTopicId] = useState<string | undefined>(undefined);
     const [note, setNote] = useState('');
 
-    // Reset fields whenever the sheet opens.
+    // Reset fields whenever the sheet opens, seeding from any prefill props.
     useEffect(() => {
         if (visible) {
-            setType('habit');
-            setTitle('');
+            setType(initialType ?? 'habit');
+            setTitle(initialTitle ?? '');
             setFrequency(defaultFrequency);
-            setLinkedTopicId(undefined);
-            setNote('');
+            setLinkedTopicId(initialLinkedTopicId);
+            setNote(initialNote ?? '');
         }
-    }, [visible, defaultFrequency]);
+    }, [visible, defaultFrequency, initialType, initialTitle, initialNote, initialLinkedTopicId]);
 
     const canSave = title.trim().length > 0;
 

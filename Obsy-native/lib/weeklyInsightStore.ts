@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { Capture } from '@/types/capture';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
 import { callWeekly } from '@/services/weeklyInsightClient';
+import type { HabitGoalContext } from '@/services/dailyInsightClient';
+import { getHabitGoalSummary } from '@/lib/habitGoalStore';
 import { getCapturesForWeek, CaptureData } from '@/lib/captureData';
 import { getMoodLabel } from '@/lib/moodUtils';
 import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
@@ -250,7 +252,15 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
                 tone
             });
 
-            const response = await callWeekly(weekLabel, captureData, tone, customTonePrompt);
+            // Include this week's habits/goals so the recap can reference what the
+            // user followed through on (or left open) for the week.
+            const habitGoals: HabitGoalContext[] = getHabitGoalSummary('weekly').items.map((i) => ({
+                title: i.title,
+                type: i.type,
+                completed: i.isCompleted,
+            }));
+
+            const response = await callWeekly(weekLabel, captureData, tone, customTonePrompt, habitGoals);
 
             if (response.ok && response.text) {
                 set({

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { Capture } from '@/types/capture';
 import { getLocalDayKey } from '@/lib/utils';
-import { callDaily } from '@/services/dailyInsightClient';
+import { callDaily, HabitGoalContext } from '@/services/dailyInsightClient';
+import { getHabitGoalSummary } from '@/lib/habitGoalStore';
 import { getCapturesForDaily, CaptureData } from '@/lib/captureData';
 import { getMoodLabel } from '@/lib/moodUtils';
 import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
@@ -230,7 +231,15 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
                 day: 'numeric',
             });
 
-            const response = await callDaily(dateLabel, captureData, tone, customTonePrompt);
+            // Include today's habits/goals so the insight can reference what the
+            // user followed through on (or left open) for the day.
+            const habitGoals: HabitGoalContext[] = getHabitGoalSummary('daily').items.map((i) => ({
+                title: i.title,
+                type: i.type,
+                completed: i.isCompleted,
+            }));
+
+            const response = await callDaily(dateLabel, captureData, tone, customTonePrompt, habitGoals);
 
             if (response.ok && response.text) {
                 // Save mood_flow data to database if present

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { CaptureData } from '@/lib/captureData';
+import type { HabitGoalContext } from '@/services/dailyInsightClient';
 
 export interface WeeklyInsightResponse {
   ok: boolean;
@@ -17,6 +18,7 @@ export async function callWeekly(
   captures: CaptureData[],
   tone: string,
   customTonePrompt?: string,
+  habitGoals?: HabitGoalContext[],
 ): Promise<WeeklyInsightResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const session = sessionData.session;
@@ -35,7 +37,7 @@ export async function callWeekly(
     const payloadSize = JSON.stringify({ weekLabel, captures, tone, customTonePrompt }).length;
     console.log('[WEEKLY_INVOKE_START] body size:', payloadSize, 'captures:', captures?.length);
     const response = await supabase.functions.invoke('generate-weekly-insight', {
-      body: { weekLabel, captures, tone, customTonePrompt },
+      body: { weekLabel, captures, tone, customTonePrompt, habitGoals },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
     console.log('[WEEKLY_INVOKE_RESPONSE]', { hasError: !!response.error, data: response.data, error: response.error });

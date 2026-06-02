@@ -10,32 +10,20 @@ interface HabitGoalOrbProps {
     completed?: boolean;
 }
 
-// Soft completed tone — calm green, not a "success checkmark".
-const COMPLETE_GREEN = '#5fd6a0';
+// Dark-ish green gradient painted into the orb body when completed.
+const COMPLETE_GRADIENT: readonly [string, string, string] = [
+    'rgba(30, 78, 56, 0.78)',
+    'rgba(18, 54, 39, 0.82)',
+    'rgba(9, 34, 25, 0.88)',
+];
 
-export function HabitGoalOrb({ size, title, type, completed = false }: HabitGoalOrbProps) {
+export function HabitGoalOrb({ size, title, completed = false }: HabitGoalOrbProps) {
     const fontSize = Math.max(9, Math.min(14, size * 0.16));
     const shellSize = Math.max(1, size - 8);
 
     return (
         <View style={[styles.root, { width: size, height: size }]}>
-            {/* Completed glow — a soft green halo behind the orb */}
-            {completed && (
-                <View
-                    style={[
-                        styles.halo,
-                        {
-                            top: -size * 0.22,
-                            left: -size * 0.22,
-                            width: size * 1.44,
-                            height: size * 1.44,
-                            borderRadius: size * 0.72,
-                        },
-                    ]}
-                />
-            )}
-
-            <CTAOrbShell size={shellSize} dim={!completed}>
+            <CTAOrbShell size={shellSize} dim={!completed} overlayColors={completed ? COMPLETE_GRADIENT : undefined}>
                 <Text
                     style={[
                         styles.title,
@@ -50,18 +38,6 @@ export function HabitGoalOrb({ size, title, type, completed = false }: HabitGoal
                 >
                     {title}
                 </Text>
-
-                {/* Tiny type marker — goals get a hollow ring, habits a filled dot */}
-                <View
-                    style={[
-                        styles.typeDot,
-                        {
-                            borderWidth: type === 'goal' ? 1.5 : 0,
-                            backgroundColor: type === 'goal' ? 'transparent' : completed ? COMPLETE_GREEN : 'rgba(255,255,255,0.28)',
-                            borderColor: completed ? COMPLETE_GREEN : 'rgba(255,255,255,0.28)',
-                        },
-                    ]}
-                />
             </CTAOrbShell>
         </View>
     );
@@ -72,14 +48,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    halo: {
-        position: 'absolute',
-        backgroundColor: 'rgba(95,214,160,0.14)',
-        shadowColor: COMPLETE_GREEN,
-        shadowOpacity: 0.5,
-        shadowRadius: 18,
-        shadowOffset: { width: 0, height: 0 },
-    },
     title: {
         fontWeight: '500',
         letterSpacing: 0.1,
@@ -87,14 +55,6 @@ const styles = StyleSheet.create({
         textShadowColor: 'rgba(0,0,0,0.6)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 2,
-        zIndex: 2,
-    },
-    typeDot: {
-        position: 'absolute',
-        bottom: 9,
-        width: 6,
-        height: 6,
-        borderRadius: 3,
         zIndex: 2,
     },
 });

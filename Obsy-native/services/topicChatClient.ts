@@ -6,6 +6,12 @@ import type { TopicAttachment } from '@/services/topicAttachments';
 import { getToneDefinition, isPresetTone, type AiToneId } from '@/lib/aiTone';
 import { getCustomToneById } from '@/lib/customTone';
 import { buildTopicDigest } from '@/services/topicContentDigest';
+import type {
+    DiscoverPayload,
+    EvolvePayload,
+    GoalHabitSuggestion,
+} from '@/lib/topicAiTypes';
+import { parseJsonFromText, coerceDiscover, coerceEvolve, coerceSuggestions } from '@/lib/topicAiParse';
 
 export interface TopicChatResponse {
     ok: boolean;
@@ -224,4 +230,160 @@ export async function generateMissingGaps(ctx: TopicContext): Promise<TopicChatR
             '\n' +
             'Output the analysis now.',
     );
+}
+
+// ── Structured generation (Discover / Evolve / Goal suggestions) ─────────
+//
+// These power the new Focus Mode pages. The deployed `moodverse-explain` edge
+// function only returns free-form `{ text }`, so each function asks the model
+// for strict JSON in the contextSuffix and parses it client-side (same spirit
+// as parseGapsOutput in MissingGapsModal). All output is coerced defensively.
+
+export interface TopicGenResult<T> {
+    ok: boolean;
+    data?: T;
+    error?: { stage: string; message: string; status: number };
+}
+
+const PARSE_ERROR = { stage: 'parse', message: 'Could not parse AI response', status: 500 };
+
+// ── Discover (page 2) ────────────────────────────────────────────────────
+
+export async function generateTopicDiscover(
+    ctx: TopicContext,
+    otherTopicTitles: string[] = [],
+): Promise<TopicGenResult<DiscoverPayload>> {
+    const tone = await resolveToneStyle(ctx.topic.toneId);
+    const others = otherTopicTitles.filter(Boolean).slice(0, 10);
+    const connectionsHint = others.length
+        ? `You may also note links to the user's other topics by name when genuinely related: ${others
+              .map((t) => `"${t}"`)
+              .join(', ')}. Phrase like "This connects with your Fitness topic through discipline."`
+        : "Only surface connections within this topic's own entries and ideas.";
+
+    const askMessage: ChatMessage = {
+        id: `discover-req-${Date.now()}`,
+        role: 'user',
+        text: `Produce the Discover awareness analysis for my "${ctx.topic.title}" topic now.`,
+    };
+
+    const result = await invokeMoodverseExplain(
+        ctx,
+        [{ role: askMessage.role, text: askMessage.text }],
+        'TONE:\n' +
+            `Voice: ${tone.label}.\n` +
+            tone.guidelines +
+            '\n\nDISCOVER MODE — STRUCTURED AWARENESS:\n' +
+            `Analyze the user's "${ctx.topic.title}" topic as a flexible awareness space. It may be a goal, a creative pursuit, a personal/relationship theme, a learning area, or something else — it is NOT necessarily about productivity.\n` +
+            'First infer the topic ARCHETYPE from its title, description and entries:\n' +
+            '  goal — an outcome the user is working toward\n' +
+            '  creative — making, exploring, ideas\n' +
+            '  personal — self, relationships, emotions, identity\n' +
+            '  learning — studying, concepts, knowledge\n' +
+            '  other — anything else\n' +
+            '\nThen produce, grounded strictly in the data above:\n' +
+            '- corePattern: the single strongest observation about this topic (1-2 sentences, specific not generic).\n' +
+            '- themes: 3-6 short recurring themes (1-3 words each), e.g. Growth, Creativity, Discipline.\n' +
+            '- perspectives: 3-4 reflective prompts that ADAPT to the archetype. Do NOT always generate tasks.\n' +
+            '    goal → what steps are unclear / what is blocking progress\n' +
+            '    creative → which ideas deserve deeper exploration\n' +
+            '    personal → what patterns are worth observing\n' +
+            '    learning → what concepts could connect together\n' +
+            `- connections: 2-4 relationships between entries or ideas. ${connectionsHint}\n` +
+            '\nOUTPUT — JSON ONLY. No markdown, no code fences, no preamble:\n' +
+            '{"archetype":"goal|creative|personal|learning|other","corePattern":"...","themes":["..."],"perspectives":["..."],"connections":["..."]}\n' +
+            'Use an empty array for any field without enough grounded material. Output only the JSON object.',
+    );
+
+    if (!result.ok) return { ok: false, error: result.error };
+    const data = coerceDiscover(parseJsonFromText(result.text));
+    if (!data) return { ok: false, error: PARSE_ERROR };
+    return { ok: true, data };
+}
+
+// ── Evolve (page 3) ──────────────────────────────────────────────────────
+
+export async function generateTopicEvolve(ctx: TopicContext): Promise<TopicGenResult<EvolvePayload>> {
+    const tone = await resolveToneStyle(ctx.topic.toneId);
+
+    const askMessage: ChatMessage = {
+        id: `evolve-req-${Date.now()}`,
+        role: 'user',
+        text: `Produce the Evolve direction analysis for my "${ctx.topic.title}" topic now.`,
+    };
+
+    const result = await invokeMoodverseExplain(
+        ctx,
+        [{ role: askMessage.role, text: askMessage.text }],
+        'TONE:\n' +
+            `Voice: ${tone.label}.\n` +
+            tone.guidelines +
+            '\n\nEVOLVE MODE — REFLECTION INTO DIRECTION:\n' +
+            `Analyze the user's "${ctx.topic.title}" topic as a flexible awareness space (not necessarily a productivity goal). Ground everything strictly in the data above.\n` +
+            '\nProduce:\n' +
+            '- journey: how the thinking has progressed. {started, current, emerging} — each a short phrase or sentence.\n' +
+            '    started: where this topic began (earliest entries / original intent)\n' +
+            "    current: where the user's attention is now\n" +
+            '    emerging: what seems to be forming next\n' +
+            '- realizations: 1-4 important moments detected from entries. Each {date, text}. date is a short label from the entry (e.g. "May 23") or "" if unknown; text is the realization (1 sentence).\n' +
+            '- openThreads: 1-4 unfinished thoughts or things mentioned but not explored. NOT always tasks. e.g. "You mentioned marketing several times but haven\'t explored launch strategy."\n' +
+            '- suggestions: 1-2 concrete ways to act on this awareness, grounded in the topic — ideally one DAILY habit and one WEEKLY goal. Each {type:"habit"|"goal", frequency:"daily"|"weekly", title (max ~8 words), note (optional one-line reason)}. Avoid generic advice.\n' +
+            '\nOUTPUT — JSON ONLY. No markdown, no code fences, no preamble:\n' +
+            '{"journey":{"started":"...","current":"...","emerging":"..."},"realizations":[{"date":"...","text":"..."}],"openThreads":["..."],"suggestions":[{"type":"habit","frequency":"daily","title":"...","note":"..."}]}\n' +
+            'Use empty strings / empty arrays where there is not enough grounded material. Output only the JSON object.',
+    );
+
+    if (!result.ok) return { ok: false, error: result.error };
+    const data = coerceEvolve(parseJsonFromText(result.text));
+    if (!data) return { ok: false, error: PARSE_ERROR };
+    return { ok: true, data };
+}
+
+// ── Goal / Habit suggestions (Evolve CTA) ────────────────────────────────
+
+export async function suggestTopicGoalHabit(
+    ctx: TopicContext,
+    changeRequest?: string,
+    previous?: GoalHabitSuggestion,
+): Promise<TopicGenResult<GoalHabitSuggestion[]>> {
+    const isRevision = !!(changeRequest && previous);
+
+    const askMessage: ChatMessage = {
+        id: `goalhabit-req-${Date.now()}`,
+        role: 'user',
+        text: isRevision
+            ? `Revise the goal/habit suggestion for my "${ctx.topic.title}" topic.`
+            : `Suggest goals/habits for my "${ctx.topic.title}" topic now.`,
+    };
+
+    const reviseBlock = isRevision
+        ? '\nREVISION REQUEST:\n' +
+          `The user wants to change this suggestion: ${JSON.stringify(previous)}.\n` +
+          `Their request: "${changeRequest}".\n` +
+          'Return exactly ONE updated suggestion honoring the request, still grounded in this topic.\n'
+        : '';
+
+    const result = await invokeMoodverseExplain(
+        ctx,
+        [{ role: askMessage.role, text: askMessage.text }],
+        'GROW FROM TOPIC — GOAL/HABIT SUGGESTION:\n' +
+            `Based strictly on the "${ctx.topic.title}" topic data above (name, description, entries, patterns, intention), suggest concrete ways to act on this awareness.\n` +
+            'Decide for each whether it fits better as a DAILY habit or a WEEKLY goal — propose one of each when both fit.\n' +
+            "Avoid generic advice. Each suggestion MUST come from this topic's actual context.\n" +
+            (isRevision ? '' : 'Return up to 2 suggestions (ideally one daily habit and one weekly goal).\n') +
+            'Each suggestion:\n' +
+            '- type: "habit" (recurring action) or "goal" (outcome)\n' +
+            '- frequency: "daily" or "weekly"\n' +
+            '- title: short, concrete, actionable (max ~8 words)\n' +
+            '- note: optional one-line reason it matters\n' +
+            reviseBlock +
+            '\nOUTPUT — JSON ONLY. No markdown, no preamble:\n' +
+            '{"suggestions":[{"type":"habit","frequency":"daily","title":"...","note":"..."}]}\n' +
+            'Output only the JSON object.',
+    );
+
+    if (!result.ok) return { ok: false, error: result.error };
+    const data = coerceSuggestions(parseJsonFromText(result.text));
+    if (!data) return { ok: false, error: PARSE_ERROR };
+    return { ok: true, data };
 }

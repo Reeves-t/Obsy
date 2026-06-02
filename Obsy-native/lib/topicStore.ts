@@ -5,6 +5,7 @@ import * as Crypto from 'expo-crypto';
 import { useCaptureStore } from './captureStore';
 import { getMoodTheme } from './moods';
 import { MoodSegment } from './dailyMoodFlows';
+import type { DiscoverPayload, EvolvePayload, TopicAiCacheEntry } from './topicAiTypes';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -237,6 +238,10 @@ function computeStatsForTopic(topicId: string): TopicStats {
 type TopicState = {
     topics: Topic[];
     topicNotes: TopicNote[];
+    // Cached AI output for the Discover / Evolve focus pages, keyed by topicId.
+    // Persisted so pages render instantly and don't re-burn AI on every swipe.
+    discoverCache: Record<string, TopicAiCacheEntry<DiscoverPayload>>;
+    evolveCache: Record<string, TopicAiCacheEntry<EvolvePayload>>;
     addTopic: (title: string, description: string) => string;
     removeTopic: (id: string) => void;
     updateTopicTone: (topicId: string, toneId: string) => void;
@@ -244,6 +249,10 @@ type TopicState = {
     addTopicNote: (topicId: string, text: string, kind?: TopicNoteKind) => void;
     removeTopicNote: (noteId: string) => void;
     getTopicNotes: (topicId: string) => TopicNote[];
+    setDiscover: (topicId: string, data: DiscoverPayload) => void;
+    getDiscover: (topicId: string) => TopicAiCacheEntry<DiscoverPayload> | undefined;
+    setEvolve: (topicId: string, data: EvolvePayload) => void;
+    getEvolve: (topicId: string) => TopicAiCacheEntry<EvolvePayload> | undefined;
 };
 
 export const useTopicStore = create<TopicState>()(
@@ -251,6 +260,8 @@ export const useTopicStore = create<TopicState>()(
         (set, get) => ({
             topics: [],
             topicNotes: [],
+            discoverCache: {},
+            evolveCache: {},
 
             addTopic: (title, description) => {
                 const id = Crypto.randomUUID();
@@ -266,7 +277,17 @@ export const useTopicStore = create<TopicState>()(
             },
 
             removeTopic: (id) => {
-                set(state => ({ topics: state.topics.filter(t => t.id !== id) }));
+                set(state => {
+                    const discoverCache = { ...state.discoverCache };
+                    const evolveCache = { ...state.evolveCache };
+                    delete discoverCache[id];
+                    delete evolveCache[id];
+                    return {
+                        topics: state.topics.filter(t => t.id !== id),
+                        discoverCache,
+                        evolveCache,
+                    };
+                });
             },
 
             updateTopicTone: (topicId, toneId) => {
@@ -299,18 +320,49 @@ export const useTopicStore = create<TopicState>()(
             getTopicNotes: (topicId) => {
                 return get().topicNotes.filter(n => n.topicId === topicId);
             },
+
+            setDiscover: (topicId, data) => {
+                set(state => ({
+                    discoverCache: {
+                        ...state.discoverCache,
+                        [topicId]: { data, generatedAt: new Date().toISOString() },
+                    },
+                }));
+            },
+
+            getDiscover: (topicId) => {
+                return get().discoverCache[topicId];
+            },
+
+            setEvolve: (topicId, data) => {
+                set(state => ({
+                    evolveCache: {
+                        ...state.evolveCache,
+                        [topicId]: { data, generatedAt: new Date().toISOString() },
+                    },
+                }));
+            },
+
+            getEvolve: (topicId) => {
+                return get().evolveCache[topicId];
+            },
         }),
         {
             name: 'obsy-topics-storage',
             storage: createJSONStorage(() => AsyncStorage),
-            version: 1,
+            version: 2,
             migrate: (persistedState: any, _fromVersion: number) => {
-                // v0 → v1: baseline; toneId was always optional so no backfill needed
-                return persistedState as { topics: Topic[] };
+                // v0 → v1: baseline; toneId was always optional so no backfill needed.
+                // v1 → v2: added discoverCache / evolveCache — these default to {}
+                // from the store initializer via persist's shallow merge, so no
+                // backfill is required here.
+                return persistedState;
             },
             partialize: (state) => ({
                 topics: state.topics,
                 topicNotes: state.topicNotes,
+                discoverCache: state.discoverCache,
+                evolveCache: state.evolveCache,
             }),
         }
     )

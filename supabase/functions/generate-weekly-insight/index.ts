@@ -22,11 +22,18 @@ interface CaptureData {
   shared_link_title?: string | null;
 }
 
+interface HabitGoalContext {
+  title: string;
+  type: "habit" | "goal";
+  completed: boolean;
+}
+
 interface WeeklyInsightRequest {
   weekLabel?: string;
   captures?: CaptureData[];
   tone?: string;
   customTonePrompt?: string;
+  habitGoals?: HabitGoalContext[];
 }
 
 interface SuccessResponse {
@@ -231,6 +238,7 @@ serve(async (req) => {
       weekLabel: body.weekLabel ?? "This week",
       captures,
       toneStyle: resolveToneStyle(tone, body.customTonePrompt),
+      habitGoals: Array.isArray(body.habitGoals) ? body.habitGoals : [],
     });
 
     console.log(
@@ -296,7 +304,20 @@ function resolveToneStyle(tone: string, customPrompt?: string): string {
   return TONE_STYLES[tone] ?? TONE_STYLES.neutral;
 }
 
-function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; toneStyle: string }): string {
+function buildHabitGoalSection(habitGoals: HabitGoalContext[]): string[] {
+  if (!habitGoals || habitGoals.length === 0) return [];
+  const done = habitGoals.filter((h) => h.completed).map((h) => h.title);
+  const open = habitGoals.filter((h) => !h.completed).map((h) => h.title);
+  return [
+    "",
+    "COMMITMENTS (personal intentions the user set for themselves this week):",
+    `- Followed through on: ${done.length ? done.join(", ") : "none"}`,
+    `- Still open: ${open.length ? open.join(", ") : "none"}`,
+    "Treat these as real intentions, not app data. If any were followed through, you may acknowledge the follow-through as part of the week's emotional arc. If some were left open, you may note it gently, never as a scolding. Do NOT use the words habit, goal, task, tracker, checklist, or app. Only reference these if they fit the week's emotional undercurrents; never list them mechanically.",
+  ];
+}
+
+function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; toneStyle: string; habitGoals: HabitGoalContext[] }): string {
   const grouped = groupByDay(input.captures);
   const dayLines = Object.keys(grouped).sort().map((day) => {
     const lines = grouped[day].map((c) => {
@@ -329,6 +350,7 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
     "",
     "CAPTURES BY DAY (chronological):",
     dayLines,
+    ...buildHabitGoalSection(input.habitGoals),
     "",
     "Identify the 2-3 most notable mood patterns, contrasts, or shifts. Do NOT narrate day by day.",
     "Speak to the user directly about your week and how it felt.",

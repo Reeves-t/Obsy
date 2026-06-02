@@ -6,6 +6,9 @@ import { BlurView } from 'expo-blur';
 interface CTAOrbShellProps {
   size: number;
   dim?: boolean;
+  // Optional accent gradient painted over the default dark tint (e.g. a green
+  // "completed" state). Omit to keep the standard dark orb.
+  overlayColors?: readonly [string, string, ...string[]];
   children: React.ReactNode;
 }
 
@@ -31,7 +34,7 @@ const BEZEL_HI_COLORS = [
 ] as const;
 const BEZEL_HI_LOCATIONS = [0, 0.4, 1] as const;
 
-export function CTAOrbShell({ size, dim = false, children }: CTAOrbShellProps) {
+export function CTAOrbShell({ size, dim = false, overlayColors, children }: CTAOrbShellProps) {
   const ringSize = size + RING_PADDING;
   const innerInset = Math.max(2, size * 0.025);
   const innerSize = ringSize - innerInset * 2;
@@ -108,6 +111,17 @@ export function CTAOrbShell({ size, dim = false, children }: CTAOrbShellProps) {
           style={[StyleSheet.absoluteFillObject, { borderRadius: innerRadius }]}
           pointerEvents="none"
         />
+
+        {/* Optional accent gradient (e.g. completed = dark green) */}
+        {overlayColors && (
+          <LinearGradient
+            colors={overlayColors}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={[StyleSheet.absoluteFillObject, { borderRadius: innerRadius }]}
+            pointerEvents="none"
+          />
+        )}
 
         <View style={styles.content}>{children}</View>
       </View>
