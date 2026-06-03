@@ -170,23 +170,23 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.10)',
     },
     chipText: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: '600',
         letterSpacing: 0.5,
         textTransform: 'uppercase',
         color: 'rgba(255,255,255,0.6)',
     },
     title: {
-        fontSize: 15.5,
+        fontSize: 16.5,
         fontWeight: '500',
         color: '#fff',
         letterSpacing: -0.1,
-        lineHeight: 21,
+        lineHeight: 22,
     },
     note: {
-        fontSize: 12.5,
+        fontSize: 13.5,
         color: 'rgba(255,255,255,0.5)',
-        lineHeight: 18,
+        lineHeight: 19,
     },
     actionRow: {
         flexDirection: 'row',
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     addBtnText: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '600',
         color: '#0b0c10',
     },
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     editBtnText: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '500',
         color: 'rgba(255,255,255,0.8)',
     },
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     refineInput: {
         flex: 1,
         color: '#fff',
-        fontSize: 13.5,
+        fontSize: 14.5,
         paddingVertical: 8,
     },
     refineSend: {
@@ -250,13 +250,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     refineSendGlyph: {
-        fontSize: 16,
+        fontSize: 17,
         color: '#fff',
         fontWeight: '600',
         marginTop: -1,
     },
     refineHint: {
-        fontSize: 11,
+        fontSize: 12,
         color: 'rgba(255,255,255,0.4)',
         paddingLeft: 4,
     },
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     addedText: {
-        fontSize: 13.5,
+        fontSize: 14.5,
         color: 'rgba(255,255,255,0.7)',
         textTransform: 'capitalize',
     },

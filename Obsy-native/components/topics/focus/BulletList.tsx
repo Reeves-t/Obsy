@@ -24,14 +24,14 @@ const styles = StyleSheet.create({
         gap: 9,
     },
     dot: {
-        fontSize: 13,
+        fontSize: 14,
         color: 'rgba(255,255,255,0.4)',
-        lineHeight: 20,
+        lineHeight: 21,
     },
     text: {
         flex: 1,
-        fontSize: 13.5,
+        fontSize: 14.5,
         color: 'rgba(255,255,255,0.8)',
-        lineHeight: 20,
+        lineHeight: 21,
     },
 });

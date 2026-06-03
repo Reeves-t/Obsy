@@ -24,14 +24,14 @@ interface FocusPageScaffoldProps {
     teaserVariant: 'discover' | 'evolve';
     onUnlock: () => void;
 
-    hasData: boolean; // topic has entries to analyse
     ready: boolean; // generated payload available
     loading: boolean;
     error: string | null;
     onRetry: () => void;
 
-    emptyMessage: string;
     loadingMessage: string;
+    /** Optional note shown above content, e.g. starter-mode framing. */
+    banner?: string;
 
     generatedAt?: string;
     onRefresh?: () => void;
@@ -77,13 +77,12 @@ export function FocusPageScaffold({
     locked,
     teaserVariant,
     onUnlock,
-    hasData,
     ready,
     loading,
     error,
     onRetry,
-    emptyMessage,
     loadingMessage,
+    banner,
     generatedAt,
     onRefresh,
     children,
@@ -102,12 +101,13 @@ export function FocusPageScaffold({
                     contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 24 }]}
                     showsVerticalScrollIndicator={false}
                 >
-                    {!hasData ? (
-                        <View style={styles.centerBox}>
-                            <Text style={styles.emptyText}>{emptyMessage}</Text>
-                        </View>
-                    ) : ready ? (
+                    {ready ? (
                         <>
+                            {!!banner && (
+                                <View style={styles.banner}>
+                                    <Text style={styles.bannerText}>{banner}</Text>
+                                </View>
+                            )}
                             {children}
                             {onRefresh && (
                                 <Pressable
@@ -163,6 +163,19 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         gap: 12,
+    },
+    banner: {
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 12,
+        backgroundColor: 'rgba(120,150,210,0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(120,150,210,0.18)',
+    },
+    bannerText: {
+        fontSize: 12.5,
+        color: 'rgba(200,215,255,0.8)',
+        lineHeight: 18,
     },
     centerBox: {
         flex: 1,

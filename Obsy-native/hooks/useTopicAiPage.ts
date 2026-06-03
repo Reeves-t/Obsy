@@ -3,6 +3,7 @@ import type { Topic, TopicStats } from '@/lib/topicStore';
 import { useTopicStore } from '@/lib/topicStore';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
+import { useHabitGoalStore } from '@/lib/habitGoalStore';
 import type { TopicContext, TopicGenResult } from '@/services/topicChatClient';
 import type { TopicAiCacheEntry } from '@/lib/topicAiTypes';
 
@@ -18,9 +19,12 @@ export function useTopicContextRef(topic: Topic, stats: TopicStats): () => Topic
     const captures = useCaptureStore((s) => s.captures);
     const topicNotes = useTopicStore((s) => s.topicNotes);
     const attachments = useTopicAttachmentStore((s) => s.attachments);
+    const habitGoalItems = useHabitGoalStore((s) => s.items);
 
-    const ref = useRef<TopicContext>({ topic, stats, captures, topicNotes, attachments });
-    ref.current = { topic, stats, captures, topicNotes, attachments };
+    const habitGoals = habitGoalItems.filter((g) => g.linkedTopicId === topic.id);
+
+    const ref = useRef<TopicContext>({ topic, stats, captures, topicNotes, attachments, habitGoals });
+    ref.current = { topic, stats, captures, topicNotes, attachments, habitGoals };
 
     return useCallback(() => ref.current, []);
 }

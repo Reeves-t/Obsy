@@ -6,10 +6,18 @@ import { useCaptureStore } from './captureStore';
 import { getMoodTheme } from './moods';
 import { MoodSegment } from './dailyMoodFlows';
 import type { DiscoverPayload, EvolvePayload, TopicAiCacheEntry } from './topicAiTypes';
+import { inferTopicLens, type TopicLensId } from './topicLens';
 
 // ── Types ────────────────────────────────────────────────────
 
-export type TopicNoteKind = 'note' | 'insight' | 'missing_gaps';
+export type TopicNoteKind = 'note' | 'insight' | 'missing_gaps' | 'response';
+
+/** Metadata attached when a note is the user's response to an AI section. */
+export type TopicResponseMeta = {
+    sourcePage: 'discover' | 'evolve';
+    sourceSection: string;   // the section label responded to
+    originalInsight: string; // the AI text the user responded to
+};
 
 export type TopicNote = {
     id: string;
@@ -17,6 +25,7 @@ export type TopicNote = {
     text: string;
     createdAt: string;
     kind?: TopicNoteKind; // undefined treated as 'note' for backward compat
+    response?: TopicResponseMeta; // present when kind === 'response'
 };
 
 export type Topic = {
@@ -26,6 +35,7 @@ export type Topic = {
     hue: number;        // 0-360, tints the orb
     createdAt: string;  // ISO timestamp
     toneId?: string;    // preset AiToneId or custom tone UUID
+    lens?: TopicLensId; // how Obsy understands this topic (inferred at creation)
 };
 
 export type TopicStats = {
@@ -245,8 +255,10 @@ type TopicState = {
     addTopic: (title: string, description: string) => string;
     removeTopic: (id: string) => void;
     updateTopicTone: (topicId: string, toneId: string) => void;
+    updateTopicLens: (topicId: string, lens: TopicLensId) => void;
     getStats: (topicId: string) => TopicStats;
     addTopicNote: (topicId: string, text: string, kind?: TopicNoteKind) => void;
+    addTopicResponse: (topicId: string, text: string, meta: TopicResponseMeta) => void;
     removeTopicNote: (noteId: string) => void;
     getTopicNotes: (topicId: string) => TopicNote[];
     setDiscover: (topicId: string, data: DiscoverPayload) => void;
@@ -265,12 +277,15 @@ export const useTopicStore = create<TopicState>()(
 
             addTopic: (title, description) => {
                 const id = Crypto.randomUUID();
+                const cleanTitle = title.trim();
+                const cleanDescription = description.trim();
                 const topic: Topic = {
                     id,
-                    title: title.trim(),
-                    description: description.trim(),
+                    title: cleanTitle,
+                    description: cleanDescription,
                     hue: Math.round(180 + Math.random() * 110),
                     createdAt: new Date().toISOString(),
+                    lens: inferTopicLens(cleanTitle, cleanDescription),
                 };
                 set(state => ({ topics: [...state.topics, topic] }));
                 return id;
@@ -298,6 +313,14 @@ export const useTopicStore = create<TopicState>()(
                 }));
             },
 
+            updateTopicLens: (topicId, lens) => {
+                set(state => ({
+                    topics: state.topics.map(t =>
+                        t.id === topicId ? { ...t, lens } : t
+                    ),
+                }));
+            },
+
             getStats: (topicId) => {
                 return computeStatsForTopic(topicId);
             },
@@ -309,6 +332,18 @@ export const useTopicStore = create<TopicState>()(
                     text: text.trim(),
                     createdAt: new Date().toISOString(),
                     kind,
+                };
+                set(state => ({ topicNotes: [note, ...state.topicNotes] }));
+            },
+
+            addTopicResponse: (topicId, text, meta) => {
+                const note: TopicNote = {
+                    id: `response-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    topicId,
+                    text: text.trim(),
+                    createdAt: new Date().toISOString(),
+                    kind: 'response',
+                    response: meta,
                 };
                 set(state => ({ topicNotes: [note, ...state.topicNotes] }));
             },

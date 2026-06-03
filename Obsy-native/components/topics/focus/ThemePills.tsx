@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.09)',
     },
     pillText: {
-        fontSize: 12.5,
+        fontSize: 13.5,
         color: 'rgba(255,255,255,0.72)',
         fontWeight: '500',
         letterSpacing: 0.1,

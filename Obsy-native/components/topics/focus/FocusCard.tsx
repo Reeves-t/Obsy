@@ -8,6 +8,8 @@ interface FocusCardProps {
     /** Optional refresh affordance shown on the right of the header. */
     onRefresh?: () => void;
     refreshing?: boolean;
+    /** Optional "Respond" affordance shown at the bottom of the card. */
+    onRespond?: () => void;
     style?: StyleProp<ViewStyle>;
 }
 
@@ -30,7 +32,7 @@ function RefreshIcon() {
  * `sectionCard` styling used in MetaPanel so the aesthetic stays identical,
  * with an optional refresh button in the header.
  */
-export function FocusCard({ label, children, onRefresh, refreshing, style }: FocusCardProps) {
+export function FocusCard({ label, children, onRefresh, refreshing, onRespond, style }: FocusCardProps) {
     return (
         <View style={[styles.card, style]}>
             <View style={styles.headerRow}>
@@ -52,6 +54,12 @@ export function FocusCard({ label, children, onRefresh, refreshing, style }: Foc
                 )}
             </View>
             {children}
+            {onRespond && (
+                <Pressable onPress={onRespond} style={styles.respondBtn} hitSlop={6}>
+                    <Text style={styles.respondText}>Respond</Text>
+                    <Text style={styles.respondChevron}>›</Text>
+                </Pressable>
+            )}
         </View>
     );
 }
@@ -71,7 +79,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     label: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: '600',
         letterSpacing: 1.0,
         textTransform: 'uppercase',
@@ -86,5 +94,28 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.04)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.07)',
+    },
+    respondBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        gap: 3,
+        marginTop: 2,
+        paddingVertical: 5,
+        paddingHorizontal: 11,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.10)',
+    },
+    respondText: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.7)',
+    },
+    respondChevron: {
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.4)',
+        marginTop: -1,
     },
 });

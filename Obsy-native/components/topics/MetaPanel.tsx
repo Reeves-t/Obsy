@@ -20,6 +20,8 @@ import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
 import { TopicInsightModal } from '@/components/topics/TopicInsightModal';
 import { MissingGapsModal } from '@/components/topics/MissingGapsModal';
 import { TopicOrb } from '@/components/topics/TopicOrb';
+import { LensSelector } from '@/components/topics/focus/LensSelector';
+import { getLensDef, inferTopicLens } from '@/lib/topicLens';
 import * as Haptics from 'expo-haptics';
 
 interface MetaPanelProps {
@@ -340,18 +342,22 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
 
     // ── Tone ─────────────────────────────────────────────────────
     const updateTopicTone = useTopicStore(s => s.updateTopicTone);
+    const updateTopicLens = useTopicStore(s => s.updateTopicLens);
     // Subscribe directly to topicNotes so the panel re-renders when notes
     // or insights are added/removed from anywhere in the app.
     const topicNotes = useTopicStore(s => s.topicNotes);
     const removeTopicNote = useTopicStore(s => s.removeTopicNote);
     const { tones: customTones } = useCustomTones();
     const [toneSelectorVisible, setToneSelectorVisible] = useState(false);
+    const [lensSelectorVisible, setLensSelectorVisible] = useState(false);
     const [insightModalVisible, setInsightModalVisible] = useState(false);
     const [gapsModalVisible, setGapsModalVisible] = useState(false);
     const activeToneId = (topic.toneId ?? 'neutral') as AiToneId;
     const activeToneName = isPresetTone(activeToneId)
         ? getToneDefinition(activeToneId).label
         : (customTones.find(t => t.id === activeToneId)?.name ?? 'Custom');
+    const activeLensId = topic.lens ?? inferTopicLens(topic.title, topic.description);
+    const activeLensLabel = getLensDef(activeLensId).label;
 
     // ── Premium gate ─────────────────────────────────────────────
     const { checkLimit, tier } = useSubscription();
@@ -436,6 +442,15 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
                     <Text style={styles.toneRowLabel}>TONE</Text>
                     <View style={styles.toneRowRight}>
                         <Text style={styles.toneRowValue}>{activeToneName}</Text>
+                        <Text style={styles.toneRowChevron}>›</Text>
+                    </View>
+                </Pressable>
+
+                {/* ── Topic Lens row ── */}
+                <Pressable style={styles.toneRow} onPress={() => setLensSelectorVisible(true)}>
+                    <Text style={styles.toneRowLabel}>TOPIC LENS</Text>
+                    <View style={styles.toneRowRight}>
+                        <Text style={styles.toneRowValue}>{activeLensLabel}</Text>
                         <Text style={styles.toneRowChevron}>›</Text>
                     </View>
                 </Pressable>
@@ -586,6 +601,16 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
                 onSelectTone={(toneId) => {
                     updateTopicTone(topic.id, toneId);
                     setToneSelectorVisible(false);
+                }}
+            />
+
+            <LensSelector
+                visible={lensSelectorVisible}
+                currentLensId={activeLensId}
+                onClose={() => setLensSelectorVisible(false)}
+                onSelectLens={(lensId) => {
+                    updateTopicLens(topic.id, lensId);
+                    setLensSelectorVisible(false);
                 }}
             />
 

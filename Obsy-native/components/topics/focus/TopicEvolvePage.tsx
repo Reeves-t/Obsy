@@ -7,6 +7,7 @@ import { useHabitGoalStore } from '@/lib/habitGoalStore';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useTopicAiPage, useTopicContextRef } from '@/hooks/useTopicAiPage';
 import { generateTopicEvolve } from '@/services/topicChatClient';
+import { getLensDef, inferTopicLens } from '@/lib/topicLens';
 import type { GoalHabitSuggestion } from '@/lib/topicAiTypes';
 import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
 import { HabitGoalCreateModal } from '@/components/insights/habitsGoals/HabitGoalCreateModal';
@@ -14,6 +15,7 @@ import { FocusPageScaffold } from './FocusPageScaffold';
 import { FocusCard } from './FocusCard';
 import { BulletList } from './BulletList';
 import { GoalHabitSuggestionCard } from './GoalHabitSuggestionCard';
+import { RespondModal } from './RespondModal';
 
 interface TopicEvolvePageProps {
     topic: Topic;
@@ -31,9 +33,8 @@ const JOURNEY_STAGES: { key: 'started' | 'current' | 'emerging'; label: string }
 ];
 
 /**
- * Page 3 — Evolve. Turns awareness into direction: Topic Journey, Key
- * Realizations, Open Threads, and AI-seeded goal/habit creation. Plus-only;
- * free users see a teaser. Auto-generates once on first open, then cached.
+ * Page 3 — Evolve. Turns awareness into direction; section labels and AI framing
+ * adapt to the topic's lens. Fresh topics get starter content. Plus-only.
  */
 export function TopicEvolvePage({
     topic,
@@ -48,13 +49,17 @@ export function TopicEvolvePage({
 
     const cached = useTopicStore((s) => s.evolveCache[topic.id]);
     const setEvolve = useTopicStore((s) => s.setEvolve);
+    const addTopicResponse = useTopicStore((s) => s.addTopicResponse);
     const loadForTopic = useTopicAttachmentStore((s) => s.loadForTopic);
     const addHabitGoal = useHabitGoalStore((s) => s.addHabitGoal);
     const getCtx = useTopicContextRef(topic, stats);
 
+    const lens = getLensDef(topic.lens ?? inferTopicLens(topic.title, topic.description));
+
     const [showPaywall, setShowPaywall] = useState(false);
     const [createOpen, setCreateOpen] = useState(false);
     const [seed, setSeed] = useState<GoalHabitSuggestion | null>(null);
+    const [respond, setRespond] = useState<{ section: string; text: string } | null>(null);
 
     const [opened, setOpened] = useState(isActive);
     useEffect(() => {
@@ -69,20 +74,23 @@ export function TopicEvolvePage({
         }
     }, [opened, loadForTopic, topic.id]);
 
-    const hasData = stats.totalEntries > 0;
+    const prevRef = useRef(cached?.data);
+    prevRef.current = cached?.data;
+
     const locked = !isPlus;
 
     const { data, generatedAt, loading, error, refresh } = useTopicAiPage({
         cached,
         persist: (d) => setEvolve(topic.id, d),
-        generate: () => generateTopicEvolve(getCtx()),
-        canGenerate: isPlus && hasData && opened,
+        generate: () => generateTopicEvolve(getCtx(), prevRef.current),
+        canGenerate: isPlus && opened,
         locked,
     });
 
-    const journeyStages = data
-        ? JOURNEY_STAGES.filter((s) => !!data.journey[s.key])
-        : [];
+    const isStarter = stats.totalEntries === 0;
+
+    const journeyStages = data ? JOURNEY_STAGES.filter((s) => !!data.journey[s.key]) : [];
+    const journeyText = journeyStages.map((s) => `${s.label}: ${data!.journey[s.key]}`).join('\n');
 
     const openManualCreate = () => {
         setSeed(null);
@@ -106,20 +114,26 @@ export function TopicEvolvePage({
                 locked={locked}
                 teaserVariant="evolve"
                 onUnlock={() => setShowPaywall(true)}
-                hasData={hasData}
                 ready={!!data}
                 loading={loading}
                 error={error}
                 onRetry={refresh}
-                emptyMessage="As this topic grows, Evolve will trace its journey and turn it into direction."
-                loadingMessage={`Tracing how your ${topic.title} thinking has grown…`}
+                loadingMessage={
+                    isStarter
+                        ? `Imagining where your ${topic.title} topic could go…`
+                        : `Tracing how your ${topic.title} thinking has grown…`
+                }
+                banner={isStarter ? 'Starting points — this topic may grow around the ideas below.' : undefined}
                 generatedAt={generatedAt}
                 onRefresh={refresh}
             >
                 {data && (
                     <>
                         {journeyStages.length > 0 && (
-                            <FocusCard label="Topic journey">
+                            <FocusCard
+                                label={lens.labels.journey}
+                                onRespond={() => setRespond({ section: lens.labels.journey, text: journeyText })}
+                            >
                                 <View style={styles.journey}>
                                     {journeyStages.map((stage, i) => (
                                         <View key={stage.key} style={styles.journeyStage}>
@@ -138,7 +152,15 @@ export function TopicEvolvePage({
                         )}
 
                         {data.realizations.length > 0 && (
-                            <FocusCard label="Key realizations">
+                            <FocusCard
+                                label={lens.labels.realizations}
+                                onRespond={() =>
+                                    setRespond({
+                                        section: lens.labels.realizations,
+                                        text: data.realizations.map((r) => (r.date ? `${r.date}: ${r.text}` : r.text)).join('\n'),
+                                    })
+                                }
+                            >
                                 <View style={styles.realizationList}>
                                     {data.realizations.map((r, i) => (
                                         <View key={i} style={styles.realization}>
@@ -151,12 +173,17 @@ export function TopicEvolvePage({
                         )}
 
                         {data.openThreads.length > 0 && (
-                            <FocusCard label="Open threads">
+                            <FocusCard
+                                label={lens.labels.openThreads}
+                                onRespond={() =>
+                                    setRespond({ section: lens.labels.openThreads, text: data.openThreads.join('\n') })
+                                }
+                            >
                                 <BulletList items={data.openThreads} />
                             </FocusCard>
                         )}
 
-                        <FocusCard label="Grow from this topic">
+                        <FocusCard label={lens.labels.suggestions}>
                             <Text style={styles.growIntro}>
                                 Turn this awareness into a daily habit or weekly goal.
                             </Text>
@@ -193,6 +220,23 @@ export function TopicEvolvePage({
                 }}
             />
 
+            <RespondModal
+                visible={!!respond}
+                sectionLabel={respond?.section ?? ''}
+                insightText={respond?.text ?? ''}
+                onClose={() => setRespond(null)}
+                onSave={(t) => {
+                    if (respond) {
+                        addTopicResponse(topic.id, t, {
+                            sourcePage: 'evolve',
+                            sourceSection: respond.section,
+                            originalInsight: respond.text,
+                        });
+                    }
+                    setRespond(null);
+                }}
+            />
+
             <VanguardPaywall
                 visible={showPaywall}
                 onClose={() => setShowPaywall(false)}
@@ -221,7 +265,7 @@ const styles = StyleSheet.create({
         borderRadius: 4,
         backgroundColor: 'rgba(255,255,255,0.55)',
         marginTop: 4,
-    } as any,
+    },
     journeyLine: {
         flex: 1,
         width: 1.5,
@@ -233,16 +277,16 @@ const styles = StyleSheet.create({
         paddingBottom: 14,
     },
     journeyLabel: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: '600',
         letterSpacing: 0.8,
         textTransform: 'uppercase',
         color: 'rgba(255,255,255,0.4)',
     },
     journeyValue: {
-        fontSize: 14,
+        fontSize: 15,
         color: 'rgba(255,255,255,0.85)',
-        lineHeight: 20,
+        lineHeight: 21,
         marginTop: 3,
     },
     // Realizations
@@ -253,22 +297,22 @@ const styles = StyleSheet.create({
         gap: 3,
     },
     realizationDate: {
-        fontSize: 10.5,
+        fontSize: 11.5,
         fontWeight: '600',
         letterSpacing: 0.4,
         textTransform: 'uppercase',
         color: 'rgba(180,200,255,0.7)',
     },
     realizationText: {
-        fontSize: 14,
+        fontSize: 15,
         color: 'rgba(255,255,255,0.82)',
-        lineHeight: 20,
+        lineHeight: 21,
     },
     // Grow
     growIntro: {
-        fontSize: 13,
+        fontSize: 14,
         color: 'rgba(255,255,255,0.55)',
-        lineHeight: 19,
+        lineHeight: 20,
     },
     suggestionStack: {
         gap: 10,
@@ -283,7 +327,7 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
     },
     manualBtnText: {
-        fontSize: 13.5,
+        fontSize: 14.5,
         fontWeight: '500',
         color: 'rgba(255,255,255,0.7)',
     },
