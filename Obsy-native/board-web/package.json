@@ -1,0 +1,25 @@
+{
+  "name": "obsy-board-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "tldraw canvas bundled into a single HTML file and embedded in the Obsy Topic Board WebView. Run `npm run build` to regenerate ../assets/board/index.html.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "tldraw": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "@types/react-dom": "~19.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.9.2",
+    "vite": "^6.0.7",
+    "vite-plugin-singlefile": "^2.1.0"
+  }
+}

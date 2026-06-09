@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "test": "jest",
     "test:watch": "jest --watch",
+    "board:build": "npm --prefix board-web run build",
     "test:insights": "npx ts-node scripts/testInsights.ts"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "expo": "~54.0.33",
+    "expo-asset": "~12.0.12",
     "expo-av": "^16.0.8",
     "expo-blur": "~15.0.8",
     "expo-camera": "~17.0.10",

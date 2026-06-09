@@ -8,11 +8,13 @@ import {
     NativeScrollEvent,
 } from 'react-native';
 import Animated, {
+    useAnimatedRef,
     useAnimatedScrollHandler,
     useSharedValue,
 } from 'react-native-reanimated';
 import type { Topic, TopicStats } from '@/lib/topicStore';
 import { MetaPanel } from '@/components/topics/MetaPanel';
+import { TopicBoardPage } from './TopicBoardPage';
 import { TopicDiscoverPage } from './TopicDiscoverPage';
 import { TopicEvolvePage } from './TopicEvolvePage';
 import { PageDots } from './PageDots';
@@ -34,8 +36,9 @@ interface TopicFocusPagerProps {
 }
 
 /**
- * The 3-page horizontal swipe shell for Focus Mode: Observe (MetaPanel),
- * Discover and Evolve. Drives the page-dot indicator.
+ * The 4-page horizontal swipe shell for Focus Mode: Observe (MetaPanel),
+ * Board (free canvas), Discover and Evolve. Drives the page-dot indicator and
+ * lets the Board page disable horizontal swipe while editing/drawing.
  */
 export function TopicFocusPager({
     topic,
@@ -47,12 +50,20 @@ export function TopicFocusPager({
 }: TopicFocusPagerProps) {
     const [size, setSize] = useState({ width: SCREEN_W, height: 0 });
     const [activePage, setActivePage] = useState(0);
+    const [swipeEnabled, setSwipeEnabled] = useState(true);
+    const scrollRef = useAnimatedRef<Animated.ScrollView>();
     const scrollX = useSharedValue(0);
     const width = size.width || SCREEN_W;
 
     const scrollHandler = useAnimatedScrollHandler((e) => {
         scrollX.value = e.contentOffset.x;
     });
+
+    // Programmatic page navigation — the Board page uses this for its edge arrows
+    // because the WebView swallows horizontal swipes.
+    const goToPage = (i: number) => {
+        scrollRef.current?.scrollTo({ x: width * i, animated: true });
+    };
 
     const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const p = Math.round(e.nativeEvent.contentOffset.x / width);
@@ -68,8 +79,10 @@ export function TopicFocusPager({
         <View style={styles.container} onLayout={onLayout}>
             {size.height > 0 && (
                 <Animated.ScrollView
+                    ref={scrollRef}
                     horizontal
                     pagingEnabled
+                    scrollEnabled={swipeEnabled}
                     showsHorizontalScrollIndicator={false}
                     onScroll={scrollHandler}
                     scrollEventThrottle={16}
@@ -90,24 +103,40 @@ export function TopicFocusPager({
                         </View>
                     </View>
 
-                    {/* Page 1 — Discover */}
+                    {/* Page 1 — Board (free, user-curated visual canvas) */}
                     <View style={{ width, height: size.height }}>
-                        <TopicDiscoverPage
+                        <TopicBoardPage
                             topic={topic}
                             stats={stats}
                             isActive={activePage === 1}
                             onClose={onClose}
                             topInset={PAGES_TOP}
                             bottomInset={PAGE_BOTTOM}
+                            onInteractingChange={(busy) => setSwipeEnabled(!busy)}
+                            pageIndex={1}
+                            pageCount={4}
+                            onGoToPage={goToPage}
                         />
                     </View>
 
-                    {/* Page 2 — Evolve */}
+                    {/* Page 2 — Discover */}
+                    <View style={{ width, height: size.height }}>
+                        <TopicDiscoverPage
+                            topic={topic}
+                            stats={stats}
+                            isActive={activePage === 2}
+                            onClose={onClose}
+                            topInset={PAGES_TOP}
+                            bottomInset={PAGE_BOTTOM}
+                        />
+                    </View>
+
+                    {/* Page 3 — Evolve */}
                     <View style={{ width, height: size.height }}>
                         <TopicEvolvePage
                             topic={topic}
                             stats={stats}
-                            isActive={activePage === 2}
+                            isActive={activePage === 3}
                             onClose={onClose}
                             topInset={PAGES_TOP}
                             bottomInset={PAGE_BOTTOM}
@@ -117,7 +146,7 @@ export function TopicFocusPager({
             )}
 
             <View style={styles.dots} pointerEvents="none">
-                <PageDots scrollX={scrollX} count={3} pageWidth={width} />
+                <PageDots scrollX={scrollX} count={4} pageWidth={width} />
             </View>
         </View>
     );
