@@ -45,7 +45,7 @@ export function TopicEvolvePage({
     bottomInset,
 }: TopicEvolvePageProps) {
     const { tier } = useSubscription();
-    const isPlus = tier === 'subscriber' || tier === 'founder';
+    const isPlus = tier === 'plus';
 
     const cached = useTopicStore((s) => s.evolveCache[topic.id]);
     const setEvolve = useTopicStore((s) => s.setEvolve);

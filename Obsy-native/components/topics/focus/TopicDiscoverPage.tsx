@@ -37,7 +37,7 @@ export function TopicDiscoverPage({
     bottomInset,
 }: TopicDiscoverPageProps) {
     const { tier } = useSubscription();
-    const isPlus = tier === 'subscriber' || tier === 'founder';
+    const isPlus = tier === 'plus';
 
     const cached = useTopicStore((s) => s.discoverCache[topic.id]);
     const setDiscover = useTopicStore((s) => s.setDiscover);

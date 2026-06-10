@@ -588,7 +588,7 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
                             <Text style={styles.ctaAskObsyLabel}>Ask Obsy</Text>
                         </View>
                         <Text style={styles.ctaAskObsyCaption}>
-                            {tier === 'founder' || tier === 'subscriber' ? `about ${topic.title}` : 'Plus'}
+                            {tier === 'plus' ? `about ${topic.title}` : 'Plus'}
                         </Text>
                     </Pressable>
                 </View>
