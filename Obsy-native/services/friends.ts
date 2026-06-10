@@ -23,12 +23,12 @@ export async function addFriendById(friendUserId: string): Promise<{ success: bo
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
 
-        // 1. Find the friend's profile by ID
-        const { data: friendProfile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', friendUserId)
-            .single();
+        // 1. Find the friend's profile by ID.
+        // profiles SELECT is relationship-scoped (OBS-15); a not-yet-friend is
+        // looked up via the SECURITY DEFINER RPC (minimal fields, exact id).
+        const { data: byId, error: profileError } = await supabase
+            .rpc('get_profile_for_friending_by_id', { target_id: friendUserId });
+        const friendProfile = byId?.[0];
 
         if (profileError || !friendProfile) {
             return { success: false, message: "User not found." };
@@ -79,12 +79,12 @@ export async function addFriendByCode(friendCode: string): Promise<{ success: bo
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
 
-        // 1. Find the friend's profile
-        const { data: friendProfile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('friend_code', friendCode)
-            .single();
+        // 1. Find the friend's profile by code.
+        // profiles SELECT is relationship-scoped (OBS-15); friend-code discovery
+        // of a not-yet-friend goes through the SECURITY DEFINER RPC.
+        const { data: byCode, error: profileError } = await supabase
+            .rpc('get_profile_for_friending_by_code', { target_code: friendCode });
+        const friendProfile = byCode?.[0];
 
         if (profileError || !friendProfile) {
             return { success: false, message: "Friend code not found." };
@@ -130,14 +130,13 @@ export async function addFriendByCode(friendCode: string): Promise<{ success: bo
  */
 export async function getProfileById(userId: string): Promise<Profile | null> {
     try {
+        // profiles SELECT is relationship-scoped (OBS-15). Invite preview reads a
+        // not-yet-friend by exact id via the SECURITY DEFINER RPC (minimal fields).
         const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
+            .rpc('get_profile_for_friending_by_id', { target_id: userId });
 
         if (error) throw error;
-        return data;
+        return (data?.[0] as Profile) ?? null;
 
     } catch (error) {
         console.error("Error fetching profile:", error);
