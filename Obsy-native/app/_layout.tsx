@@ -13,6 +13,7 @@ import { ObsyThemeProvider, useObsyTheme } from '@/contexts/ThemeContext';
 import { MockAlbumProvider } from '@/contexts/MockAlbumContext';
 import { I18nProvider } from '@/i18n/config';
 import { moodCache } from '@/lib/moodCache';
+import { configureRevenueCat, identifyRevenueCatUser, resetRevenueCatUser } from '@/lib/revenuecat';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTodayInsight } from '@/lib/todayInsightStore';
 import { useWeeklyInsight } from '@/lib/weeklyInsightStore';
@@ -104,6 +105,7 @@ function RootLayoutNav({ onDataReady }: { onDataReady: () => void }) {
           <ObsyThemeProvider>
             <MockAlbumProvider>
             <MoodCacheInitializer />
+            <RevenueCatInitializer />
             <SnapshotLoader onDataReady={onDataReady} />
             <ThemedNavigator />
             </MockAlbumProvider>
@@ -112,6 +114,24 @@ function RootLayoutNav({ onDataReady }: { onDataReady: () => void }) {
       </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+function RevenueCatInitializer() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    configureRevenueCat();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      identifyRevenueCatUser(user.id);
+    } else {
+      resetRevenueCatUser();
+    }
+  }, [user]);
+
+  return null;
 }
 
 function MoodCacheInitializer() {

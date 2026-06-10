@@ -31,6 +31,7 @@ import { useI18n } from '@/i18n/config';
 import * as WebBrowser from 'expo-web-browser';
 import { exportUserData } from '@/services/export';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/legal';
+import { restorePurchases } from '@/lib/revenuecat';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -497,6 +498,22 @@ export default function ProfileScreen() {
     WebBrowser.openBrowserAsync(url);
   };
 
+  const handleRestorePurchases = async () => {
+    try {
+      const res = await restorePurchases();
+      if (res.ok && res.isPlus) {
+        Alert.alert('Purchases restored', 'Your Obsy Plus subscription is active.');
+      } else if (res.ok) {
+        Alert.alert('Nothing to restore', "We didn't find an active subscription on this account.");
+      } else {
+        Alert.alert('Restore failed', res.error ?? 'Please try again.');
+      }
+    } catch (error) {
+      console.error('Error restoring purchases:', error);
+      Alert.alert('Restore failed', 'Please try again.');
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
@@ -883,6 +900,12 @@ export default function ProfileScreen() {
           <>
             <SectionHeader title="ACCOUNT" flat />
             <View style={styles.flatSection}>
+              <SettingRow
+                icon="refresh-outline"
+                title="Restore Purchases"
+                subtitle="Restore an active Obsy Plus subscription."
+                onPress={handleRestorePurchases}
+              />
               <SettingRow
                 icon="download-outline"
                 title="Export Data"

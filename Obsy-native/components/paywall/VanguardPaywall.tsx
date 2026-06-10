@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -17,7 +17,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import type { PurchasesPackage } from 'react-native-purchases';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../constants/legal';
+import { getPlusPackages, findPackage, purchasePlusPackage, restorePurchases } from '../../lib/revenuecat';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.85; // ~85% of screen height
@@ -71,12 +73,12 @@ interface VanguardPaywallProps {
     featureName?: string;
 }
 
-// Static fallback prices for the Plus tier. Live, localized prices come from
-// RevenueCat at runtime once the SDK is wired (Cluster B RevenueCat workstream);
-// these mirror the configured App Store Connect products.
+// Static fallback price amounts for the Plus tier; live, localized prices come
+// from RevenueCat at runtime when offerings load. These mirror the configured
+// App Store Connect products (obsy.plus.monthly $5.99 / obsy.plus.yearly $49.99).
 const PLAN_PRICES = {
-    yearly: '$49.99 / year',
-    monthly: '$5.99 / month',
+    yearly: '$49.99',
+    monthly: '$5.99',
 } as const;
 
 // Plus features list
@@ -89,21 +91,72 @@ const PREMIUM_FEATURES = [
 export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywallProps) {
     const insets = useSafeAreaInsets();
     const [selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
+    const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+    const [purchasing, setPurchasing] = useState(false);
+    const [restoring, setRestoring] = useState(false);
+
+    // Load the Plus offering when the sheet opens.
+    useEffect(() => {
+        if (!visible) return;
+        let active = true;
+        getPlusPackages()
+            .then((pkgs) => { if (active) setPackages(pkgs); })
+            .catch((err) => console.warn('[Paywall] getOfferings failed:', err));
+        return () => { active = false; };
+    }, [visible]);
 
     const openLegal = (url: string) => {
         WebBrowser.openBrowserAsync(url);
     };
 
+    // Prefer live localized store prices; fall back to the static amounts.
+    const yearlyPrice = findPackage(packages, 'yearly')?.product.priceString ?? PLAN_PRICES.yearly;
+    const monthlyPrice = findPackage(packages, 'monthly')?.product.priceString ?? PLAN_PRICES.monthly;
+
     const handlePurchase = async () => {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        console.log(`Purchasing ${selectedPlan}`);
-        onClose();
+        if (purchasing) return;
+        const pkg = findPackage(packages, selectedPlan);
+        if (!pkg) {
+            Alert.alert('Plus unavailable', 'Plans are still loading or unavailable right now. Please try again in a moment.');
+            return;
+        }
+        setPurchasing(true);
+        try {
+            const res = await purchasePlusPackage(pkg);
+            if (res.ok && res.isPlus) {
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                onClose();
+            } else if (!res.userCancelled) {
+                Alert.alert('Purchase failed', res.error ?? 'Something went wrong. Please try again.');
+            }
+        } finally {
+            setPurchasing(false);
+        }
+    };
+
+    const handleRestore = async () => {
+        if (restoring) return;
+        setRestoring(true);
+        try {
+            const res = await restorePurchases();
+            if (res.ok && res.isPlus) {
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('Purchases restored', 'Your Obsy Plus subscription is active.');
+                onClose();
+            } else if (res.ok) {
+                Alert.alert('Nothing to restore', "We didn't find an active subscription on this account.");
+            } else {
+                Alert.alert('Restore failed', res.error ?? 'Please try again.');
+            }
+        } finally {
+            setRestoring(false);
+        }
     };
 
     // CTA button label
     const ctaLabel = 'Become a Plus member';
     // Price text below CTA
-    const priceLabel = PLAN_PRICES[selectedPlan];
+    const priceLabel = selectedPlan === 'yearly' ? `${yearlyPrice} / year` : `${monthlyPrice} / month`;
 
     return (
         <Modal
@@ -216,7 +269,7 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                                             <Text style={styles.saveText}>SAVE 30%</Text>
                                         </View>
                                         <Text style={styles.planName}>YEARLY</Text>
-                                        <Text style={styles.planPrice}>$49.99 / YR</Text>
+                                        <Text style={styles.planPrice}>{yearlyPrice} / YR</Text>
                                     </View>
                                 </TouchableOpacity>
 
@@ -246,7 +299,7 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                                             <View style={styles.selectedGlowMonthly} />
                                         )}
                                         <Text style={styles.planName}>MONTHLY</Text>
-                                        <Text style={styles.planPrice}>$5.99 / MO</Text>
+                                        <Text style={styles.planPrice}>{monthlyPrice} / MO</Text>
                                     </View>
                                 </TouchableOpacity>
                             </View>
@@ -261,18 +314,24 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                             style={styles.ctaFade}
                             pointerEvents="none"
                         />
-                        <TouchableOpacity style={styles.submitButton} onPress={handlePurchase} activeOpacity={0.9}>
+                        <TouchableOpacity style={styles.submitButton} onPress={handlePurchase} activeOpacity={0.9} disabled={purchasing || restoring}>
                             <LinearGradient
                                 colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)']}
                                 style={StyleSheet.absoluteFill}
                             />
                             {/* Subtle shine */}
                             <View style={styles.buttonShine} />
-                            <Text style={styles.submitText}>{ctaLabel}</Text>
+                            {purchasing
+                                ? <ActivityIndicator color="black" />
+                                : <Text style={styles.submitText}>{ctaLabel}</Text>}
                         </TouchableOpacity>
                         <Text style={styles.priceText}>{priceLabel}</Text>
                         <Text style={styles.cancelText}>Cancel anytime in the App Store</Text>
                         <View style={styles.legalLinksRow}>
+                            <TouchableOpacity onPress={handleRestore} hitSlop={8} disabled={purchasing || restoring}>
+                                <Text style={styles.legalLinkText}>{restoring ? 'Restoring…' : 'Restore Purchases'}</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.legalLinkSeparator}>·</Text>
                             <TouchableOpacity onPress={() => openLegal(PRIVACY_POLICY_URL)} hitSlop={8}>
                                 <Text style={styles.legalLinkText}>Privacy Policy</Text>
                             </TouchableOpacity>
