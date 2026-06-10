@@ -36,7 +36,7 @@ export function BottomSheetMetadata({ orbs, clusters, transitions }: BottomSheet
     const [showPaywall, setShowPaywall] = useState(false);
     const { aiFreeMode } = useAiFreeMode();
 
-    const isPro = tier === 'founder' || tier === 'subscriber';
+    const isPro = tier === 'plus';
     const hasSelection = selectedOrbId !== null || selectedOrbIds.length > 0;
 
     const snapPoints = useMemo(() => ['28%', '55%'], []);

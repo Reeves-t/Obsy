@@ -10,7 +10,6 @@ export type FeatureName = 'daily_insight' | 'group_insight' | 'weekly_insight' |
 
 interface SubscriptionState {
     tier: SubscriptionTier;
-    isFounder: boolean;
     counts: {
         daily_insight: number;
         group_insight: number;
@@ -52,16 +51,7 @@ const LIMITS: Record<SubscriptionTier, TierLimits> = {
         archive_slots: 30,
         cloud_backup: false,
     },
-    founder: {
-        daily_insight: Infinity,
-        group_insight: Infinity,
-        weekly_insight: Infinity,
-        captures_per_day: Infinity,
-        max_local_captures: Infinity,
-        archive_slots: 150,
-        cloud_backup: true,
-    },
-    subscriber: {
+    plus: {
         daily_insight: Infinity,
         group_insight: Infinity,
         weekly_insight: Infinity,
@@ -141,15 +131,13 @@ export function useSubscription(): SubscriptionState {
     const tier: SubscriptionTier = !user
         ? 'guest'
         : (settings?.subscription_tier || 'free');
-    const isFounder = settings?.is_founder || false;
-
     const checkLimit = useCallback(
         (feature: FeatureName): boolean => {
             // While loading, be optimistic and allow the action
-            // This prevents blocking founders/subscribers while settings are being fetched
+            // This prevents blocking Plus members while settings are being fetched
             if (loading && user) return true;
 
-            if (tier === 'founder' || tier === 'subscriber') return true;
+            if (tier === 'plus') return true;
             if (feature === 'albums' && tier === 'guest') return false; // Guests can't access albums
             if (feature === 'albums') return true; // Free users can access albums
             if (feature === 'premium_tones' && (tier === 'guest' || tier === 'free')) return false;
@@ -175,7 +163,7 @@ export function useSubscription(): SubscriptionState {
             if (!user) return false;
 
             // If unlimited, just return true (but maybe we still want to track usage? For now, no.)
-            if (tier === 'founder' || tier === 'subscriber') return true;
+            if (tier === 'plus') return true;
 
             if (!checkLimit(feature)) return false;
 
@@ -203,7 +191,6 @@ export function useSubscription(): SubscriptionState {
 
     return {
         tier,
-        isFounder,
         counts: {
             daily_insight: settings?.daily_insight_count || 0,
             group_insight: settings?.group_insight_count || 0,

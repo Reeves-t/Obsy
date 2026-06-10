@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.obsy.app",
+      "bundleIdentifier": "com.innostudio.obsy",
       "buildNumber": "1",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Obsy uses your microphone to record voice mood notes.",
@@ -32,7 +32,7 @@
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "adjustResize",
       "predictiveBackGestureEnabled": false,
-      "package": "com.obsy.app",
+      "package": "com.innostudio.obsy",
       "versionCode": 1
     },
     "web": {

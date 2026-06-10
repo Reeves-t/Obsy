@@ -20,7 +20,7 @@ import { decode } from 'base64-arraybuffer';
 import { getTierLimits } from "@/hooks/useSubscription";
 import { getLocalDayKey } from "@/lib/utils";
 
-type SubscriptionTier = 'guest' | 'free' | 'founder' | 'subscriber';
+type SubscriptionTier = 'guest' | 'free' | 'plus';
 
 type CaptureState = {
     captures: Capture[];
@@ -484,7 +484,7 @@ export const useCaptureStore = create<CaptureState>()(
 
                 let finalStoragePath = filename;
 
-                // 2. Cloud Backup - only for paid tiers (founder/subscriber)
+                // 2. Cloud Backup - only for the paid Plus tier
                 const canCloudBackup = limits.cloud_backup && user && PRIVACY_FLAGS.ALLOW_CLOUD_PHOTO_UPLOAD;
                 if (canCloudBackup) {
                     try {

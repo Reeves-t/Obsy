@@ -71,11 +71,12 @@ interface VanguardPaywallProps {
     featureName?: string;
 }
 
-// Price display strings (matching existing product values)
+// Static fallback prices for the Plus tier. Live, localized prices come from
+// RevenueCat at runtime once the SDK is wired (Cluster B RevenueCat workstream);
+// these mirror the configured App Store Connect products.
 const PLAN_PRICES = {
-    founder: '$29.99 / lifetime',
-    yearly: '$18.99 / year',
-    monthly: '$1.99 / month',
+    yearly: '$49.99 / year',
+    monthly: '$5.99 / month',
 } as const;
 
 // Plus features list
@@ -87,7 +88,7 @@ const PREMIUM_FEATURES = [
 
 export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywallProps) {
     const insets = useSafeAreaInsets();
-    const [selectedPlan, setSelectedPlan] = useState<'founder' | 'yearly' | 'monthly'>('founder');
+    const [selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
 
     const openLegal = (url: string) => {
         WebBrowser.openBrowserAsync(url);
@@ -99,8 +100,8 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
         onClose();
     };
 
-    // CTA button label based on selection
-    const ctaLabel = selectedPlan === 'founder' ? 'Become a Founder' : 'Become a Plus member';
+    // CTA button label
+    const ctaLabel = 'Become a Plus member';
     // Price text below CTA
     const priceLabel = PLAN_PRICES[selectedPlan];
 
@@ -168,77 +169,7 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                         showsVerticalScrollIndicator={false}
                         bounces={true}
                     >
-                        {/* --- FOUNDER'S PASS SELECTABLE CARD --- */}
-                        <TouchableOpacity
-                            style={styles.founderCardTouchable}
-                            activeOpacity={0.8}
-                            onPress={() => {
-                                setSelectedPlan('founder');
-                                Haptics.selectionAsync();
-                            }}
-                        >
-                            <View style={[
-                                styles.founderCard,
-                                selectedPlan === 'founder' && styles.founderCardSelected
-                            ]}>
-                                {/* Glass background with purple selection tint */}
-                                <LinearGradient
-                                    colors={selectedPlan === 'founder'
-                                        ? ['rgba(139,92,246,0.12)', 'rgba(139,92,246,0.04)']
-                                        : ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']}
-                                    style={StyleSheet.absoluteFill}
-                                />
-                                {selectedPlan === 'founder' && (
-                                    <View style={styles.founderSelectedGlow} />
-                                )}
-
-                                {/* Limited Edition Badge - premium, minimal */}
-                                <View style={styles.limitedBadge}>
-                                    <LinearGradient
-                                        colors={['rgba(251,191,36,0.15)', 'rgba(251,191,36,0.05)']}
-                                        style={StyleSheet.absoluteFill}
-                                    />
-                                    <Text style={styles.limitedText}>LIMITED EDITION</Text>
-                                </View>
-
-                                <SubtleShimmer style={styles.heroTitleContainer} intensity={0.2}>
-                                    <Text style={styles.heroTitle}>THE FOUNDER'S PASS</Text>
-                                </SubtleShimmer>
-
-                                {/* Benefits List */}
-                                <View style={styles.benefitsList}>
-                                    <View style={styles.benefitItem}>
-                                        <View style={styles.benefitIconContainer}>
-                                            <Ionicons name="trophy" size={14} color="#fbbf24" />
-                                        </View>
-                                        <Text style={styles.benefitText}>
-                                            <Text style={styles.benefitHighlight}>LIFETIME ACCESS TO ALL FEATURES</Text> (One-time payment $29.99)
-                                        </Text>
-                                    </View>
-                                    <View style={styles.benefitItem}>
-                                        <View style={styles.benefitIconContainer}>
-                                            <Ionicons name="infinite" size={14} color="#fbbf24" />
-                                        </View>
-                                        <Text style={styles.benefitText}>
-                                            <Text style={styles.benefitHighlight}>UNLIMITED INSIGHTS</Text> (Daily, Weekly, Monthly)
-                                        </Text>
-                                    </View>
-                                    <View style={styles.benefitItem}>
-                                        <View style={styles.benefitIconContainer}>
-                                            <Ionicons name="color-palette" size={14} color="#fbbf24" />
-                                        </View>
-                                        <Text style={styles.benefitText}>
-                                            <Text style={styles.benefitHighlight}>ALL AI TONES</Text> (Including Custom Tones)
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Divider */}
-                        <View style={styles.divider} />
-
-                        {/* --- STANDARD SUBSCRIPTION --- */}
+                        {/* --- OBSY PLUS SUBSCRIPTION --- */}
                         <View style={styles.standardSection}>
                             <Text style={styles.sectionLabel}>OBSY PLUS SUBSCRIPTION</Text>
 
@@ -282,10 +213,10 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                                             <View style={styles.selectedGlowYearly} />
                                         )}
                                         <View style={styles.saveBadge}>
-                                            <Text style={styles.saveText}>SAVE 20%</Text>
+                                            <Text style={styles.saveText}>SAVE 30%</Text>
                                         </View>
                                         <Text style={styles.planName}>YEARLY</Text>
-                                        <Text style={styles.planPrice}>$18.99 / YR</Text>
+                                        <Text style={styles.planPrice}>$49.99 / YR</Text>
                                     </View>
                                 </TouchableOpacity>
 
@@ -315,7 +246,7 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                                             <View style={styles.selectedGlowMonthly} />
                                         )}
                                         <Text style={styles.planName}>MONTHLY</Text>
-                                        <Text style={styles.planPrice}>$1.99 / MO</Text>
+                                        <Text style={styles.planPrice}>$5.99 / MO</Text>
                                     </View>
                                 </TouchableOpacity>
                             </View>
@@ -434,95 +365,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingTop: 16,
         paddingBottom: 140, // Space for sticky CTA
-    },
-
-    // Founder's Pass Card (selectable like other plans)
-    founderCardTouchable: {
-        width: '100%',
-    },
-    founderCard: {
-        width: '100%',
-        borderRadius: 28,
-        paddingVertical: 28,
-        paddingHorizontal: 20,
-        alignItems: 'center',
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.10)',
-    },
-    founderCardSelected: {
-        borderColor: 'rgba(139,92,246,0.4)',
-    },
-    founderSelectedGlow: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '40%',
-        backgroundColor: 'rgba(139,92,246,0.08)',
-    },
-    limitedBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        marginBottom: 16,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(251,191,36,0.2)',
-    },
-    limitedText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#fbbf24',
-        letterSpacing: 1.5,
-    },
-    heroTitleContainer: {
-        marginBottom: 20,
-    },
-    heroTitle: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: 'white',
-        letterSpacing: 1.5,
-        textAlign: 'center',
-        textShadowColor: 'rgba(251, 191, 36, 0.25)',
-        textShadowOffset: { width: 0, height: 0 },
-        textShadowRadius: 20,
-    },
-    benefitsList: {
-        width: '100%',
-        gap: 14,
-    },
-    benefitItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        gap: 12,
-    },
-    benefitIconContainer: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    benefitText: {
-        color: 'rgba(255,255,255,0.6)',
-        fontSize: 12,
-        fontWeight: '500',
-        flex: 1,
-    },
-    benefitHighlight: {
-        color: 'white',
-        fontWeight: '700',
-    },
-
-    // Divider
-    divider: {
-        height: 1,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        marginVertical: 28,
     },
 
     // Standard Section

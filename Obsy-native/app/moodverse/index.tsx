@@ -52,7 +52,7 @@ export default function MoodversePage() {
     const { aiFreeMode } = useAiFreeMode();
     const [trailPoints, setTrailPoints] = useState<Array<{ x: number; y: number }>>([]);
     const { tier } = useSubscription();
-    const isPro = tier === 'founder' || tier === 'subscriber';
+    const isPro = tier === 'plus';
 
     // Store subscriptions
     const selectedYear = useMoodverseStore((s) => s.selectedYear);

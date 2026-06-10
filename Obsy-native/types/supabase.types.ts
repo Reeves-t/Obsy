@@ -79,8 +79,7 @@ export interface Database {
                     ai_free_mode: boolean | null;
                     is_premium: boolean | null;
                     premium_until: string | null;
-                    subscription_tier: 'guest' | 'free' | 'founder' | 'subscriber';
-                    is_founder: boolean;
+                    subscription_tier: 'guest' | 'free' | 'plus';
                     daily_insight_count: number;
                     group_insight_count: number;
                     weekly_insight_count: number;
@@ -100,8 +99,7 @@ export interface Database {
                     ai_free_mode?: boolean | null;
                     is_premium?: boolean | null;
                     premium_until?: string | null;
-                    subscription_tier?: 'guest' | 'free' | 'founder' | 'subscriber';
-                    is_founder?: boolean;
+                    subscription_tier?: 'guest' | 'free' | 'plus';
                     daily_insight_count?: number;
                     group_insight_count?: number;
                     weekly_insight_count?: number;
@@ -121,8 +119,7 @@ export interface Database {
                     ai_free_mode?: boolean | null;
                     is_premium?: boolean | null;
                     premium_until?: string | null;
-                    subscription_tier?: 'guest' | 'free' | 'founder' | 'subscriber';
-                    is_founder?: boolean;
+                    subscription_tier?: 'guest' | 'free' | 'plus';
                     daily_insight_count?: number;
                     group_insight_count?: number;
                     weekly_insight_count?: number;

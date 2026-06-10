@@ -2,12 +2,12 @@ import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 
-type SubscriptionTier = 'guest' | 'free' | 'founder' | 'subscriber';
+type SubscriptionTier = 'guest' | 'free' | 'plus';
 
 /**
  * Uploads a local capture image to Supabase Storage.
  * Essential for album sharing so other users can see the photo.
- * Only paid tiers (founder/subscriber) get cloud backup.
+ * Only the paid Plus tier gets cloud backup.
  *
  * @param localUri - Local file URI of the image
  * @param userId - User ID for storage path
