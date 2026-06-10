@@ -17,6 +17,7 @@ import { classifyEntry } from '@/components/entries/EntryGridTile';
 import { StaticLinkPreview } from '@/components/entries/StaticLinkPreview';
 import { PlatformEmbed, isEmbeddablePlatform } from '@/components/entries/PlatformEmbed';
 import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
+import { getVoicePlaybackUrl } from '@/services/voiceNotes';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
 import type { Capture } from '@/types/capture';
 
@@ -394,15 +395,21 @@ function VoiceHero({ capture, moodDisplay, onBack, onDelete, isDeleting }: {
             console.warn('[VoiceHero] setAudioModeAsync failed', e);
         }
         try {
+            // voice-notes bucket is private — mint a short-lived signed URL.
+            const playUrl = await getVoicePlaybackUrl(capture.audio_url);
+            if (!playUrl) {
+                console.warn('[VoiceHero] could not resolve signed url for', capture.id);
+                return null;
+            }
             const { sound } = await Audio.Sound.createAsync(
-                { uri: capture.audio_url },
+                { uri: playUrl },
                 { shouldPlay: false, progressUpdateIntervalMillis: 100 },
                 onStatus,
             );
             soundRef.current = sound;
             return sound;
         } catch (e) {
-            console.warn('[VoiceHero] createAsync failed for', capture.audio_url, e);
+            console.warn('[VoiceHero] createAsync failed for', capture.id, e);
             return null;
         }
     }, [capture.audio_url, onStatus]);

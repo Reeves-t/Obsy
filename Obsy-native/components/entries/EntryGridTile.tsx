@@ -16,6 +16,7 @@ import type { Capture } from '@/types/capture';
 import { useMoodResolver } from '@/hooks/useMoodResolver';
 import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
+import { getVoicePlaybackUrl } from '@/services/voiceNotes';
 
 /**
  * EntryGridTile — a square tile representing one Capture entry in the grid view.
@@ -389,8 +390,16 @@ const VoiceTile = memo(function VoiceTile({
 
         try {
             if (!soundRef.current) {
+                // voice-notes bucket is private — mint a short-lived signed URL.
+                const playUrl = await getVoicePlaybackUrl(capture.audio_url);
+                if (!playUrl) {
+                    console.warn('[VoiceTile] could not resolve signed url for', capture.id);
+                    setIsPlaying(false);
+                    if (activeVoiceTileId === capture.id) setActiveVoice(null);
+                    return;
+                }
                 const { sound } = await Audio.Sound.createAsync(
-                    { uri: capture.audio_url },
+                    { uri: playUrl },
                     { shouldPlay: true },
                     onStatus,
                 );

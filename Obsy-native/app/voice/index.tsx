@@ -287,7 +287,11 @@ export default function VoiceNoteScreen() {
     const [isPlaying, setIsPlaying] = useState(false);
     const [playbackProgress, setPlaybackProgress] = useState(0);
 
-    const [audioStorageUrl, setAudioStorageUrl] = useState<string | null>(null);
+    // Local recording uri — used for instant, offline review-screen playback.
+    const [playbackUri, setPlaybackUri] = useState<string | null>(null);
+    // Storage path persisted on the entry (voice-notes bucket is private; later
+    // playback re-signs this path via services/voiceNotes.ts).
+    const [audioStoragePath, setAudioStoragePath] = useState<string | null>(null);
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [transcriptError, setTranscriptError] = useState(false);
@@ -477,6 +481,9 @@ export default function VoiceNoteScreen() {
     const transcribeRecording = async (uri: string) => {
         setIsTranscribing(true);
         setTranscriptError(false);
+        // Review-screen playback uses the local file (instant, offline, and the
+        // bucket is private so there is no public URL to play).
+        setPlaybackUri(uri);
 
         try {
             const fileName = `${Date.now()}.m4a`;
@@ -495,12 +502,9 @@ export default function VoiceNoteScreen() {
 
             if (uploadError) throw uploadError;
 
-            const { data: urlData } = supabase.storage
-                .from('voice-notes')
-                .getPublicUrl(storagePath);
-
-            const audioUrl = urlData.publicUrl;
-            setAudioStorageUrl(audioUrl);
+            // Persist the storage path (NOT a public URL): the voice-notes bucket
+            // is private, so saved-entry playback re-signs this path on demand.
+            setAudioStoragePath(storagePath);
 
             // Pass the owned storage path; the edge function verifies ownership
             // and downloads the object server-side (no public fetch / SSRF).
@@ -558,7 +562,7 @@ export default function VoiceNoteScreen() {
     }, []);
 
     const handlePlayPause = async () => {
-        if (!audioStorageUrl) return;
+        if (!playbackUri) return;
 
         if (soundRef.current) {
             if (isPlaying) {
@@ -578,7 +582,7 @@ export default function VoiceNoteScreen() {
         }
 
         const { sound } = await Audio.Sound.createAsync(
-            { uri: audioStorageUrl },
+            { uri: playbackUri },
             { shouldPlay: true, progressUpdateIntervalMillis: 250 },
             handlePlaybackStatus
         );
@@ -593,7 +597,8 @@ export default function VoiceNoteScreen() {
 
         setIsPlaying(false);
         setPlaybackProgress(0);
-        setAudioStorageUrl(null);
+        setPlaybackUri(null);
+        setAudioStoragePath(null);
         setTranscript('');
         setTranscriptError(false);
         setElapsed(0);
@@ -616,7 +621,7 @@ export default function VoiceNoteScreen() {
                 moodId,
                 moodName,
                 transcript,
-                audioStorageUrl ?? '',
+                audioStoragePath ?? '',
                 tags,
                 insights
             );
