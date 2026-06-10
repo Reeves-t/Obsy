@@ -16,7 +16,8 @@ import Animated, {
     SlideInDown
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
+import * as WebBrowser from 'expo-web-browser';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../constants/legal';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.85; // ~85% of screen height
@@ -86,28 +87,10 @@ const PREMIUM_FEATURES = [
 
 export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywallProps) {
     const insets = useSafeAreaInsets();
-    const [founderCount, setFounderCount] = useState(0);
     const [selectedPlan, setSelectedPlan] = useState<'founder' | 'yearly' | 'monthly'>('founder');
 
-    useEffect(() => {
-        if (visible) {
-            fetchFounderCount();
-        }
-    }, [visible]);
-
-    const fetchFounderCount = async () => {
-        const { data } = await supabase
-            .from('system_stats')
-            .select('value')
-            .eq('key', 'founder_count')
-            .single();
-
-        if (data && data.value) {
-            // @ts-ignore
-            setFounderCount(data.value.count || 423);
-        } else {
-            setFounderCount(423);
-        }
+    const openLegal = (url: string) => {
+        WebBrowser.openBrowserAsync(url);
     };
 
     const handlePurchase = async () => {
@@ -221,21 +204,6 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                                 <SubtleShimmer style={styles.heroTitleContainer} intensity={0.2}>
                                     <Text style={styles.heroTitle}>THE FOUNDER'S PASS</Text>
                                 </SubtleShimmer>
-
-                                {/* Scarcity / Progress */}
-                                <View style={styles.scarcitySection}>
-                                    <Text style={styles.scarcityText}>{founderCount} / 1,000 CLAIMED</Text>
-                                    <View style={styles.progressBarBg}>
-                                        <LinearGradient
-                                            colors={['#fbbf24', '#f59e0b']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={[styles.progressBarFill, { width: `${(founderCount / 1000) * 100}%` }]}
-                                        />
-                                        {/* Soft glow on progress */}
-                                        <View style={[styles.progressGlow, { width: `${(founderCount / 1000) * 100}%` }]} />
-                                    </View>
-                                </View>
 
                                 {/* Benefits List */}
                                 <View style={styles.benefitsList}>
@@ -373,6 +341,15 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
                         </TouchableOpacity>
                         <Text style={styles.priceText}>{priceLabel}</Text>
                         <Text style={styles.cancelText}>Cancel anytime in the App Store</Text>
+                        <View style={styles.legalLinksRow}>
+                            <TouchableOpacity onPress={() => openLegal(PRIVACY_POLICY_URL)} hitSlop={8}>
+                                <Text style={styles.legalLinkText}>Privacy Policy</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.legalLinkSeparator}>·</Text>
+                            <TouchableOpacity onPress={() => openLegal(TERMS_OF_SERVICE_URL)} hitSlop={8}>
+                                <Text style={styles.legalLinkText}>Terms of Use</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </Animated.View>
             </View>
@@ -511,38 +488,6 @@ const styles = StyleSheet.create({
         textShadowColor: 'rgba(251, 191, 36, 0.25)',
         textShadowOffset: { width: 0, height: 0 },
         textShadowRadius: 20,
-    },
-    scarcitySection: {
-        width: '100%',
-        alignItems: 'center',
-        marginBottom: 28,
-    },
-    scarcityText: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 11,
-        marginBottom: 10,
-        fontWeight: '600',
-        letterSpacing: 1,
-    },
-    progressBarBg: {
-        width: '55%',
-        height: 4,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 2,
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    progressBarFill: {
-        height: '100%',
-        borderRadius: 2,
-    },
-    progressGlow: {
-        position: 'absolute',
-        top: -2,
-        left: 0,
-        height: 8,
-        backgroundColor: 'rgba(251,191,36,0.3)',
-        borderRadius: 4,
     },
     benefitsList: {
         width: '100%',
@@ -749,5 +694,21 @@ const styles = StyleSheet.create({
         fontSize: 12,
         textAlign: 'center',
         marginTop: 6,
+    },
+    legalLinksRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 8,
+        gap: 8,
+    },
+    legalLinkText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 12,
+        textDecorationLine: 'underline',
+    },
+    legalLinkSeparator: {
+        color: 'rgba(255,255,255,0.3)',
+        fontSize: 12,
     },
 });

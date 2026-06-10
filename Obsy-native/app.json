@@ -15,8 +15,13 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.obsy.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Obsy uses your microphone to record voice mood notes."
+        "NSMicrophoneUsageDescription": "Obsy uses your microphone to record voice mood notes.",
+        "NSCameraUsageDescription": "Obsy uses your camera to capture photos for your entries and topics.",
+        "NSPhotoLibraryUsageDescription": "Obsy accesses your photo library so you can attach images to your entries and topics.",
+        "NSPhotoLibraryAddUsageDescription": "Obsy saves images to your photo library when you export them."
       }
     },
     "android": {
@@ -27,7 +32,8 @@
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "adjustResize",
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.Obsynative"
+      "package": "com.obsy.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
@@ -38,7 +44,28 @@
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-av"
+      "expo-av",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Obsy uses your camera to capture photos for your entries and topics.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Obsy accesses your photo library so you can attach images to your entries and topics."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Obsy accesses your photo library so you can attach images to your entries and topics.",
+          "savePhotosPermission": "Obsy saves images to your photo library when you export them."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

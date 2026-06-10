@@ -502,8 +502,10 @@ export default function VoiceNoteScreen() {
             const audioUrl = urlData.publicUrl;
             setAudioStorageUrl(audioUrl);
 
+            // Pass the owned storage path; the edge function verifies ownership
+            // and downloads the object server-side (no public fetch / SSRF).
             const { data, error } = await supabase.functions.invoke('transcribe-voice-note', {
-                body: { audioUrl, language: 'en' },
+                body: { storagePath, language: 'en' },
             });
 
             if (error) throw error;

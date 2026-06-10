@@ -125,7 +125,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const checkOnboarding = async () => {
       const hasCompleted = await AsyncStorage.getItem('has_completed_onboarding');
-      const ALWAYS_SHOW_ONBOARDING = true;
+      const ALWAYS_SHOW_ONBOARDING = false;
 
       if ((hasCompleted !== 'true' || ALWAYS_SHOW_ONBOARDING) && !hasForcedOnboardingThisSession) {
         hasForcedOnboardingThisSession = true;

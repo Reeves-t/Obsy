@@ -28,6 +28,9 @@ import { useFloatingBackgroundStore } from '@/lib/floatingBackgroundStore';
 import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
 import { useHorizonStarsStore } from '@/lib/horizonStarsStore';
 import { useI18n } from '@/i18n/config';
+import * as WebBrowser from 'expo-web-browser';
+import { exportUserData } from '@/services/export';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/legal';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -477,23 +480,45 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleExportData = () => {
-    Alert.alert('Export Data', 'Your data export will begin shortly.', [{ text: 'OK' }]);
+  const handleExportData = async () => {
+    if (!user) {
+      Alert.alert('Export Data', 'You need to be signed in to export your data.');
+      return;
+    }
+    try {
+      await exportUserData(user.id);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      Alert.alert('Export Failed', 'We could not export your data. Please try again.');
+    }
   };
 
-
+  const openLegal = (url: string) => {
+    WebBrowser.openBrowserAsync(url);
+  };
 
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      'This permanently deletes your account and all your data (entries, insights, photos, voice notes). This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Contact Support', 'Please contact support to delete your account.');
+          onPress: async () => {
+            try {
+              const { error } = await supabase.functions.invoke('delete-account');
+              if (error) throw error;
+              // Account + data are gone; sign out locally and return to auth.
+              await signOut();
+            } catch (error) {
+              console.error('Error deleting account:', error);
+              Alert.alert(
+                'Deletion Failed',
+                'We could not delete your account. Please try again, or contact support if the problem persists.'
+              );
+            }
           },
         },
       ]
@@ -906,7 +931,12 @@ export default function ProfileScreen() {
           <SettingRow
             icon="document-text-outline"
             title="Privacy Policy"
-            onPress={() => { }}
+            onPress={() => openLegal(PRIVACY_POLICY_URL)}
+          />
+          <SettingRow
+            icon="reader-outline"
+            title="Terms of Use"
+            onPress={() => openLegal(TERMS_OF_SERVICE_URL)}
             isLast
           />
         </View>
