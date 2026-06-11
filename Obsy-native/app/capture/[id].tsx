@@ -146,14 +146,6 @@ export default function CaptureDetailScreen() {
                         </View>
                     )}
 
-                    {/* Obsy note (AI caption) — shown for all kinds when present */}
-                    {capture.obsy_note && (
-                        <View style={styles.captionSection}>
-                            <ThemedText style={styles.sectionLabel}>OBSY NOTE</ThemedText>
-                            <ThemedText style={styles.captionText}>"{capture.obsy_note}"</ThemedText>
-                        </View>
-                    )}
-
                     {/* Journal / transcription section:
                         - photo: always shown ("No journal entry for this moment..." fallback)
                         - voice: shown as TRANSCRIPTION when note exists

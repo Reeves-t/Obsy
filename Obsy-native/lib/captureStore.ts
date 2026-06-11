@@ -81,16 +81,12 @@ type CaptureState = {
         note: string,
         tags?: string[],
         challengeContext?: { challengeId: string, templateId: string },
-        obsyNote?: string | null,
-        usePhotoForInsight?: boolean,
         tier?: SubscriptionTier,
         includeInInsights?: boolean
     ) => Promise<string | null>;
     deleteCapture: (id: string) => Promise<void>;
     getAllTags: () => string[];
     clearCaptures: () => void;
-    lastUsedAlbumId: string | null;
-    setLastUsedAlbumId: (id: string | null) => void;
     // Save animation: set imageUri to trigger animation on home screen
     pendingSaveAnimationUri: string | null;
     setPendingSaveAnimationUri: (uri: string | null) => void;
@@ -397,13 +393,11 @@ export const useCaptureStore = create<CaptureState>()(
              * @param note - Optional text note.
              * @param tags - Optional array of tag strings.
              * @param challengeContext - Optional challenge context object.
-             * @param obsyNote - Optional AI-generated note.
-             * @param usePhotoForInsight - Whether to use photo for AI insight.
              * @param tier - User's subscription tier for limit enforcement.
              * @throws Error if imageUri, moodId, or moodName is missing or invalid.
              * @throws Error if capture limits are exceeded for the user's tier.
              */
-            createCapture: async (imageUri, moodId, moodName, note, tags = [], challengeContext, obsyNote, usePhotoForInsight = false, tier = 'free' as SubscriptionTier, includeInInsights = true) => {
+            createCapture: async (imageUri, moodId, moodName, note, tags = [], challengeContext, tier = 'free' as SubscriptionTier, includeInInsights = true) => {
                 const { data: { user } } = await supabase.auth.getUser();
                 const currentCaptures = get().captures;
                 const limits = getTierLimits(tier);
@@ -518,8 +512,6 @@ export const useCaptureStore = create<CaptureState>()(
                         tags: tags,
                         challengeId: challengeContext?.challengeId,
                         challengeTemplateId: challengeContext?.templateId,
-                        obsy_note: obsyNote,
-                        usePhotoForInsight: usePhotoForInsight,
                         includeInInsights,
                     });
                 } else {
@@ -532,8 +524,6 @@ export const useCaptureStore = create<CaptureState>()(
                         tags: tags,
                         challengeId: challengeContext?.challengeId,
                         challengeTemplateId: challengeContext?.templateId,
-                        obsy_note: obsyNote,
-                        usePhotoForInsight: usePhotoForInsight,
                         includeInInsights,
                     });
                 }
@@ -607,9 +597,6 @@ export const useCaptureStore = create<CaptureState>()(
 
             clearCaptures: () => set({ captures: [] }),
 
-            lastUsedAlbumId: null,
-            setLastUsedAlbumId: (id) => set({ lastUsedAlbumId: id }),
-
             pendingSaveAnimationUri: null,
             setPendingSaveAnimationUri: (uri) => set({ pendingSaveAnimationUri: uri }),
             pendingSaveMoodGradient: null,
@@ -622,7 +609,6 @@ export const useCaptureStore = create<CaptureState>()(
             storage: createJSONStorage(() => AsyncStorage),
             partialize: (state) => ({
                 captures: state.captures,
-                lastUsedAlbumId: state.lastUsedAlbumId,
                 // Exclude transient animation state from persistence
             }),
         }

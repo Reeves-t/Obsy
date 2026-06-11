@@ -71,7 +71,7 @@ export default function InviteScreen() {
 
         if (result.success) {
             Alert.alert("Success!", `${inviterName} has been added as a friend.`, [
-                { text: "OK", onPress: () => router.replace('/albums') }
+                { text: "OK", onPress: () => router.replace('/friends') }
             ]);
         } else {
             Alert.alert("Couldn't Add Friend", result.message);

@@ -32,8 +32,6 @@ export interface ArchiveInput {
     relatedCaptureIds: string[];
     date: Date; // The reference date (e.g., the day, or any day in the week/month)
     tone?: string;
-    albumId?: string;
-    albumName?: string;
     tagName?: string;
     tagGroupId?: string;
     tags?: string[];
@@ -200,8 +198,6 @@ export async function archiveInsightWithResult(input: ArchiveInput): Promise<Arc
         relatedCaptureIds,
         date,
         tone,
-        albumId,
-        albumName,
         tagName,
         tagGroupId
     } = input;
@@ -229,10 +225,6 @@ export async function archiveInsightWithResult(input: ArchiveInput): Promise<Arc
             title = `Monthly Insight • ${format(date, "MMMM")}`;
             dateScope = format(date, "yyyy-MM");
             break;
-        case 'album':
-            title = `Album Insight • ${albumName || 'Album'}`;
-            dateScope = format(date, "yyyy-MM-dd");
-            break;
         case 'tagging':
             title = `Tagging Insight • ${tagName || 'Tag'}`;
             dateScope = format(date, "yyyy-MM-dd");
@@ -254,7 +246,6 @@ export async function archiveInsightWithResult(input: ArchiveInput): Promise<Arc
             summary,
             body: insightText,
             date_scope: dateScope,
-            album_id: albumId || null,
             tag_group_id: tagGroupId || null,
             related_capture_ids: relatedCaptureIds,
             tone: tone || null,

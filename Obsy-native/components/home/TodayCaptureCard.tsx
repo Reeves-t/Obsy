@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Image, TouchableOpacity, Modal } from 'react-native';
-import { GlassCard } from '@/components/ui/GlassCard';
+import React from 'react';
+import { StyleSheet, View, Image, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Capture } from '@/lib/captureStore';
 import { MOODS } from '@/constants/Moods';
@@ -15,7 +14,6 @@ interface TodayCaptureCardProps {
 export function TodayCaptureCard({ capture, onPress }: TodayCaptureCardProps) {
     const { colors } = useObsyTheme();
     const mood = MOODS.find(m => m.id === capture.mood);
-    const [showNote, setShowNote] = useState(false);
 
     return (
         <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={{ width: '100%' }}>
@@ -29,42 +27,6 @@ export function TodayCaptureCard({ capture, onPress }: TodayCaptureCardProps) {
                         </View>
                     )}
 
-                    {capture.obsy_note && (
-                        <>
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                style={styles.noteContainer}
-                                onPress={() => setShowNote(true)}
-                            >
-                                <ThemedText style={[styles.noteText, { color: colors.text }]} numberOfLines={2} ellipsizeMode="tail">
-                                    {capture.obsy_note}
-                                </ThemedText>
-                            </TouchableOpacity>
-
-                            <Modal
-                                transparent
-                                visible={showNote}
-                                animationType="fade"
-                                onRequestClose={() => setShowNote(false)}
-                            >
-                                <View style={styles.modalBackdrop}>
-                                    <GlassCard style={styles.modalCard}>
-                                        <ThemedText type="subtitle" style={styles.modalTitle}>Obsy Note</ThemedText>
-                                        <ThemedText style={[styles.modalBody, { color: colors.text }]}>
-                                            {capture.obsy_note}
-                                        </ThemedText>
-                                        <TouchableOpacity
-                                            style={styles.closeButton}
-                                            onPress={() => setShowNote(false)}
-                                            activeOpacity={0.8}
-                                        >
-                                            <ThemedText style={styles.closeButtonText}>Close</ThemedText>
-                                        </TouchableOpacity>
-                                    </GlassCard>
-                                </View>
-                            </Modal>
-                        </>
-                    )}
                 </View>
             </View>
         </TouchableOpacity>

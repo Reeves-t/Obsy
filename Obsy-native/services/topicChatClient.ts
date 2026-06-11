@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { ChatMessage } from '@/lib/moodverseStore';
+import type { ChatMessage } from '@/lib/chatTypes';
 import type { Capture } from '@/types/capture';
 import type { Topic, TopicNote, TopicStats } from '@/lib/topicStore';
 import type { TopicAttachment } from '@/services/topicAttachments';

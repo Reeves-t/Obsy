@@ -23,10 +23,6 @@ import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
 import { useHorizonStarsStore } from '@/lib/horizonStarsStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
-// MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
-// import { MoodverseEntryCard } from '@/components/moodverse/MoodverseEntryCard';
-// import { GalaxyBackground } from '@/components/moodverse/GalaxyBackground';
-// import { computeGalaxyLayout, generateMockCaptures } from '@/components/moodverse/galaxyLayout';
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 
 const { height, width } = Dimensions.get('window');
@@ -100,16 +96,6 @@ export default function HomeScreen() {
   // Theme dots are part of the background, not the ambient feature — only pause when truly invisible
   const isThemeDotsPaused = !isScreenFocused || !isAppActive;
 
-  const currentYear = useMemo(() => new Date().getFullYear(), []);
-  // MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
-  // const galaxyData = useMemo(() => {
-  //   if (ambientMode !== 'moodverse' || !user?.id) return null;
-  //   const src = captures.length > 0 ? captures : generateMockCaptures(user.id, currentYear);
-  //   return computeGalaxyLayout(src, user.id, currentYear);
-  // }, [ambientMode, captures, user?.id, currentYear]);
-  //
-  // const shouldMountGalaxy = ambientEnabled && ambientMode === 'moodverse' && isScreenFocused && isAppActive;
-
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     // Scroll tracking removed with Lens removal
   }, []);
@@ -142,7 +128,7 @@ export default function HomeScreen() {
       edges={['top', 'left', 'right', 'bottom']}
       screenName="home"
       bottomInset={DEFAULT_TAB_BAR_HEIGHT}
-      hideFloatingBackground={false /* MOODVERSE_MVP_HIDDEN — was: ambientEnabled && ambientMode === 'moodverse' */}
+      hideFloatingBackground={false}
     >
       {usesTimeTheme && activeGradient && horizonStarsReady && horizonStarsEnabled && (
         <View pointerEvents="none" style={styles.horizonStarsLayer}>
@@ -157,26 +143,12 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {ambientEnabled && ambientMode === 'sparkles' && (
+      {ambientEnabled && (
         <AmbientMoodField
           moodWeights={weeklyMoodWeights}
           isPaused={isAmbientPaused}
         />
       )}
-
-      {/* MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
-      {shouldMountGalaxy && galaxyData && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <View style={{ flex: 1, opacity: 0.45 }}>
-            <GalaxyBackground
-              orbs={galaxyData.orbs}
-              clusters={galaxyData.clusters}
-              isPaused={false}
-            />
-          </View>
-        </View>
-      )}
-      */}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -211,12 +183,6 @@ export default function HomeScreen() {
           <View style={styles.centerContainer}>
             <HomeActionCarousel />
           </View>
-
-          {/* MOODVERSE_MVP_HIDDEN — restore for post-MVP launch
-          <View style={[styles.moodverseContainer, { bottom: insets.bottom + 48 }]}>
-            <MoodverseEntryCard />
-          </View>
-          */}
         </View>
 
         {SHOW_YEAR_IN_PIXELS_MVP && (
@@ -314,10 +280,5 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     transform: [{ translateY: -184 }],
-  },
-  moodverseContainer: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
   },
 });

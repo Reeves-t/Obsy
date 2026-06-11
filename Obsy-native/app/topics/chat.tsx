@@ -15,13 +15,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, ArrowUp, FileText } from 'lucide-react-native';
 import { ThemedText } from '@/components/ui/ThemedText';
-import type { ChatMessage } from '@/lib/moodverseStore';
+import type { ChatMessage } from '@/lib/chatTypes';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTopicStore } from '@/lib/topicStore';
 import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { callTopicChat, generateTopicNote, type TopicContext } from '@/services/topicChatClient';
-import { ObsyIcon } from '@/components/moodverse/ObsyIcon';
+import { ObsyIcon } from '@/components/ui/ObsyIcon';
 import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 // Show note helper after this many AI responses

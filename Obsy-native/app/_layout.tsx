@@ -10,7 +10,6 @@ import { ObsyAnimatedSplash } from '@/components/splash/ObsyAnimatedSplash';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ObsyThemeProvider, useObsyTheme } from '@/contexts/ThemeContext';
-import { MockAlbumProvider } from '@/contexts/MockAlbumContext';
 import { I18nProvider } from '@/i18n/config';
 import { moodCache } from '@/lib/moodCache';
 import { configureRevenueCat, identifyRevenueCatUser, resetRevenueCatUser } from '@/lib/revenuecat';
@@ -103,12 +102,10 @@ function RootLayoutNav({ onDataReady }: { onDataReady: () => void }) {
       <AuthProvider>
         <I18nProvider>
           <ObsyThemeProvider>
-            <MockAlbumProvider>
             <MoodCacheInitializer />
             <RevenueCatInitializer />
             <SnapshotLoader onDataReady={onDataReady} />
             <ThemedNavigator />
-            </MockAlbumProvider>
           </ObsyThemeProvider>
         </I18nProvider>
       </AuthProvider>
@@ -193,15 +190,13 @@ function ThemedNavigator() {
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="albums" options={{ headerShown: false }} />
+        <Stack.Screen name="friends" options={{ headerShown: false }} />
         <Stack.Screen name="invite" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="capture" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="journal" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="voice" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="quick-mood" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="topics" options={{ headerShown: false }} />
-        {/* MOODVERSE_MVP_HIDDEN — restore for post-MVP launch */}
-        {/* <Stack.Screen name="moodverse" options={{ headerShown: false }} /> */}
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

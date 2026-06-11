@@ -1,6 +1,5 @@
 import { format } from "date-fns";
 import { AiToneId, getToneDefinition, DEFAULT_AI_TONE_ID } from "@/lib/aiTone";
-import { AlbumContextEntry } from "@/lib/albumEngine";
 import { PRIVACY_FLAGS } from "@/lib/privacyFlags";
 import {
     CaptureForInsight,
@@ -272,17 +271,5 @@ export async function generateObsyNote(
         "DEPRECATED: generateObsyNote() is no longer available. " +
         "This feature has been migrated to generateCaptureInsightSecure(). " +
         "See app/capture/review.tsx for the new implementation."
-    );
-}
-
-/** @deprecated Use generateAlbumInsightSecure from services/secureAI.ts */
-export async function generateAlbumInsight(
-    context: AlbumContextEntry[],
-    tone: AiToneId
-): Promise<string> {
-    throw new Error(
-        "DEPRECATED: generateAlbumInsight() is no longer available. " +
-        "Use generateAlbumInsightSecure() from services/secureAI.ts instead. " +
-        "See SECURITY_SETUP.md for migration guide."
     );
 }

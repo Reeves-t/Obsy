@@ -6,7 +6,6 @@ type SubscriptionTier = 'guest' | 'free' | 'plus';
 
 /**
  * Uploads a local capture image to Supabase Storage.
- * Essential for album sharing so other users can see the photo.
  * Only the paid Plus tier gets cloud backup.
  *
  * @param localUri - Local file URI of the image
@@ -68,7 +67,7 @@ export async function uploadCaptureImage(
         const contentType = typeMap[fileExt] || 'image/jpeg';
         console.log('[Storage] Filename:', filename, 'Extension:', fileExt, 'Content-Type:', contentType);
 
-        // 3. Construct path: userId/filename (this format is required for album display)
+        // 3. Construct path: userId/filename (first segment must be the owner uid for storage RLS)
         const storagePath = `${userId}/${filename}`;
         console.log('[Storage] Storage path:', storagePath);
 
@@ -87,9 +86,9 @@ export async function uploadCaptureImage(
         }
 
         console.log('[Storage] Upload success. Path:', data.path);
-        // Verify the returned path contains '/' (required for SharedCanvas filtering)
+        // Verify the returned path contains '/' (owner uid prefix required for storage RLS)
         if (!data.path.includes('/')) {
-            console.warn('[Storage] Warning: Returned path does not contain "/" - may cause album display issues');
+            console.warn('[Storage] Warning: Returned path does not contain "/" - may cause access-policy issues');
         }
         return data.path;
 

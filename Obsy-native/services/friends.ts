@@ -1,18 +1,10 @@
 import { supabase } from '@/lib/supabase';
 import { Profile } from './profile';
-import { Album, fetchAlbumsByCreators } from './albums';
 
 export interface Friend extends Profile {
     friendship_id: string;
     friendship_created_at: string;
 }
-
-/**
- * FriendAlbum is an alias for Album.
- * The canonical Album type from albums.ts is used to maintain consistency.
- * @deprecated Use Album from './albums' directly
- */
-export type FriendAlbum = Album;
 
 /**
  * Add a friend by their user ID.
@@ -204,101 +196,5 @@ export async function removeFriend(friendId: string): Promise<boolean> {
     } catch (error) {
         console.error("Error removing friend:", error);
         return false;
-    }
-}
-
-/**
- * Fetch all albums created by friends of the current user.
- * Uses the shared fetchAlbumsByCreators helper from albums.ts to avoid code duplication.
- * @returns Array of Album objects with creator information
- */
-export async function getFriendAlbums(): Promise<Album[]> {
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return [];
-
-        // Get all friend IDs first
-        const { data: friendships, error: friendError } = await supabase
-            .from('friends')
-            .select('friend_id')
-            .eq('user_id', user.id);
-
-        if (friendError) throw friendError;
-        if (!friendships || friendships.length === 0) return [];
-
-        const friendIds = friendships.map(f => f.friend_id);
-
-        // Use the shared helper from albums.ts to fetch albums by friend IDs
-        return fetchAlbumsByCreators(friendIds);
-
-    } catch (error) {
-        console.error("Error fetching friend albums:", error);
-        return [];
-    }
-}
-
-/**
- * Add a friend to an album.
- * Only the album creator can add members.
- * @param albumId - The ID of the album
- * @param friendId - The user ID of the friend to add
- * @returns Object with success status and message
- */
-export async function addFriendToAlbum(albumId: string, friendId: string): Promise<{ success: boolean; message: string }> {
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Not authenticated");
-
-        // 1. Verify the current user is the album creator
-        const { data: album, error: albumError } = await supabase
-            .from('albums')
-            .select('created_by')
-            .eq('id', albumId)
-            .single();
-
-        if (albumError || !album) {
-            return { success: false, message: "Album not found." };
-        }
-
-        if (album.created_by !== user.id) {
-            return { success: false, message: "Only the album creator can add members." };
-        }
-
-        // 2. Verify this is actually a friend
-        const { data: friendship, error: friendshipError } = await supabase
-            .from('friends')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('friend_id', friendId)
-            .single();
-
-        if (friendshipError || !friendship) {
-            return { success: false, message: "This user is not your friend." };
-        }
-
-        // 3. Check if already a member
-        const { data: existingMember } = await supabase
-            .from('album_members')
-            .select('id')
-            .eq('album_id', albumId)
-            .eq('user_id', friendId)
-            .single();
-
-        if (existingMember) {
-            return { success: false, message: "This friend is already a member of the album." };
-        }
-
-        // 4. Add friend as album member
-        const { error: insertError } = await supabase
-            .from('album_members')
-            .insert({ album_id: albumId, user_id: friendId });
-
-        if (insertError) throw insertError;
-
-        return { success: true, message: "Friend added to album!" };
-
-    } catch (error) {
-        console.error("Error adding friend to album:", error);
-        return { success: false, message: "Failed to add friend to album." };
     }
 }

@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_KEY = '@obsy/ambient_mood_field_enabled';
 const MODE_STORAGE_KEY = '@obsy/ambient_mood_field_mode';
 
-export type AmbientMode = 'sparkles' | 'moodverse';
+export type AmbientMode = 'sparkles';
 
 interface AmbientMoodFieldState {
     enabled: boolean;
@@ -17,8 +17,8 @@ interface AmbientMoodFieldState {
 /**
  * Ambient Mood Field Settings Store
  *
- * Manages the enabled/disabled state and mode selection for the home screen
- * ambient background. Mode switches between sparkle clusters and moodverse galaxy.
+ * Manages the enabled/disabled state for the home screen ambient background
+ * (sparkle clusters).
  */
 export const useAmbientMoodFieldStore = create<AmbientMoodFieldState>((set, get) => ({
     enabled: true,
@@ -53,7 +53,7 @@ export const useAmbientMoodFieldStore = create<AmbientMoodFieldState>((set, get)
             ]);
             const updates: Partial<AmbientMoodFieldState> = {};
             if (savedEnabled !== null) updates.enabled = JSON.parse(savedEnabled);
-            if (savedMode === 'sparkles' || savedMode === 'moodverse') updates.mode = savedMode;
+            if (savedMode === 'sparkles') updates.mode = savedMode;
             if (Object.keys(updates).length > 0) set(updates);
         } catch (error) {
             console.error('[AmbientMoodField] Failed to load saved state:', error);
