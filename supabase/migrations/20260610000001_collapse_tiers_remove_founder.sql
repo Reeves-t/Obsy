@@ -7,26 +7,39 @@
 -- (tracked in the server-side-entitlement child issue); this migration only
 -- collapses the allowed values + retires the founder flag.
 
--- 1. Migrate existing rows to the collapsed tier set.
---    founder/subscriber -> plus; any stray guest -> free (guest is a no-session
---    runtime state and is never persisted at rest).
-UPDATE public.user_settings SET subscription_tier = 'plus'
-  WHERE subscription_tier IN ('founder', 'subscriber');
-UPDATE public.user_settings SET subscription_tier = 'free'
-  WHERE subscription_tier = 'guest' OR subscription_tier IS NULL;
-
--- 2. Replace the tier CHECK constraint with the collapsed set.
+-- 1. Drop the OLD tier CHECK constraint FIRST. The pre-collapse constraint on
+--    this DB permits the legacy set (free/founder/subscriber/...) but NOT 'plus',
+--    so it must be removed before the UPDATEs below can rewrite rows to 'plus'.
 ALTER TABLE public.user_settings DROP CONSTRAINT IF EXISTS check_subscription_tier;
+
+-- 2. Migrate existing rows to the collapsed tier set.
+--    founder/subscriber/lifetime -> plus (all were paid tiers). Any remaining
+--    value that isn't already free|plus (guest, NULL, or anything stray) -> free.
+--    guest is a no-session runtime state and is never persisted at rest. The
+--    second UPDATE is a catch-all so the CHECK constraint added below can never
+--    fail on unexpected legacy data.
+UPDATE public.user_settings SET subscription_tier = 'plus'
+  WHERE subscription_tier IN ('founder', 'subscriber', 'lifetime');
+UPDATE public.user_settings SET subscription_tier = 'free'
+  WHERE subscription_tier IS NULL OR subscription_tier NOT IN ('free', 'plus');
+
+-- 3. Add the collapsed-set CHECK constraint (all rows are now free|plus).
 ALTER TABLE public.user_settings
   ADD CONSTRAINT check_subscription_tier CHECK (subscription_tier IN ('free', 'plus'));
 
--- 3. Remove the founder flag entirely (entitlement is now just free|plus).
+-- 4. Remove the founder flag entirely (entitlement is now just free|plus).
 ALTER TABLE public.user_settings DROP COLUMN IF EXISTS is_founder;
 
--- 4. Retire the fabricated founder scarcity counter row.
-DELETE FROM public.system_stats WHERE key = 'founder_count';
+-- 5. Retire the fabricated founder scarcity counter row. Guarded so a remote
+--    without the system_stats table (it predates this folder's tracked history)
+--    cannot abort the migration.
+DO $$ BEGIN
+  IF to_regclass('public.system_stats') IS NOT NULL THEN
+    DELETE FROM public.system_stats WHERE key = 'founder_count';
+  END IF;
+END $$;
 
--- 5. Update the custom-tone limit trigger: the paid tier is now 'plus'
+-- 6. Update the custom-tone limit trigger: the paid tier is now 'plus'
 --    (was 'founder'/'subscriber' in 20260107_custom_ai_tones.sql).
 CREATE OR REPLACE FUNCTION public.check_custom_tone_limit()
 RETURNS TRIGGER

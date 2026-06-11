@@ -62,11 +62,27 @@ const LIMITS: Record<SubscriptionTier, TierLimits> = {
     },
 };
 
+// Tiers that existed before the free|plus collapse (OBS-10, commit cd28dec). A
+// user_settings row can still carry one of these if the collapse migration
+// (20260610_collapse_tiers_remove_founder) hasn't been applied to this database
+// yet. They were all paid tiers, so honor them as 'plus'. Any other unrecognized
+// value falls back to the safe 'free' default — this guarantees the value is
+// always a real key of LIMITS so an unexpected tier can never crash the app
+// (previously LIMITS[tier] would be undefined and throw on property access).
+const LEGACY_PAID_TIERS = new Set(['founder', 'subscriber', 'lifetime', 'premium', 'pro']);
+
+export function normalizeTier(tier: string | null | undefined): SubscriptionTier {
+    if (tier && tier in LIMITS) return tier as SubscriptionTier;
+    if (tier && LEGACY_PAID_TIERS.has(tier)) return 'plus';
+    return 'free';
+}
+
 /**
  * Get limits for a specific tier. Exported for use in other modules.
+ * Unknown/legacy tier values are normalized to a valid tier first.
  */
 export function getTierLimits(tier: SubscriptionTier): TierLimits {
-    return LIMITS[tier];
+    return LIMITS[normalizeTier(tier)];
 }
 
 export function useSubscription(): SubscriptionState {
@@ -127,10 +143,11 @@ export function useSubscription(): SubscriptionState {
         };
     }, [user, fetchSettings]);
 
-    // Determine tier: 'guest' only if no user session, otherwise default to 'free'
+    // Determine tier: 'guest' only if no user session, otherwise normalize the
+    // stored tier (handles legacy/unknown values so LIMITS[tier] is always valid).
     const tier: SubscriptionTier = !user
         ? 'guest'
-        : (settings?.subscription_tier || 'free');
+        : normalizeTier(settings?.subscription_tier);
     const checkLimit = useCallback(
         (feature: FeatureName): boolean => {
             // While loading, be optimistic and allow the action
