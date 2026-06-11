@@ -28,8 +28,8 @@ Obsy is a visual micro-journal and mood tracker. You capture moments, tag moods,
 
 | Tier | Cost | Features |
 |------|------|----------|
-| **Guest** | Free | Limited features, 1 insight/day, no albums |
-| **Free** | Free | Full features, 5 insights/day, albums |
+| **Guest** | Free | Limited features, 1 insight/day |
+| **Free** | Free | Full features, 5 insights/day |
 | **Plus** | Subscription | Unlimited insights, cloud photo backup, premium features |
 
 ### Subscription Terms (Plus Tier)
@@ -49,7 +49,6 @@ You own everything you create in Obsy. Your photos, journal entries, moods, and 
 By using Obsy, you grant us a limited license to:
 - Store and sync your data to provide the service
 - Process your content through our AI systems to generate insights
-- Display your mood tags and profile to friends in albums you join
 
 This license exists solely to operate the App. We don't use your content for advertising, training AI models, or any purpose beyond providing you the service.
 
@@ -59,7 +58,6 @@ You agree not to:
 - Use Obsy to harass, abuse, or harm others
 - Attempt to reverse engineer, hack, or compromise the App
 - Create multiple accounts to abuse free tier limits
-- Share content in albums that violates others' privacy without consent
 
 ---
 
@@ -75,22 +73,6 @@ Obsy uses AI (Google Gemini) to generate reflective insights based on your captu
 
 ### Your Responsibility
 AI insights are for personal reflection only. If you're experiencing mental health challenges, please consult a qualified professional.
-
----
-
-## Albums & Social Features
-
-### Shared Content
-When you add a capture to an album:
-- Album members can see your mood tag and capture timestamp
-- Album members **cannot** see your journal entries
-- You can remove your captures from an album at any time
-
-### Behavior
-Be respectful in shared albums. We reserve the right to remove users who:
-- Harass other members
-- Share inappropriate content
-- Violate these Terms
 
 ---
 

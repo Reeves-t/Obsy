@@ -11,7 +11,6 @@
 
 ## Should Have
 
-- [ ] **Albums friend system** - Test adding/removing friends
 - [ ] **Storage verification** - Confirm local storage works correctly
 - [ ] **Legal docs in-app** - Link Privacy Policy + ToS from settings
 

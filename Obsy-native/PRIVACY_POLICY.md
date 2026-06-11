@@ -20,7 +20,7 @@
 | Data | Purpose | Storage |
 |------|---------|---------|
 | **Email & Password** | Account authentication | Cloud (Supabase) |
-| **Display Name** | Shown in albums to friends | Cloud (Supabase) |
+| **Display Name** | Account identity | Cloud (Supabase) |
 | **Profile Photo** | Optional, shown to friends | Cloud (Supabase Storage) |
 | **Mood Tags** | Core app functionality | Cloud (synced) |
 | **Journal Entries** | Optional notes on captures | Cloud (synced) |
@@ -46,7 +46,6 @@
 ### Core Functionality
 - Authenticate your account
 - Sync your mood tags, journal entries, and insights across devices
-- Enable album sharing with friends you approve
 
 ### AI-Powered Insights
 Obsy uses Google's Gemini API to generate reflective insights based on your captures.
@@ -61,7 +60,7 @@ Obsy uses Google's Gemini API to generate reflective insights based on your capt
 - ❌ Use your photos for AI training
 - ❌ Display ads based on your content
 - ❌ Access your photos without explicit per-capture consent
-- ❌ Share your journal entries with anyone, including album members. Only mood tags are visible in albums.
+- ❌ Share your journal entries with anyone
 
 ---
 
@@ -82,16 +81,6 @@ Plus subscribers may opt into cloud backup for photos. This is:
 - Fully optional
 - Encrypted in transit and at rest
 - Deletable at any time
-
----
-
-## Albums & Social Features
-
-When you join or create an album:
-- **Visible to album members:** Your display name, profile photo, mood tags on shared captures
-- **Never visible to album members:** Your journal entries, private captures, AI insights (unless you explicitly post them)
-
-Album data follows the same security standards as your personal data.
 
 ---
 
@@ -116,7 +105,6 @@ You can export all your data at any time from the app settings.
 ### Deletion
 You can delete your account at any time. This will:
 - Immediately remove all your data from our cloud servers
-- Remove you from all albums
 - Revoke all active sessions
 
 Local data on your device remains until you uninstall the app.

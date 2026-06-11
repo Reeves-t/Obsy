@@ -17,8 +17,6 @@ This document defines what each user tier can access. Use this as the source of 
 | **Tag Reflections** | ❌ | ✅ (counts toward limit) | ✅ |
 | **AI Tones** | Neutral only | Neutral, Gentle Roast, +1 other | All tones |
 | **Custom Tones** | ❌ | 1 custom tone | Unlimited |
-| **Albums** | View only (signup prompt) | Full access | Full access |
-| **Album Insights** | ❌ | ✅ (counts toward limit) | ✅ |
 | **Floating Backgrounds** | Obsy Float only | Obsy Float only | All modes |
 | **Year in Pixels** | ✅ | ✅ | ✅ |
 | **Storage** | Local only | Local only | Local + Cloud (hybrid) |
@@ -37,7 +35,7 @@ This document defines what each user tier can access. Use this as the source of 
 
 **Free:**
 - 3 insights per day (shared pool)
-- Can use: Daily, Weekly, Tag Reflections, Album Insights
+- Can use: Daily, Weekly, Tag Reflections
 - Cannot use: Monthly Tab
 - Counter resets at midnight
 
@@ -61,23 +59,6 @@ This document defines what each user tier can access. Use this as the source of 
 **Plus:**
 - All preset tones unlocked
 - Unlimited custom tone creation
-
----
-
-### Albums
-
-**Guest:**
-- Can navigate to Albums screen
-- First interaction shows "Create account to use Albums" prompt
-- Cannot: create albums, join albums, add friends, view album content, generate album insights
-
-**Free:**
-- Full album functionality
-- Album insights count toward their 3/day limit
-
-**Plus:**
-- Full album functionality
-- Unlimited album insights
 
 ---
 
@@ -144,18 +125,14 @@ This document defines what each user tier can access. Use this as the source of 
    - Lock tones based on tier
    - Limit custom tone creation for Free (1 max)
 
-5. **Albums (`app/albums/`)**
-   - Gate all interactions for Guest
-   - Allow Free users full access
-
-6. **Floating Backgrounds (`components/backgrounds/`)**
+5. **Floating Backgrounds (`components/backgrounds/`)**
    - Lock non-Obsy modes for Guest/Free
 
-7. **Archive**
+6. **Archive**
    - Implement archive limits (50 Free, 150 Plus)
    - Block archiving for Guest
 
-8. **Storage Settings**
+7. **Storage Settings**
    - Hide cloud option for Guest/Free
    - Show hybrid toggle for Plus only
 
