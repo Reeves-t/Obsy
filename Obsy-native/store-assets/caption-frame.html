@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Obsy — App Store Screenshot Framer</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #0a0b0d; color: #e8e9ec;
+    font-family: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+    display: flex; min-height: 100vh;
+  }
+  .panel { width: 340px; padding: 24px; border-right: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: auto; }
+  h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: rgba(255,255,255,0.5); margin: 0 0 24px; line-height: 1.5; }
+  label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+          color: rgba(255,255,255,0.45); margin: 18px 0 6px; }
+  select, input[type=text], textarea {
+    width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 13px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 56px; line-height: 1.4; }
+  input[type=file] { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 6px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  button {
+    width: 100%; margin-top: 24px; padding: 13px; border: none; border-radius: 12px;
+    background: #fff; color: #000; font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  canvas { max-width: 100%; max-height: 88vh; border-radius: 8px;
+           box-shadow: 0 24px 80px rgba(0,0,0,0.6); }
+  .hint { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Obsy Screenshot Framer</h1>
+    <p class="sub">Frame a raw Simulator capture into a store-ready, calm-branded App Store
+      screenshot. Captions match OBS-1 plan §3.</p>
+
+    <label>Device size</label>
+    <select id="size">
+      <option value="1290x2796">iPhone 6.9"/6.7" — 1290 × 2796 (required)</option>
+      <option value="1242x2688">iPhone 6.5" — 1242 × 2688</option>
+      <option value="2064x2752">iPad 13" — 2064 × 2752</option>
+    </select>
+
+    <label>Caption (approved)</label>
+    <select id="presetCaption">
+      <option>Capture your whole day in one calm canvas.</option>
+      <option>Log moods, topics, and reflections in seconds.</option>
+      <option>See the patterns emerge — without the noise.</option>
+      <option>Private by default. Your data stays yours.</option>
+      <option>Weekly and monthly insights, quietly delivered.</option>
+      <option value="__custom">Custom…</option>
+    </select>
+    <textarea id="caption">Capture your whole day in one calm canvas.</textarea>
+
+    <label>Screen capture (PNG/JPG)</label>
+    <input type="file" id="file" accept="image/png,image/jpeg" />
+
+    <button id="download" disabled>Download framed PNG</button>
+    <p class="hint">Tip: capture with a populated demo account and a clean status bar
+      (see README §4). Output is exact pixel size — upload directly to App Store Connect.</p>
+  </div>
+
+  <div class="stage"><canvas id="canvas"></canvas></div>
+
+<script>
+(function () {
+  const sizeSel = document.getElementById('size');
+  const presetSel = document.getElementById('presetCaption');
+  const captionEl = document.getElementById('caption');
+  const fileEl = document.getElementById('file');
+  const dlBtn = document.getElementById('download');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let img = null;
+
+  presetSel.addEventListener('change', () => {
+    if (presetSel.value !== '__custom') captionEl.value = presetSel.value;
+    render();
+  });
+  captionEl.addEventListener('input', render);
+  sizeSel.addEventListener('change', render);
+
+  fileEl.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    img = new Image();
+    img.onload = () => { dlBtn.disabled = false; render(); };
+    img.src = url;
+  });
+
+  function render() {
+    const [W, H] = sizeSel.value.split('x').map(Number);
+    canvas.width = W; canvas.height = H;
+
+    // Calm dark gradient background (matches Obsy's dark identity)
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#0e1014');
+    g.addColorStop(0.5, '#0a0b0d');
+    g.addColorStop(1, '#05060a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    // Caption block (top), mature sans-serif, no emoji
+    const sideMargin = Math.round(W * 0.085);
+    const captionTop = Math.round(H * 0.052);
+    const captionFont = Math.round(W * 0.052);
+    const lineH = Math.round(captionFont * 1.22);
+    ctx.fillStyle = '#f2f3f5';
+    ctx.font = '600 ' + captionFont + 'px -apple-system, "Inter", "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const lines = wrap(ctx, (captionEl.value || '').trim(), W - sideMargin * 2);
+    lines.forEach((ln, i) => ctx.fillText(ln, W / 2, captionTop + i * lineH));
+
+    if (!img) return;
+
+    // Device screen below the caption, scaled to fit, with rounded corners + soft shadow
+    const captionBlockH = captionTop + lines.length * lineH + Math.round(H * 0.045);
+    const frameTop = captionBlockH;
+    const frameBottom = Math.round(H * 0.96);
+    const availH = frameBottom - frameTop;
+    const availW = W - sideMargin * 2;
+    const scale = Math.min(availW / img.width, availH / img.height);
+    const dw = Math.round(img.width * scale);
+    const dh = Math.round(img.height * scale);
+    const dx = Math.round((W - dw) / 2);
+    const dy = frameTop;
+    const radius = Math.round(dw * 0.055);
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = Math.round(W * 0.03);
+    ctx.shadowOffsetY = Math.round(H * 0.006);
+    roundRect(ctx, dx, dy, dw, dh, radius);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    roundRect(ctx, dx, dy, dw, dh, radius);
+    ctx.clip();
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
+
+    // hairline edge
+    ctx.save();
+    roundRect(ctx, dx + 0.5, dy + 0.5, dw - 1, dh - 1, radius);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function wrap(ctx, text, maxW) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; }
+      else cur = test;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  dlBtn.addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.download = 'obsy-' + sizeSel.value + '-' +
+      (captionEl.value || 'shot').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -361,8 +361,8 @@ export default function GalleryScreen() {
 
     const emptyLabel = useMemo(() => {
         switch (filter) {
-            case 'captures': return { main: 'No captures yet.', sub: 'Start capturing your moments!' };
-            case 'journals': return { main: 'No journal entries yet.', sub: 'Start writing your thoughts!' };
+            case 'captures': return { main: 'No captures yet.', sub: 'Your captured moments will gather here.' };
+            case 'journals': return { main: 'No journal entries yet.', sub: 'Your written reflections will gather here.' };
             case 'mic': return { main: 'No voice entries yet.', sub: 'Tap the mic to record your thoughts.' };
             case 'shared_links': return { main: 'No shared links yet.', sub: 'Share a post, article, song, or video into Obsy and attach a mood to it.' };
             default: return { main: 'Nothing here yet.', sub: 'Capture a moment, write, or share a link.' };

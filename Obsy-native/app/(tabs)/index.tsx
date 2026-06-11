@@ -24,6 +24,7 @@ import { useHorizonStarsStore } from '@/lib/horizonStarsStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 const { height, width } = Dimensions.get('window');
 const SHOW_YEAR_IN_PIXELS_MVP = false;
@@ -37,6 +38,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const {
     captures,
+    loading,
     fetchCaptures,
     pendingSaveAnimationUri,
     setPendingSaveAnimationUri,
@@ -52,6 +54,7 @@ export default function HomeScreen() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [devPortalVisible, setDevPortalVisible] = useState(false);
+  const [hasFetchedCaptures, setHasFetchedCaptures] = useState(false);
   const isDev = isDevUser(user?.email);
 
   const onBgText = colors.text;
@@ -120,8 +123,12 @@ export default function HomeScreen() {
     };
 
     checkOnboarding();
-    fetchCaptures(user);
+    fetchCaptures(user).finally(() => setHasFetchedCaptures(true));
   }, [user]);
+
+  // First-run empty state: only after captures have actually been fetched, so the
+  // gentle prompt never flashes for returning users whose captures are still loading.
+  const showFirstCaptureHint = hasFetchedCaptures && !loading && captures.length === 0;
 
   return (
     <ScreenWrapper
@@ -183,6 +190,24 @@ export default function HomeScreen() {
           <View style={styles.centerContainer}>
             <HomeActionCarousel />
           </View>
+
+          {showFirstCaptureHint && (
+            <Animated.View
+              entering={FadeIn.duration(600)}
+              pointerEvents="none"
+              style={[
+                styles.firstCaptureHint,
+                { bottom: insets.bottom + DEFAULT_TAB_BAR_HEIGHT + 28 },
+              ]}
+            >
+              <ThemedText style={[styles.firstCaptureTitle, { color: onBgText }]}>
+                Capture your first moment
+              </ThemedText>
+              <ThemedText style={[styles.firstCaptureSubtitle, { color: onBgTextSecondary }]}>
+                A photo, a note, your voice, or a mood — your day begins here.
+              </ThemedText>
+            </Animated.View>
+          )}
         </View>
 
         {SHOW_YEAR_IN_PIXELS_MVP && (
@@ -280,5 +305,24 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     transform: [{ translateY: -184 }],
+  },
+  firstCaptureHint: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 48,
+  },
+  firstCaptureTitle: {
+    fontSize: 21,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  firstCaptureSubtitle: {
+    fontSize: 14.5,
+    lineHeight: 21,
+    textAlign: 'center',
   },
 });
