@@ -21,7 +21,7 @@ import { TopicInsightModal } from '@/components/topics/TopicInsightModal';
 import { MissingGapsModal } from '@/components/topics/MissingGapsModal';
 import { TopicOrb } from '@/components/topics/TopicOrb';
 import { LensSelector } from '@/components/topics/focus/LensSelector';
-import { getLensDef, inferTopicLens } from '@/lib/topicLens';
+import { getLensDef, inferTopicLens, defaultDepthForLens, TOPIC_DEPTHS, DEPTH_LABELS } from '@/lib/topicLens';
 import * as Haptics from 'expo-haptics';
 
 interface MetaPanelProps {
@@ -343,6 +343,7 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
     // ── Tone ─────────────────────────────────────────────────────
     const updateTopicTone = useTopicStore(s => s.updateTopicTone);
     const updateTopicLens = useTopicStore(s => s.updateTopicLens);
+    const updateTopicDepth = useTopicStore(s => s.updateTopicDepth);
     // Subscribe directly to topicNotes so the panel re-renders when notes
     // or insights are added/removed from anywhere in the app.
     const topicNotes = useTopicStore(s => s.topicNotes);
@@ -358,6 +359,7 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
         : (customTones.find(t => t.id === activeToneId)?.name ?? 'Custom');
     const activeLensId = topic.lens ?? inferTopicLens(topic.title, topic.description);
     const activeLensLabel = getLensDef(activeLensId).label;
+    const activeDepth = topic.depth ?? defaultDepthForLens(activeLensId);
 
     // ── Premium gate ─────────────────────────────────────────────
     const { checkLimit, tier } = useSubscription();
@@ -454,6 +456,28 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
                         <Text style={styles.toneRowChevron}>›</Text>
                     </View>
                 </Pressable>
+
+                {/* ── Response Energy row (how intense Obsy is on this topic) ── */}
+                <View style={styles.toneRow}>
+                    <Text style={styles.toneRowLabel}>RESPONSE ENERGY</Text>
+                    <View style={styles.depthSegment}>
+                        {TOPIC_DEPTHS.map((d) => {
+                            const active = d === activeDepth;
+                            return (
+                                <Pressable
+                                    key={d}
+                                    onPress={() => updateTopicDepth(topic.id, d)}
+                                    style={[styles.depthChip, active && styles.depthChipActive]}
+                                    hitSlop={4}
+                                >
+                                    <Text style={[styles.depthChipText, active && styles.depthChipTextActive]}>
+                                        {DEPTH_LABELS[d]}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                </View>
 
                 {/* ── Stat row 1: Mood avg · Streak · Active ── */}
                 <View style={styles.statsRow}>
@@ -756,6 +780,30 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: 'rgba(255,255,255,0.3)',
         marginTop: -1,
+    },
+    depthSegment: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderRadius: 999,
+        padding: 2,
+        gap: 2,
+    },
+    depthChip: {
+        paddingVertical: 5,
+        paddingHorizontal: 11,
+        borderRadius: 999,
+    },
+    depthChipActive: {
+        backgroundColor: 'rgba(255,255,255,0.14)',
+    },
+    depthChipText: {
+        fontSize: 12.5,
+        fontWeight: '500',
+        color: 'rgba(255,255,255,0.45)',
+        letterSpacing: -0.1,
+    },
+    depthChipTextActive: {
+        color: 'rgba(255,255,255,0.92)',
     },
 
     // ── Stat row 1 ─────────────────────────────────────────────

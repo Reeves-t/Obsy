@@ -10,6 +10,8 @@ interface FocusCardProps {
     refreshing?: boolean;
     /** Optional "Respond" affordance shown at the bottom of the card. */
     onRespond?: () => void;
+    /** Label for the respond affordance (a soft, lens/depth-aware prompt). */
+    respondLabel?: string;
     style?: StyleProp<ViewStyle>;
 }
 
@@ -32,7 +34,7 @@ function RefreshIcon() {
  * `sectionCard` styling used in MetaPanel so the aesthetic stays identical,
  * with an optional refresh button in the header.
  */
-export function FocusCard({ label, children, onRefresh, refreshing, onRespond, style }: FocusCardProps) {
+export function FocusCard({ label, children, onRefresh, refreshing, onRespond, respondLabel = 'Respond', style }: FocusCardProps) {
     return (
         <View style={[styles.card, style]}>
             <View style={styles.headerRow}>
@@ -56,7 +58,7 @@ export function FocusCard({ label, children, onRefresh, refreshing, onRespond, s
             {children}
             {onRespond && (
                 <Pressable onPress={onRespond} style={styles.respondBtn} hitSlop={6}>
-                    <Text style={styles.respondText}>Respond</Text>
+                    <Text style={styles.respondText}>{respondLabel}</Text>
                     <Text style={styles.respondChevron}>›</Text>
                 </Pressable>
             )}

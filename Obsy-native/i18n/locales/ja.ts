@@ -23,6 +23,7 @@ export const ja: TranslationDictionary = {
   insight: {
     dailyTitle: '今日のインサイト',
     dailyTitleFlat: '今日のひと目',
+    dailySubline: '今日のふりかえり',
     emptyDaily: '今日はまだ記録がありません。1つキャプチャして始めましょう。',
     pendingCaptureOne: '未反映のエントリーが{{count}}件あります。更新してください',
     pendingCaptureOther: '未反映のエントリーが{{count}}件あります。更新してください',

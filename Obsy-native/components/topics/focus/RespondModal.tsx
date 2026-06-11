@@ -18,6 +18,8 @@ interface RespondModalProps {
     visible: boolean;
     sectionLabel: string;
     insightText: string;
+    /** Soft, lens/depth-aware prompt shown in the input (e.g. "Tell the story…"). */
+    placeholder?: string;
     onClose: () => void;
     onSave: (text: string) => void;
 }
@@ -27,7 +29,7 @@ interface RespondModalProps {
  * Discover / Evolve pages. Matches the Obsy dark/premium aesthetic — no mood
  * selection, just the insight being responded to and a free-text reply.
  */
-export function RespondModal({ visible, sectionLabel, insightText, onClose, onSave }: RespondModalProps) {
+export function RespondModal({ visible, sectionLabel, insightText, placeholder = 'Add your thoughts…', onClose, onSave }: RespondModalProps) {
     const [text, setText] = useState('');
     const inputRef = useRef<TextInput>(null);
 
@@ -83,7 +85,7 @@ export function RespondModal({ visible, sectionLabel, insightText, onClose, onSa
                             ref={inputRef}
                             value={text}
                             onChangeText={setText}
-                            placeholder="Add your thoughts…"
+                            placeholder={placeholder}
                             placeholderTextColor="rgba(255,230,190,0.32)"
                             style={styles.input}
                             multiline

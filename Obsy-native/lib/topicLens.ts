@@ -14,7 +14,28 @@ export type TopicLensId =
     | 'project'
     | 'learning'
     | 'relationship'
-    | 'memory';
+    | 'memory'
+    | 'health'
+    | 'creative'
+    | 'career';
+
+/**
+ * How intense Obsy should be on a topic — orthogonal to the lens. The lens says
+ * *what kind* of topic this is; depth says *how hard Obsy should push*.
+ *   light    — curious, observational, playful; documents and notices, barely asks.
+ *   balanced — mostly observations + the occasional genuinely useful question.
+ *   deep     — reflection, patterns and harder questions (never stacked, never judgmental).
+ * Every lens has a sensible `defaultDepth`; the user can override it per topic.
+ */
+export type TopicDepth = 'light' | 'balanced' | 'deep';
+
+export const TOPIC_DEPTHS: TopicDepth[] = ['light', 'balanced', 'deep'];
+
+export const DEPTH_LABELS: Record<TopicDepth, string> = {
+    light: 'Light',
+    balanced: 'Balanced',
+    deep: 'Deep',
+};
 
 export interface LensSectionLabels {
     // Discover (page 2) — JSON keys stay stable; only the displayed label + the
@@ -31,6 +52,8 @@ export interface LensSectionLabels {
 
 export interface TopicLensDef {
     id: TopicLensId;
+    /** Where this lens sits on the intensity axis by default (user-overridable). */
+    defaultDepth: TopicDepth;
     label: string;
     description: string;
     /** Injected into AI prompts to shape how Obsy reasons about the topic. */
@@ -50,6 +73,7 @@ export interface TopicLensDef {
 export const TOPIC_LENSES: TopicLensDef[] = [
     {
         id: 'personal_growth',
+        defaultDepth: 'deep',
         label: 'Personal Growth',
         description: 'Self-improvement, habits, reflection',
         behavior:
@@ -74,6 +98,7 @@ export const TOPIC_LENSES: TopicLensDef[] = [
     },
     {
         id: 'hobby',
+        defaultDepth: 'light',
         label: 'Hobby / Interest',
         description: 'Enjoyment, exploration, documentation',
         behavior:
@@ -98,6 +123,7 @@ export const TOPIC_LENSES: TopicLensDef[] = [
     },
     {
         id: 'project',
+        defaultDepth: 'balanced',
         label: 'Project / Work',
         description: 'Building something',
         behavior:
@@ -122,6 +148,7 @@ export const TOPIC_LENSES: TopicLensDef[] = [
     },
     {
         id: 'learning',
+        defaultDepth: 'balanced',
         label: 'Learning',
         description: 'Understanding and knowledge retention',
         behavior:
@@ -146,6 +173,7 @@ export const TOPIC_LENSES: TopicLensDef[] = [
     },
     {
         id: 'relationship',
+        defaultDepth: 'deep',
         label: 'Relationship',
         description: 'Understanding a relationship',
         behavior:
@@ -170,6 +198,7 @@ export const TOPIC_LENSES: TopicLensDef[] = [
     },
     {
         id: 'memory',
+        defaultDepth: 'light',
         label: 'Memory / Life',
         description: 'Preserving experiences',
         behavior:
@@ -190,6 +219,81 @@ export const TOPIC_LENSES: TopicLensDef[] = [
             realizations: 'notable moments worth marking',
             openThreads: 'untold threads — memories hinted at but not captured',
             suggestions: 'ways to preserve or revisit (optional habits/goals)',
+        },
+    },
+    {
+        id: 'health',
+        defaultDepth: 'balanced',
+        label: 'Health / Body',
+        description: 'Fitness, training, sleep, food, recovery',
+        behavior:
+            'Be observational, progress-aware and body-literate. Track how the body, energy and routines are actually going. NEVER psychologize, moralize food or weight, shame, or imply discipline failures. Treat it factually (e.g. "sleep has been shorter on training days" — not "you are neglecting yourself").',
+        labels: {
+            corePattern: 'Patterns',
+            perspectives: "What's Working",
+            connections: 'Signals',
+            journey: 'Progress',
+            realizations: 'Wins',
+            openThreads: 'To Try',
+            suggestions: 'Routines',
+        },
+        hints: {
+            corePattern: 'the clearest pattern in how the body, energy or routine is going',
+            perspectives: "what's working or worth keeping — factual, never preachy",
+            connections: 'signals or links between habits, sleep, food, energy and mood',
+            realizations: 'wins or turning points worth marking',
+            openThreads: 'things to try or adjust next — never framed as failures',
+            suggestions: 'a sustainable daily habit and/or weekly goal (never punishing)',
+        },
+    },
+    {
+        id: 'creative',
+        defaultDepth: 'balanced',
+        label: 'Creative / Making',
+        description: 'Writing, music, art and things you make',
+        behavior:
+            'Be craft-focused and encouraging about output. Treat entries as a growing body of work — notice voice, style, themes and what is being made. Help them keep making. Do NOT over-psychologize the work or turn creating into self-therapy.',
+        labels: {
+            corePattern: 'Through-line',
+            perspectives: 'Craft Notes',
+            connections: 'Influences',
+            journey: 'Body of Work',
+            realizations: 'Breakthroughs',
+            openThreads: 'Ideas to Make',
+            suggestions: 'Creative Goals',
+        },
+        hints: {
+            corePattern: 'the through-line or signature emerging across the work',
+            perspectives: 'craft notes — what is strong or worth developing in the work',
+            connections: 'influences, references or links between pieces and ideas',
+            realizations: 'breakthroughs or moments the work levelled up',
+            openThreads: 'ideas to make next — sketches, drafts or experiments to try',
+            suggestions: 'a creative habit and/or weekly goal to keep making',
+        },
+    },
+    {
+        id: 'career',
+        defaultDepth: 'balanced',
+        label: 'Work / Career',
+        description: 'Job, career moves, professional growth',
+        behavior:
+            'Be pragmatic, decision- and positioning-focused. Surface leverage, trade-offs and moves worth making. Be supportive and concrete without corporate cliché, hustle-bait or platitudes.',
+        labels: {
+            corePattern: 'Patterns',
+            perspectives: 'Leverage',
+            connections: 'Decisions',
+            journey: 'Trajectory',
+            realizations: 'Wins',
+            openThreads: 'Open Moves',
+            suggestions: 'Next Steps',
+        },
+        hints: {
+            corePattern: 'the clearest pattern in how work or career is actually going',
+            perspectives: 'points of leverage — where effort would pay off most',
+            connections: 'decisions or trade-offs in play',
+            realizations: 'wins, turning points or lessons reached',
+            openThreads: 'open moves — options raised but not yet pursued',
+            suggestions: 'a daily habit and/or weekly goal to move the work or career forward',
         },
     },
 ];
@@ -239,17 +343,35 @@ const LENS_KEYWORDS: Record<TopicLensId, string[]> = {
         'memory', 'memories', 'trip', 'travel', 'childhood', 'nostalgia', 'remember', 'grief',
         'loss', 'legacy', 'journal of', 'moments', 'life story', 'milestones of',
     ],
+    health: [
+        'fitness', 'workout', 'gym', 'running', 'jogging', 'sleep', 'nutrition', 'diet',
+        'weight', 'training', 'steps', 'yoga', 'pilates', 'meditation', 'health', 'healing',
+        'recovery', 'cardio', 'strength', 'macros', 'wellness',
+    ],
+    creative: [
+        'writing', 'write', 'novel', 'poem', 'poetry', 'songwriting', 'compose', 'composing',
+        'album', 'design', 'designing', 'screenplay', 'blog', 'blogging', 'making', 'sculpt',
+        'illustrat', 'animation',
+    ],
+    career: [
+        'career', 'job', 'promotion', 'interview', 'resume', 'workplace', 'manager',
+        'leadership', 'my role', 'salary', 'professional', 'coworker', 'colleague', 'boss',
+    ],
     personal_growth: [
         'confidence', 'confident', 'discipline', 'growth', 'habit', 'mindful', 'anxiety',
         'self', 'improve', 'better', 'motivation', 'focus', 'productivity', 'manifest',
-        'spiritual', 'faith', 'health', 'fitness', 'meditation', 'gratitude', 'healing',
+        'spiritual', 'faith', 'gratitude',
     ],
 };
 
-// When scores tie or nothing matches, prefer in this order.
+// When scores tie or nothing matches, prefer in this order. personal_growth stays
+// last so it only wins as the catch-all default, not on incidental keyword hits.
 const LENS_PRIORITY: TopicLensId[] = [
     'project',
+    'career',
     'learning',
+    'creative',
+    'health',
     'relationship',
     'hobby',
     'memory',
@@ -275,4 +397,43 @@ export function inferTopicLens(title: string, description = ''): TopicLensId {
     }
 
     return bestScore > 0 ? best : DEFAULT_LENS_ID;
+}
+
+// ── Depth ──────────────────────────────────────────────────────────────────
+// Depth is orthogonal to lens. Each lens carries a sensible default; the store
+// stamps it at creation and the user can override it from the Observe panel.
+
+export function defaultDepthForLens(id: TopicLensId | null | undefined): TopicDepth {
+    return getLensDef(id).defaultDepth;
+}
+
+// ── Respond prompts ─────────────────────────────────────────────────────────
+// The CTA + input placeholder shown when the user responds to an AI insight.
+// Light topics get varied, documentary prompts (chosen by section so different
+// cards invite different responses); heavier topics get one calm prompt.
+
+export interface RespondPrompt {
+    /** Short affordance label shown on the card / bullet row. */
+    cta: string;
+    /** Placeholder shown in the response input. */
+    placeholder: string;
+}
+
+const LIGHT_PROMPTS: RespondPrompt[] = [
+    { cta: 'Tell the story', placeholder: 'Tell the story behind this…' },
+    { cta: 'What happened next?', placeholder: 'What happened next?' },
+    { cta: 'Add a detail', placeholder: "Save a detail you don't want to forget…" },
+    { cta: 'Add your take', placeholder: 'Add your take…' },
+];
+
+function sectionIndex(section: string, mod: number): number {
+    let h = 0;
+    for (let i = 0; i < section.length; i++) h = (h * 31 + section.charCodeAt(i)) | 0;
+    return Math.abs(h) % mod;
+}
+
+export function respondPrompt(depth: TopicDepth, section: string): RespondPrompt {
+    if (depth === 'light') return LIGHT_PROMPTS[sectionIndex(section, LIGHT_PROMPTS.length)];
+    if (depth === 'balanced') return { cta: 'Add your take', placeholder: 'Add your take…' };
+    return { cta: 'Respond', placeholder: 'Add your thoughts…' };
 }

@@ -1,14 +1,12 @@
 import React, { memo, useEffect } from "react";
 import { ActivityIndicator, StyleSheet, TouchableOpacity, View, Alert } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ui/ThemedText";
 import { InsightText } from "@/components/insights/InsightText";
-import { InsightCardSurface } from "@/components/insights/InsightCardSurface";
+import { InsightSectionHeader } from "@/components/insights/InsightSectionHeader";
 import { MoodRefreshLight, type MoodLight } from "@/components/insights/MoodRefreshLight";
 import { useInsightLightGate } from "@/hooks/useInsightLightGate";
 import { getMoodTheme } from "@/lib/moods/theme";
-import Colors from "@/constants/Colors";
 import { WeeklyStats } from "@/lib/insightsAnalytics";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
 import { BookmarkButton } from "@/components/insights/BookmarkButton";
@@ -28,7 +26,7 @@ interface WeeklySummaryCardProps {
     weeklyStats: WeeklyStats | null;
     isGenerating: boolean;
     onGenerate: () => void;
-    onViewHistory: () => void;
+    onViewHistory?: () => void;
     flat?: boolean;
     onArchiveFull?: () => void;
     pendingCount?: number;
@@ -40,12 +38,11 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     weeklyStats,
     isGenerating,
     onGenerate,
-    onViewHistory,
     onArchiveFull,
     pendingCount = 0,
     error = null,
 }: WeeklySummaryCardProps) {
-    const { colors } = useObsyTheme();
+    const { colors, isLight } = useObsyTheme();
     const { t } = useI18n();
     const { user } = useAuth();
     const { captures } = useCaptureStore();
@@ -163,31 +160,13 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
 
     const content = (
         <View style={styles.cardPadding}>
-            <View style={styles.header}>
-                <View style={styles.titleRow}>
-                    <Ionicons name="calendar-outline" size={18} color={colors.cardTextSecondary} />
-                    <View>
-                        <ThemedText type="defaultSemiBold" style={[styles.title, { color: colors.cardText }]}>
-                            {t('insight.weekInReview')}
-                        </ThemedText>
-                        <ThemedText style={[styles.subline, { color: colors.cardTextSecondary }]}>
-                            {t('insight.weekSubline')}
-                        </ThemedText>
-                    </View>
-                </View>
-                <View style={styles.actions}>
-                    <TouchableOpacity onPress={onViewHistory}>
-                        <ThemedText style={[styles.historyHint, { color: colors.cardTextSecondary }]}>{t('insight.viewHistory')}</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={onGenerate} disabled={isGenerating}>
-                        {isGenerating ? (
-                            <ActivityIndicator size="small" color={colors.cardTextSecondary} />
-                        ) : (
-                            <Ionicons name="refresh" size={18} color={colors.cardTextSecondary} />
-                        )}
-                    </TouchableOpacity>
-                </View>
-            </View>
+            <InsightSectionHeader
+                icon="calendar-outline"
+                title={t('insight.weekInReview')}
+                subline={t('insight.weekSubline')}
+                onRefresh={onGenerate}
+                isRefreshing={isGenerating}
+            />
 
             {pendingCount > 0 && (
                 <View style={{ marginTop: -8, marginBottom: 8 }}>
@@ -211,7 +190,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                     </>
                 ) : (
                     <View style={styles.emptyState}>
-                        <ThemedText style={[styles.emptyText, { color: colors.cardTextSecondary }]}>
+                        <ThemedText style={[styles.emptyText, { color: colors.textSecondary }]}>
                             {error ? getUserFriendlyErrorMessage(error) : "Generate a weekly narrative to see your week's arc."}
                         </ThemedText>
                         <InsightMoodOrbField moodIds={weekMoodIds} variant="focus" maxOrbs={10} />
@@ -225,7 +204,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                                 {isGenerating ? (
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
-                                    <ThemedText style={[styles.generateText, { color: colors.cardText }]}>{t('insight.generateNarrative')}</ThemedText>
+                                    <ThemedText style={styles.generateText}>{t('insight.generateNarrative')}</ThemedText>
                                 )}
                             </LinearGradient>
                         </TouchableOpacity>
@@ -233,31 +212,31 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                 )}
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' }]} />
 
             <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
-                    <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>CAPTURES</ThemedText>
-                    <ThemedText style={[styles.statValue, { color: colors.cardText }]}>
+                    <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>CAPTURES</ThemedText>
+                    <ThemedText style={[styles.statValue, { color: colors.text }]}>
                         {weeklyStats?.totalCaptures ?? "--"}
                     </ThemedText>
                 </View>
                 <View style={styles.statCard}>
-                    <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>ACTIVE DAYS</ThemedText>
-                    <ThemedText style={[styles.statValue, { color: colors.cardText }]}>
+                    <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>ACTIVE DAYS</ThemedText>
+                    <ThemedText style={[styles.statValue, { color: colors.text }]}>
                         {weeklyStats?.activeDays ?? "--"}
                     </ThemedText>
                 </View>
                 <View style={styles.statCard}>
-                    <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>AVG / DAY</ThemedText>
-                    <ThemedText style={[styles.statValue, { color: colors.cardText }]}>
+                    <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>AVG / DAY</ThemedText>
+                    <ThemedText style={[styles.statValue, { color: colors.text }]}>
                         {weeklyStats?.avgPerActiveDay ?? "--"}
                     </ThemedText>
                 </View>
             </View>
 
             <View style={styles.moodRow}>
-                <ThemedText style={[styles.statLabel, { color: colors.cardTextSecondary }]}>DOMINANT MOOD</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: colors.textSecondary }]}>DOMINANT MOOD</ThemedText>
                 <ThemedText style={styles.moodValue}>
                     {weeklyStats?.dominantMood || "—"}
                 </ThemedText>
@@ -278,9 +257,7 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     return (
         <View style={styles.wrapper}>
             <MoodRefreshLight loading={lightLoading} moods={moodLights} onRetractComplete={onRetractComplete} />
-            <InsightCardSurface>
-                {content}
-            </InsightCardSurface>
+            {content}
         </View>
     );
 });
@@ -290,35 +267,8 @@ const styles = StyleSheet.create({
         overflow: 'visible' as const,
     },
     cardPadding: {
-        padding: 24,
+        paddingVertical: 24,
         gap: 16,
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "flex-start", // Changed to flex-start to align with multi-line title
-        justifyContent: "space-between",
-    },
-    titleRow: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 10,
-    },
-    title: {
-        color: Colors.obsy.silver,
-    },
-    subline: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 10,
-        marginTop: 2,
-    },
-    actions: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-    },
-    historyHint: {
-        color: "rgba(255,255,255,0.7)",
-        fontSize: 12,
     },
     insightBody: {
         minHeight: 60,

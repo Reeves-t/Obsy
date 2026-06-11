@@ -23,6 +23,7 @@ export const tl: TranslationDictionary = {
   insight: {
     dailyTitle: 'Insight Ngayon',
     dailyTitleFlat: 'Sulyap sa Araw',
+    dailySubline: 'Pagninilay ngayong araw',
     emptyDaily: 'Wala pang entry ngayon. Mag-capture ng moment para magsimula.',
     pendingCaptureOne: '{{count}} bagong entry ang hindi pa naisama. I-refresh para ma-update',
     pendingCaptureOther: '{{count}} bagong entry ang hindi pa naisama. I-refresh para ma-update',

@@ -1,17 +1,23 @@
-import React, { useMemo } from "react";
-import { StyleSheet, View, TouchableOpacity, Dimensions } from "react-native";
-import Svg, { Path, G, Circle } from "react-native-svg";
+import React, { useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, Dimensions } from "react-native";
+import Svg, { Path, G } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from "react-native-reanimated";
 import { ThemedText } from "@/components/ui/ThemedText";
 import { getMoodTheme } from "@/lib/moods";
 import { DailyMoodFlowData } from "@/lib/dailyMoodFlows";
 import { useObsyTheme } from "@/contexts/ThemeContext";
+import { useI18n } from "@/i18n/config";
 import { InsightMoodOrbField } from "./InsightMoodOrbField";
+import { InsightText } from "./InsightText";
+import { PendingInsightMessage } from "./PendingInsightMessage";
+import { BookmarkButton } from "./BookmarkButton";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CIRCLE_SIZE = 240;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const CIRCLE_SIZE = 270;
 const CARD_WIDTH = SCREEN_WIDTH - 40;
-const CARD_HEIGHT = 320;
+const CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.62, 520);
 
 interface MoodRingDialProps {
     dailyFlows: Record<string, DailyMoodFlowData>;
@@ -20,6 +26,15 @@ interface MoodRingDialProps {
     monthPhrase?: string | null;
     /** Reasoning that explains WHY the monthPhrase title was chosen */
     aiReasoning?: string | null;
+    /** Full monthly insight narrative (already translated). Shown inside the tap display. */
+    text?: string | null;
+    isEligible?: boolean;
+    isGenerating?: boolean;
+    onGenerate?: () => void;
+    pendingCount?: number;
+    isSaved?: boolean;
+    saving?: boolean;
+    onSave?: () => void;
     showCenterMoodOrbs?: boolean;
     centerMoodOrbIds?: string[];
 }
@@ -166,21 +181,33 @@ export function MoodRingDial({
     monthYear,
     monthPhrase,
     aiReasoning,
+    text,
+    isEligible = true,
+    isGenerating = false,
+    onGenerate,
+    pendingCount = 0,
+    isSaved = false,
+    saving = false,
+    onSave,
     showCenterMoodOrbs = false,
     centerMoodOrbIds = [],
 }: MoodRingDialProps) {
     const { colors, isLight } = useObsyTheme();
+    const { t } = useI18n();
     const SIZE = CIRCLE_SIZE;
     const CENTER = SIZE / 2;
-    const RADIUS = 90;
-    const STROKE_WIDTH = 22;
+    const RADIUS = 105;
+    const STROKE_WIDTH = 24;
     const SEGMENT_COUNT = 180; // Micro-segments for smooth gradient effect
 
-    // Morph/Expand animation state
+    // Morph/Expand animation state. `isExpanded` mirrors the shared value on the
+    // JS thread so we can toggle pointerEvents / gate the ScrollView per layer.
     const expanded = useSharedValue(0);
+    const [isExpanded, setIsExpanded] = useState(false);
 
-    const handlePress = () => {
-        expanded.value = withSpring(expanded.value > 0.5 ? 0 : 1, {
+    const toggle = (next: boolean) => {
+        setIsExpanded(next);
+        expanded.value = withSpring(next ? 1 : 0, {
             damping: 18,
             stiffness: 90,
         });
@@ -314,20 +341,20 @@ export function MoodRingDial({
         return segments;
     }, [moodDistribution, CENTER, RADIUS]);
 
+    const collapsedSubtext = showCenterMoodOrbs
+        ? (isEligible ? 'Tap to generate' : t('insight.unlockAfterWeekOne'))
+        : 'Tap for details';
+
     return (
         <View style={styles.wrapper}>
-            <TouchableOpacity activeOpacity={1} onPress={handlePress}>
-                <Animated.View style={[
-                    styles.morphContainer,
-                    containerStyle,
-                    {
-                        backgroundColor: isLight ? colors.cardBackground : '#121212',
-                        borderColor: colors.cardBorder,
-                    }
-                ]}>
+            <Animated.View style={[styles.morphContainer, containerStyle]}>
 
-                    {/* STATE A: THE DIAL (fades out when expanding) */}
-                    <Animated.View style={[styles.contentLayer, dialContentStyle]}>
+                {/* STATE A: THE DIAL (fades out when expanding) */}
+                <Animated.View
+                    style={[styles.contentLayer, dialContentStyle]}
+                    pointerEvents={isExpanded ? 'none' : 'auto'}
+                >
+                    <Pressable onPress={() => toggle(true)} style={styles.collapsedPressable}>
                         <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
                             <G>
                                 {gradientSegments.map((segment, index) => (
@@ -341,35 +368,48 @@ export function MoodRingDial({
                                         opacity={segment.opacity}
                                     />
                                 ))}
-                                {/* Center circle */}
-                                <Circle cx={CENTER} cy={CENTER} r={RADIUS - STROKE_WIDTH - 8} fill="rgba(0,0,0,0.3)" />
                             </G>
                         </Svg>
                         {/* Center label - Month Phrase */}
                         <View style={styles.dialCenterLabel}>
                             {showCenterMoodOrbs ? (
-                                <InsightMoodOrbField moodIds={centerMoodOrbIds} variant="tiny" maxOrbs={12} />
+                                <>
+                                    <InsightMoodOrbField moodIds={centerMoodOrbIds} variant="tiny" maxOrbs={12} />
+                                    <ThemedText style={[styles.monthSubtext, { color: colors.textSecondary }]}>{collapsedSubtext}</ThemedText>
+                                </>
                             ) : monthPhrase ? (
                                 <>
-                                    <ThemedText style={[styles.monthPhraseText, { color: colors.cardText }]}>{monthPhrase}</ThemedText>
-                                    <ThemedText style={[styles.monthSubtext, { color: colors.cardTextSecondary }]}>Tap for details</ThemedText>
+                                    <ThemedText style={[styles.monthPhraseText, { color: colors.text }]}>{monthPhrase}</ThemedText>
+                                    <ThemedText style={[styles.monthSubtext, { color: colors.textSecondary }]}>{collapsedSubtext}</ThemedText>
                                 </>
                             ) : (
-                                <ThemedText style={[styles.placeholderText, { color: colors.cardTextSecondary }]}>—</ThemedText>
+                                <ThemedText style={[styles.placeholderText, { color: colors.textSecondary }]}>—</ThemedText>
                             )}
                         </View>
-                    </Animated.View>
+                    </Pressable>
+                </Animated.View>
 
-                    {/* STATE B: THE TEXT DETAILS (fades in when expanded) - NO SCALE */}
-                    <Animated.View style={[styles.contentLayer, textContentStyle]}>
-                        <View style={styles.textContainer}>
-                            <ThemedText style={[styles.headerText, { color: colors.cardText }]}>
-                                Why "{monthPhrase || 'This Month'}"?
-                            </ThemedText>
-                            <View style={styles.divider} />
+                {/* STATE B: THE TEXT DETAILS (fades in when expanded) - NO SCALE */}
+                <Animated.View
+                    style={[styles.contentLayer, textContentStyle]}
+                    pointerEvents={isExpanded ? 'auto' : 'none'}
+                >
+                    <View style={styles.textContainer}>
+                        <ThemedText style={[styles.headerText, { color: colors.text }]}>
+                            Why "{monthPhrase || 'This Month'}"?
+                        </ThemedText>
+                        <View style={[styles.divider, { backgroundColor: isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)' }]} />
+
+                        <ScrollView
+                            style={styles.bodyScroll}
+                            contentContainerStyle={styles.bodyScrollContent}
+                            showsVerticalScrollIndicator={false}
+                            scrollEnabled={isExpanded}
+                        >
+                            {/* The "why" — phrase reasoning */}
                             {aiReasoning ? (
                                 <View style={styles.contentScroll}>
-                                    <ThemedText style={[styles.bodyText, { color: colors.cardText }]}>
+                                    <ThemedText style={[styles.bodyText, { color: colors.text }]}>
                                         {aiReasoning.split('\n')[0]}
                                     </ThemedText>
                                     <View style={styles.bulletContainer}>
@@ -380,24 +420,76 @@ export function MoodRingDial({
                                             .map((line: string, index: number) => {
                                                 const cleanLine = line.trim().replace(/^(-\s*|\x20*-\s*)/, '');
                                                 return (
-                                                    <ThemedText key={index} style={[styles.bulletText, { color: colors.cardText }]}>
+                                                    <ThemedText key={index} style={[styles.bulletText, { color: colors.text }]}>
                                                         - {cleanLine}
                                                     </ThemedText>
                                                 );
                                             })}
                                     </View>
                                 </View>
+                            ) : null}
+
+                            {pendingCount > 0 && (
+                                <View style={styles.pendingWrap}>
+                                    <PendingInsightMessage
+                                        pendingCount={pendingCount}
+                                        onRefresh={onGenerate ?? (() => { })}
+                                        isRefreshing={isGenerating}
+                                    />
+                                </View>
+                            )}
+
+                            {/* The actual monthly insight narrative */}
+                            {text ? (
+                                <InsightText
+                                    fallbackText={text}
+                                    collapsedSentences={0}
+                                    expandable={false}
+                                    textStyle={[styles.bodyText, { color: colors.text }]}
+                                />
                             ) : (
-                                <ThemedText style={[styles.placeholderText, { color: colors.cardTextSecondary }]}>
-                                    Reasoning will appear after generating the monthly insight.
+                                <ThemedText style={[styles.placeholderText, { color: colors.textSecondary }]}>
+                                    {isEligible ? t('insight.createMonthly') : t('insight.keepCapturing')}
                                 </ThemedText>
                             )}
-                            <ThemedText style={[styles.tapHint, { color: colors.cardTextSecondary }]}>Tap to collapse</ThemedText>
-                        </View>
-                    </Animated.View>
+                        </ScrollView>
 
+                        {/* Action row: regenerate + save */}
+                        <View style={styles.actionRow}>
+                            {isEligible && onGenerate && (
+                                <Pressable
+                                    onPress={onGenerate}
+                                    disabled={isGenerating}
+                                    style={[
+                                        styles.refreshPill,
+                                        {
+                                            backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
+                                            borderColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.12)',
+                                        },
+                                    ]}
+                                >
+                                    {isGenerating ? (
+                                        <ActivityIndicator size="small" color={colors.textSecondary} />
+                                    ) : (
+                                        <Ionicons name="refresh" size={14} color={colors.textSecondary} />
+                                    )}
+                                    <ThemedText style={[styles.refreshText, { color: colors.textSecondary }]}>
+                                        {t('common.refresh')}
+                                    </ThemedText>
+                                </Pressable>
+                            )}
+                            {text && onSave && (
+                                <BookmarkButton isSaved={isSaved} onPress={onSave} disabled={saving} />
+                            )}
+                        </View>
+
+                        <Pressable onPress={() => toggle(false)}>
+                            <ThemedText style={[styles.tapHint, { color: colors.textTertiary }]}>Tap to collapse</ThemedText>
+                        </Pressable>
+                    </View>
                 </Animated.View>
-            </TouchableOpacity>
+
+            </Animated.View>
         </View>
     );
 }
@@ -406,12 +498,10 @@ const styles = StyleSheet.create({
     wrapper: {
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: CARD_HEIGHT,
+        minHeight: CIRCLE_SIZE + 24,
     },
     morphContainer: {
-        backgroundColor: '#121212',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'transparent',
         overflow: 'hidden',
         justifyContent: 'center',
         alignItems: 'center',
@@ -423,38 +513,41 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    collapsedPressable: {
+        flex: 1,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     dialCenterLabel: {
         position: 'absolute',
         alignItems: 'center',
         justifyContent: 'center',
     },
     monthPhraseText: {
-        color: "#fff",
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: "700",
         textAlign: "center",
         letterSpacing: 0.5,
     },
     monthSubtext: {
-        color: "rgba(255,255,255,0.5)",
         fontSize: 11,
         marginTop: 4,
         textTransform: "uppercase",
         letterSpacing: 1,
     },
     placeholderText: {
-        color: "rgba(255,255,255,0.4)",
         fontSize: 14,
         textAlign: 'center',
     },
     textContainer: {
-        padding: 24,
+        paddingHorizontal: 8,
+        paddingVertical: 20,
         width: '100%',
         height: '100%',
         justifyContent: 'flex-start',
     },
     headerText: {
-        color: '#FFF',
         fontSize: 18,
         fontWeight: '600',
         marginBottom: 12,
@@ -462,13 +555,18 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.15)',
         width: '40%',
         alignSelf: 'center',
         marginBottom: 16,
     },
+    bodyScroll: {
+        flex: 1,
+        width: '100%',
+    },
+    bodyScrollContent: {
+        paddingBottom: 8,
+    },
     bodyText: {
-        color: 'rgba(255,255,255,0.85)',
         fontSize: 15,
         lineHeight: 22,
         textAlign: 'left',
@@ -481,18 +579,37 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     bulletText: {
-        color: 'rgba(255,255,255,0.85)',
         fontSize: 15,
         lineHeight: 22,
         textAlign: 'left',
         marginBottom: 8,
     },
+    pendingWrap: {
+        marginBottom: 16,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 12,
+    },
+    refreshPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    refreshText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
     tapHint: {
-        color: 'rgba(255,255,255,0.3)',
         fontSize: 12,
         textAlign: 'center',
-        marginTop: 'auto',
-        paddingTop: 16,
+        paddingTop: 12,
     },
 });
 

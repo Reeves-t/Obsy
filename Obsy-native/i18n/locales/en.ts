@@ -21,6 +21,7 @@ export interface TranslationDictionary {
   insight: {
     dailyTitle: string;
     dailyTitleFlat: string;
+    dailySubline: string;
     emptyDaily: string;
     pendingCaptureOne: string;
     pendingCaptureOther: string;
@@ -58,6 +59,7 @@ export const en: TranslationDictionary = {
   insight: {
     dailyTitle: "Today's Insight",
     dailyTitleFlat: 'Day in a glance',
+    dailySubline: "Today's reflection",
     emptyDaily: 'No entries for today yet. Capture a moment to start your day.',
     pendingCaptureOne: '{{count}} new entry not yet included. Refresh to update',
     pendingCaptureOther: '{{count}} new entries not yet included. Refresh to update',
@@ -88,6 +90,7 @@ export type TranslationKey =
   | 'settings.appearance'
   | 'insight.dailyTitle'
   | 'insight.dailyTitleFlat'
+  | 'insight.dailySubline'
   | 'insight.emptyDaily'
   | 'insight.pendingCaptureOne'
   | 'insight.pendingCaptureOther'

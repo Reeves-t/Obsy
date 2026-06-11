@@ -710,13 +710,11 @@ export default function InsightsScreen() {
                     isReady && (
                         <>
                             {/* WEEK IN REVIEW - Text narrative at the top */}
-                            <SectionHeader title="WEEK IN REVIEW" />
                             <WeeklySummaryCard
                                 text={aiFreeMode ? null : weeklyText}
                                 weeklyStats={weeklyStats}
                                 isGenerating={weeklyStatus === 'loading'}
                                 onGenerate={() => { if (!aiFreeMode) loadWeeklyInsight(true); }}
-                                onViewHistory={() => { }}
                                 flat
                                 onArchiveFull={() => setIsArchiveFullModalVisible(true)}
                                 pendingCount={weeklyPendingCount}

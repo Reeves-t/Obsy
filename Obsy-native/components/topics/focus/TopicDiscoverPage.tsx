@@ -6,7 +6,7 @@ import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useTopicAiPage, useTopicContextRef } from '@/hooks/useTopicAiPage';
 import { generateTopicDiscover } from '@/services/topicChatClient';
-import { getLensDef, inferTopicLens } from '@/lib/topicLens';
+import { getLensDef, inferTopicLens, defaultDepthForLens, respondPrompt } from '@/lib/topicLens';
 import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
 import { FocusPageScaffold } from './FocusPageScaffold';
 import { FocusCard } from './FocusCard';
@@ -48,7 +48,9 @@ export function TopicDiscoverPage({
     const loadForTopic = useTopicAttachmentStore((s) => s.loadForTopic);
     const getCtx = useTopicContextRef(topic, stats);
 
-    const lens = getLensDef(topic.lens ?? inferTopicLens(topic.title, topic.description));
+    const lensId = topic.lens ?? inferTopicLens(topic.title, topic.description);
+    const lens = getLensDef(lensId);
+    const depth = topic.depth ?? defaultDepthForLens(lensId);
 
     const [showPaywall, setShowPaywall] = useState(false);
     const [respond, setRespond] = useState<{ section: string; text: string } | null>(null);
@@ -115,6 +117,7 @@ export function TopicDiscoverPage({
                         {!!data.corePattern && (
                             <FocusCard
                                 label={lens.labels.corePattern}
+                                respondLabel={respondPrompt(depth, lens.labels.corePattern).cta}
                                 onRespond={() => setRespond({ section: lens.labels.corePattern, text: data.corePattern })}
                             >
                                 <Text style={styles.bodyText}>{data.corePattern}</Text>
@@ -126,23 +129,19 @@ export function TopicDiscoverPage({
                             </FocusCard>
                         )}
                         {data.perspectives.length > 0 && (
-                            <FocusCard
-                                label={lens.labels.perspectives}
-                                onRespond={() =>
-                                    setRespond({ section: lens.labels.perspectives, text: data.perspectives.join('\n') })
-                                }
-                            >
-                                <BulletList items={data.perspectives} />
+                            <FocusCard label={lens.labels.perspectives}>
+                                <BulletList
+                                    items={data.perspectives}
+                                    onRespondItem={(item) => setRespond({ section: lens.labels.perspectives, text: item })}
+                                />
                             </FocusCard>
                         )}
                         {data.connections.length > 0 && (
-                            <FocusCard
-                                label={lens.labels.connections}
-                                onRespond={() =>
-                                    setRespond({ section: lens.labels.connections, text: data.connections.join('\n') })
-                                }
-                            >
-                                <BulletList items={data.connections} />
+                            <FocusCard label={lens.labels.connections}>
+                                <BulletList
+                                    items={data.connections}
+                                    onRespondItem={(item) => setRespond({ section: lens.labels.connections, text: item })}
+                                />
                             </FocusCard>
                         )}
                     </>
@@ -153,6 +152,7 @@ export function TopicDiscoverPage({
                 visible={!!respond}
                 sectionLabel={respond?.section ?? ''}
                 insightText={respond?.text ?? ''}
+                placeholder={respond ? respondPrompt(depth, respond.section).placeholder : undefined}
                 onClose={() => setRespond(null)}
                 onSave={(t) => {
                     if (respond) {

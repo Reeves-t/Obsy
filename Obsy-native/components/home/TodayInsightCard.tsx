@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { format } from 'date-fns';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -16,10 +16,11 @@ import { useI18n } from '@/i18n/config';
 import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
 import { getLocalDayKey } from '@/lib/utils';
 import { InsightMoodOrbField } from '@/components/insights/InsightMoodOrbField';
-import { InsightCardSurface } from '@/components/insights/InsightCardSurface';
+import { InsightSectionHeader } from '@/components/insights/InsightSectionHeader';
 import { MoodRefreshLight, type MoodLight } from '@/components/insights/MoodRefreshLight';
 import { useInsightLightGate } from '@/hooks/useInsightLightGate';
 import { getMoodTheme } from '@/lib/moods/theme';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 
 interface TodayInsightCardProps {
     text: string | null;
@@ -43,6 +44,7 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
 
     const { loadSnapshot, lastUpdated, status } = useTodayInsight();
     const { t } = useI18n();
+    const { colors, isLight } = useObsyTheme();
 
     const [isSaved, setIsSaved] = React.useState(false);
     const [saving, setSaving] = React.useState(false);
@@ -154,62 +156,58 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
     return (
         <View style={styles.wrapper}>
             <MoodRefreshLight loading={lightLoading} moods={moodLights} onRetractComplete={onRetractComplete} />
-            <InsightCardSurface>
-                <View style={styles.header}>
-                    <ThemedText type="subtitle" style={styles.title}>
-                        {flat ? t('insight.dailyTitleFlat') : t('insight.dailyTitle')}
+
+            <InsightSectionHeader
+                icon="sunny-outline"
+                title={flat ? t('insight.dailyTitleFlat') : t('insight.dailyTitle')}
+                subline={t('insight.dailySubline')}
+                onRefresh={onRefresh}
+                isRefreshing={isLoading}
+            />
+
+            <View style={[styles.divider, { backgroundColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' }]} />
+
+            {/* Pending captures message */}
+            {!isEmpty && pendingCount > 0 && (
+                <View style={styles.pendingMessageContainer}>
+                    <ThemedText style={styles.pendingMessage}>
+                        {t(pendingCount === 1 ? 'insight.pendingCaptureOne' : 'insight.pendingCaptureOther', { count: pendingCount })}
                     </ThemedText>
-                    {onRefresh && (
-                        <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
-                            <ThemedText style={styles.refreshText}>{t('common.refresh')}</ThemedText>
-                        </TouchableOpacity>
-                    )}
                 </View>
+            )}
 
-                <View style={styles.divider} />
-
-                {/* Pending captures message */}
-                {!isEmpty && pendingCount > 0 && (
-                    <View style={styles.pendingMessageContainer}>
-                        <ThemedText style={styles.pendingMessage}>
-                            {t(pendingCount === 1 ? 'insight.pendingCaptureOne' : 'insight.pendingCaptureOther', { count: pendingCount })}
+            <View style={styles.content}>
+                {isEmpty ? (
+                    <View style={styles.emptyContainer}>
+                        <ThemedText style={[styles.emptyText, { color: colors.textSecondary }]}>
+                            {t('insight.emptyDaily')}
                         </ThemedText>
+                        <InsightMoodOrbField moodIds={todayMoodIds} variant="focus" maxOrbs={10} />
+                    </View>
+                ) : (
+                    <View>
+                        <InsightText
+                            fallbackText={translatedText || ''}
+                            collapsedSentences={4}
+                            expandable={true}
+                            textStyle={[styles.insightText, { color: colors.text }]}
+                        />
+
+                        <InsightMoodOrbField moodIds={todayMoodIds} variant="subtle" maxOrbs={8} />
+
+                        <View style={styles.footer}>
+                            <ThemedText type="caption" style={[styles.footerDate, { color: colors.textTertiary }]}>
+                                {format(new Date(), "EEEE, MMM d")}
+                            </ThemedText>
+                            <BookmarkButton
+                                isSaved={isSaved}
+                                onPress={handleSave}
+                                disabled={saving}
+                            />
+                        </View>
                     </View>
                 )}
-
-                <View style={styles.content}>
-                    {isEmpty ? (
-                        <View style={styles.emptyContainer}>
-                            <ThemedText style={styles.emptyText}>
-                                {t('insight.emptyDaily')}
-                            </ThemedText>
-                            <InsightMoodOrbField moodIds={todayMoodIds} variant="focus" maxOrbs={10} />
-                        </View>
-                    ) : (
-                        <View>
-                            <InsightText
-                                fallbackText={translatedText || ''}
-                                collapsedSentences={4}
-                                expandable={true}
-                                textStyle={styles.insightText}
-                            />
-
-                            <InsightMoodOrbField moodIds={todayMoodIds} variant="subtle" maxOrbs={8} />
-
-                            <View style={styles.footer}>
-                                <ThemedText type="caption" style={styles.footerDate}>
-                                    {format(new Date(), "EEEE, MMM d")}
-                                </ThemedText>
-                                <BookmarkButton
-                                    isSaved={isSaved}
-                                    onPress={handleSave}
-                                    disabled={saving}
-                                />
-                            </View>
-                        </View>
-                    )}
-                </View>
-            </InsightCardSurface>
+            </View>
         </View>
     );
 };
@@ -219,26 +217,11 @@ const styles = StyleSheet.create({
         width: '100%',
         overflow: 'visible' as const,
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: 18,
-        paddingBottom: 14,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#fff',
-    },
     divider: {
         height: 0.5,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        marginHorizontal: 16,
+        marginTop: 14,
     },
     pendingMessageContainer: {
-        paddingHorizontal: 20,
         paddingTop: 12,
         paddingBottom: 4,
     },
@@ -248,7 +231,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     content: {
-        padding: 20,
+        paddingVertical: 20,
     },
     emptyContainer: {
         paddingVertical: 30,
@@ -258,14 +241,12 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 15,
         lineHeight: 22,
-        color: 'rgba(255,255,255,0.6)',
         textAlign: 'center',
         paddingHorizontal: 10,
     },
     insightText: {
         fontSize: 16,
         lineHeight: 25,
-        color: 'rgba(255,255,255,0.85)', // Softer off-white for readability
     },
     footer: {
         marginTop: 10,
@@ -275,18 +256,8 @@ const styles = StyleSheet.create({
     },
     footerDate: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.4)',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
-    },
-    refreshButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-    },
-    refreshText: {
-        color: Colors.obsy.silver,
-        fontSize: 14,
-        fontWeight: '700',
     },
     revealButton: {
         backgroundColor: Colors.obsy.silver,

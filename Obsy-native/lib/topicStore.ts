@@ -6,7 +6,7 @@ import { useCaptureStore } from './captureStore';
 import { getMoodTheme } from './moods';
 import { MoodSegment } from './dailyMoodFlows';
 import type { DiscoverPayload, EvolvePayload, TopicAiCacheEntry } from './topicAiTypes';
-import { inferTopicLens, type TopicLensId } from './topicLens';
+import { inferTopicLens, defaultDepthForLens, type TopicLensId, type TopicDepth } from './topicLens';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ export type Topic = {
     createdAt: string;  // ISO timestamp
     toneId?: string;    // preset AiToneId or custom tone UUID
     lens?: TopicLensId; // how Obsy understands this topic (inferred at creation)
+    depth?: TopicDepth; // how intense Obsy is here; defaults from lens, user-overridable
 };
 
 export type TopicStats = {
@@ -256,6 +257,7 @@ type TopicState = {
     removeTopic: (id: string) => void;
     updateTopicTone: (topicId: string, toneId: string) => void;
     updateTopicLens: (topicId: string, lens: TopicLensId) => void;
+    updateTopicDepth: (topicId: string, depth: TopicDepth) => void;
     getStats: (topicId: string) => TopicStats;
     addTopicNote: (topicId: string, text: string, kind?: TopicNoteKind) => void;
     addTopicResponse: (topicId: string, text: string, meta: TopicResponseMeta) => void;
@@ -279,13 +281,15 @@ export const useTopicStore = create<TopicState>()(
                 const id = Crypto.randomUUID();
                 const cleanTitle = title.trim();
                 const cleanDescription = description.trim();
+                const lens = inferTopicLens(cleanTitle, cleanDescription);
                 const topic: Topic = {
                     id,
                     title: cleanTitle,
                     description: cleanDescription,
                     hue: Math.round(180 + Math.random() * 110),
                     createdAt: new Date().toISOString(),
-                    lens: inferTopicLens(cleanTitle, cleanDescription),
+                    lens,
+                    depth: defaultDepthForLens(lens),
                 };
                 set(state => ({ topics: [...state.topics, topic] }));
                 return id;
@@ -314,11 +318,39 @@ export const useTopicStore = create<TopicState>()(
             },
 
             updateTopicLens: (topicId, lens) => {
-                set(state => ({
-                    topics: state.topics.map(t =>
-                        t.id === topicId ? { ...t, lens } : t
-                    ),
-                }));
+                // The lens reshapes labels + AI framing — drop cached AI so the
+                // next open regenerates through the new lens instead of going stale.
+                set(state => {
+                    const discoverCache = { ...state.discoverCache };
+                    const evolveCache = { ...state.evolveCache };
+                    delete discoverCache[topicId];
+                    delete evolveCache[topicId];
+                    return {
+                        topics: state.topics.map(t =>
+                            t.id === topicId ? { ...t, lens } : t
+                        ),
+                        discoverCache,
+                        evolveCache,
+                    };
+                });
+            },
+
+            updateTopicDepth: (topicId, depth) => {
+                // Depth changes how intensely Obsy speaks — drop cached AI so the
+                // next open regenerates at the new energy level.
+                set(state => {
+                    const discoverCache = { ...state.discoverCache };
+                    const evolveCache = { ...state.evolveCache };
+                    delete discoverCache[topicId];
+                    delete evolveCache[topicId];
+                    return {
+                        topics: state.topics.map(t =>
+                            t.id === topicId ? { ...t, depth } : t
+                        ),
+                        discoverCache,
+                        evolveCache,
+                    };
+                });
             },
 
             getStats: (topicId) => {

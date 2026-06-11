@@ -1,11 +1,9 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View, ScrollView, Alert } from "react-native";
+import { StyleSheet, TouchableOpacity, View, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
-import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemedText } from "@/components/ui/ThemedText";
-import { InsightText } from "@/components/insights/InsightText";
 import { MoodFlow } from "@/components/insights/MoodFlow";
 import { MoodRingDial } from "@/components/insights/MoodRingDial";
 import Colors from "@/constants/Colors";
@@ -14,12 +12,9 @@ import { DailyMoodFlowData, filterCapturesForDate, formatDateKey } from "@/lib/d
 import { getMoodTheme } from "@/lib/moods";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
 import { format } from "date-fns";
-import { BookmarkButton } from "@/components/insights/BookmarkButton";
 import { useAuth } from "@/contexts/AuthContext";
 import * as Haptics from "expo-haptics";
-import { PendingInsightMessage } from "./PendingInsightMessage";
 import { useObsyTheme } from "@/contexts/ThemeContext";
-import { useI18n } from '@/i18n/config';
 import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
 
 interface MonthViewProps {
@@ -130,6 +125,9 @@ export function MonthView({
             .filter((value): value is string => !!value);
     }, [dailyFlows]);
 
+    const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+    const translatedText = useTranslatedInsight({ insightId: `monthly-${monthKey}`, sourceText: text, sourceLanguage: 'en' });
+
 
     // Get captures and flow for selected day
     const selectedDayData = useMemo(() => {
@@ -146,38 +144,26 @@ export function MonthView({
         <View style={styles.stack}>
             <MonthHeader date={currentMonth} onChange={onMonthChange} />
 
-            {/* Mood Ring Dial */}
-            <View style={styles.floatingScrim}>
-                <BlurView intensity={20} tint="dark" style={styles.blurContainer}>
-                    <View style={styles.ringContainer}>
-                        <MoodRingDial
-                            dailyFlows={dailyFlows}
-                            daysInMonth={daysInMonth}
-                            monthYear={{ year: currentMonth.getFullYear(), month: currentMonth.getMonth() }}
-                            monthPhrase={monthPhrase}
-                            aiReasoning={aiReasoning}
-                            showCenterMoodOrbs={!text}
-                            centerMoodOrbIds={monthlyMoodIds}
-                        />
-                    </View>
-                </BlurView>
+            {/* Mood Ring Dial — floats on the background; tap to reveal the full insight */}
+            <View style={styles.ringContainer}>
+                <MoodRingDial
+                    dailyFlows={dailyFlows}
+                    daysInMonth={daysInMonth}
+                    monthYear={{ year: currentMonth.getFullYear(), month: currentMonth.getMonth() }}
+                    monthPhrase={monthPhrase}
+                    aiReasoning={aiReasoning}
+                    text={translatedText}
+                    isEligible={isEligibleForInsight}
+                    isGenerating={isGenerating}
+                    onGenerate={onGenerate}
+                    pendingCount={pendingCount}
+                    isSaved={isSaved}
+                    saving={saving}
+                    onSave={handleSave}
+                    showCenterMoodOrbs={!text}
+                    centerMoodOrbIds={monthlyMoodIds}
+                />
             </View>
-
-            <MonthSummaryCard
-                text={text}
-                onGenerate={onGenerate}
-                isGenerating={isGenerating}
-                isSaved={isSaved}
-                onSave={handleSave}
-                saving={saving}
-                onArchiveFull={onArchiveFull}
-                isEligible={isEligibleForInsight}
-                capturedDays={capturedDaysCount}
-                pendingCount={pendingCount}
-                isLight={isLight}
-                colors={colors}
-                currentMonth={currentMonth}
-            />
 
             <MonthCalendar
                 month={currentMonth}
@@ -198,109 +184,6 @@ export function MonthView({
                     isLight={isLight}
                     colors={colors}
                 />
-            )}
-        </View>
-    );
-}
-
-function MonthSummaryCard({
-    text,
-    onGenerate,
-    isGenerating,
-    isSaved,
-    onSave,
-    saving,
-    onArchiveFull,
-    isEligible,
-    capturedDays,
-    pendingCount,
-    isLight,
-    colors,
-    currentMonth,
-}: {
-    text: string | null;
-    onGenerate: () => void;
-    isGenerating: boolean;
-    isSaved: boolean;
-    onSave: () => void | Promise<void>;
-    saving: boolean;
-    onArchiveFull?: () => void;
-    isEligible: boolean;
-    capturedDays: number;
-    pendingCount?: number;
-    isLight?: boolean;
-    colors?: { cardText: string; cardTextSecondary: string; cardBorder: string; };
-    currentMonth: Date;
-}) {
-    const { t } = useI18n();
-    const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
-    const translatedText = useTranslatedInsight({ insightId: `monthly-${monthKey}`, sourceText: text, sourceLanguage: 'en' });
-    const formattedDate = null;
-
-    return (
-        <View style={styles.summaryCard}>
-            <View style={styles.summaryHeader}>
-                <View style={[styles.titleRow, { flex: 1 }]}>
-                    <View>
-                        <ThemedText type="defaultSemiBold" style={[styles.title, colors && { color: colors.cardText }]}>
-                            {t('insight.monthlyInsight')}
-                        </ThemedText>
-                        {formattedDate && (
-                            <ThemedText style={[styles.asOfText, colors && { color: colors.cardTextSecondary }]}>
-                                As of {formattedDate}
-                            </ThemedText>
-                        )}
-                    </View>
-                </View>
-
-                {isEligible ? (
-                    <TouchableOpacity style={styles.refreshBtn} onPress={onGenerate} disabled={isGenerating}>
-                        {isGenerating ? (
-                            <ActivityIndicator size="small" color={colors?.cardTextSecondary || Colors.obsy.silver} />
-                        ) : (
-                            <Ionicons name="refresh-outline" size={24} color={colors?.cardTextSecondary || Colors.obsy.silver} />
-                        )}
-                    </TouchableOpacity>
-                ) : (
-                    <View style={styles.lockedContainer}>
-                        <ThemedText style={[styles.lockedText, colors && { color: colors.cardTextSecondary }]}>{t('insight.unlockAfterWeekOne')}</ThemedText>
-                    </View>
-                )}
-            </View>
-
-            {isEligible && (pendingCount ?? 0) > 0 && (
-                <View style={{ marginBottom: 12 }}>
-                    <PendingInsightMessage
-                        pendingCount={pendingCount!}
-                        onRefresh={onGenerate}
-                        isRefreshing={isGenerating}
-                    />
-                </View>
-            )}
-
-            <View style={styles.summaryBody}>
-                {translatedText ? (
-                    <InsightText
-                        fallbackText={translatedText}
-                        collapsedSentences={0}
-                        expandable={false}
-                        textStyle={[styles.summaryText, colors && { color: colors.cardText }]}
-                    />
-                ) : (
-                    <ThemedText style={[styles.placeholder, colors && { color: colors.cardTextSecondary }]}>
-                        {isEligible ? t('insight.createMonthly') : t('insight.keepCapturing')}
-                    </ThemedText>
-                )}
-            </View>
-
-            {translatedText && (
-                <View style={styles.summaryFooter}>
-                    <BookmarkButton
-                        isSaved={isSaved}
-                        onPress={onSave}
-                        disabled={saving}
-                    />
-                </View>
             )}
         </View>
     );
@@ -512,86 +395,9 @@ const styles = StyleSheet.create({
     navBtn: {
         padding: 8,
     },
-    summaryCard: {
-        padding: 20,
-        marginBottom: 24,
-    },
-    summaryHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 16,
-        gap: 12,
-    },
-    titleRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-    },
-    title: {
-        fontSize: 32,
-        lineHeight: 36,
-        color: Colors.obsy.silver,
-        fontWeight: "700",
-    },
-    asOfText: {
-        fontSize: 12,
-        color: Colors.obsy.silver,
-        opacity: 0.6,
-        marginTop: 8,
-    },
-    refreshBtn: {
-        padding: 8,
-        borderRadius: 20,
-        backgroundColor: "rgba(255,255,255,0.05)",
-    },
-    generatePill: {
-        backgroundColor: Colors.obsy.silver,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        minWidth: 80,
-        alignItems: "center",
-    },
-    generatePillText: {
-        color: "#0f0f0f",
-        fontSize: 12,
-        fontWeight: "600",
-    },
-    lockedContainer: {
-        alignItems: "flex-end",
-    },
-    lockedText: {
-        fontSize: 12,
-        color: Colors.obsy.silver,
-        opacity: 0.5,
-    },
-    progressText: {
-        fontSize: 10,
-        color: Colors.obsy.silver,
-        opacity: 0.4,
-        marginTop: 2,
-    },
-    summaryBody: {
-        marginBottom: 16,
-    },
-    summaryText: {
-        fontSize: 16,
-        lineHeight: 24,
-        color: "#fff",
-    },
-    placeholder: {
-        color: Colors.obsy.silver,
-        opacity: 0.4,
-        fontSize: 15,
-        fontStyle: "italic",
-    },
-    summaryFooter: {
-        flexDirection: "row",
-        justifyContent: "flex-end",
-    },
     ringContainer: {
-        padding: 24,
+        paddingVertical: 8,
+        marginBottom: 24,
         alignItems: "center",
     },
     calendarContainer: {

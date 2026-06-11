@@ -13,7 +13,7 @@ import type {
     GoalHabitSuggestion,
 } from '@/lib/topicAiTypes';
 import { parseJsonFromText, coerceDiscover, coerceEvolve, coerceSuggestions } from '@/lib/topicAiParse';
-import { getLensDef, inferTopicLens, type TopicLensDef } from '@/lib/topicLens';
+import { getLensDef, inferTopicLens, defaultDepthForLens, type TopicLensDef, type TopicDepth } from '@/lib/topicLens';
 
 export interface TopicChatResponse {
     ok: boolean;
@@ -258,6 +258,12 @@ function resolveLens(ctx: TopicContext): TopicLensDef {
     return getLensDef(id);
 }
 
+/** How intense Obsy should be here — explicit override, else the lens default. */
+function resolveDepth(ctx: TopicContext): TopicDepth {
+    const lensId = ctx.topic.lens ?? inferTopicLens(ctx.topic.title, ctx.topic.description);
+    return ctx.topic.depth ?? defaultDepthForLens(lensId);
+}
+
 /** Captures + direct responses-to-insights → how confidently the AI may speak. */
 function signalCount(ctx: TopicContext): number {
     const responses = ctx.topicNotes.filter(
@@ -285,6 +291,38 @@ function dataGuidance(signal: number): string {
     return (
         'DATA LEVEL — ESTABLISHED:\n' +
         'There are enough entries to speak with reasonable confidence. Still ground every claim in the data above.'
+    );
+}
+
+/** Always-on guardrail: Obsy is a calm companion, not an interrogator. */
+const ANTI_INTERROGATION =
+    'GROUND RULE — do not interrogate the user. Prefer observations over questions. ' +
+    'Never stack multiple questions in one section. Do not end every section with a question. ' +
+    'Any question must feel optional and calm, never a demand.';
+
+/** Intensity axis (orthogonal to lens): how hard Obsy should push right now. */
+function depthGuidance(depth: TopicDepth): string {
+    if (depth === 'light') {
+        return (
+            'RESPONSE ENERGY — LIGHT:\n' +
+            'Keep it light and warm. Prioritise observations, commentary, curiosity and documentation — ' +
+            'notice what is developing, name specifics, give the topic some lore. Be playful and concrete. ' +
+            'Do NOT psychologize, hunt for deeper meaning, or turn enjoyment into self-improvement. ' +
+            'At most ONE light, optional question in the entire output, and only if it genuinely helps the user continue the topic.'
+        );
+    }
+    if (depth === 'balanced') {
+        return (
+            'RESPONSE ENERGY — BALANCED:\n' +
+            'Lead with observations. At most ONE useful, optional question per section. ' +
+            'Relaxed companion, not a coach. Reflect only when it earns its place; never force depth.'
+        );
+    }
+    return (
+        'RESPONSE ENERGY — DEEP:\n' +
+        'Reflection, patterns and harder questions are welcome and valuable here. ' +
+        'Still never stack 3+ questions in one section and never end every section with a question. ' +
+        'Always nonjudgmental — insight, not interrogation.'
     );
 }
 
@@ -335,6 +373,7 @@ export async function generateTopicDiscover(
 ): Promise<TopicGenResult<DiscoverPayload>> {
     const tone = await resolveToneStyle(ctx.topic.toneId);
     const lens = resolveLens(ctx);
+    const depth = resolveDepth(ctx);
     const signal = signalCount(ctx);
     const others = otherTopicTitles.filter(Boolean).slice(0, 10);
     const connectionsHint = others.length
@@ -358,9 +397,14 @@ export async function generateTopicDiscover(
             '\n\n' +
             lensGuidance(lens) +
             '\n\n' +
+            depthGuidance(depth) +
+            '\n\n' +
+            ANTI_INTERROGATION +
+            '\n\n' +
             dataGuidance(signal) +
             '\n\n' +
             'DISCOVER MODE — STRUCTURED AWARENESS:\n' +
+            'This is a calm scan of the topic — lead with observations; questions are rare here.\n' +
             `Analyze the user's "${ctx.topic.title}" topic through the ${lens.label} lens. Produce, grounded in the data above:\n` +
             `- corePattern (presented to the user as "${lens.labels.corePattern}"): ${lens.hints.corePattern}. 1-2 sentences, specific not generic.\n` +
             '- themes: 3-6 short recurring themes (1-3 words each).\n' +
@@ -386,6 +430,7 @@ export async function generateTopicEvolve(
 ): Promise<TopicGenResult<EvolvePayload>> {
     const tone = await resolveToneStyle(ctx.topic.toneId);
     const lens = resolveLens(ctx);
+    const depth = resolveDepth(ctx);
     const signal = signalCount(ctx);
 
     const askMessage: ChatMessage = {
@@ -402,6 +447,10 @@ export async function generateTopicEvolve(
             tone.guidelines +
             '\n\n' +
             lensGuidance(lens) +
+            '\n\n' +
+            depthGuidance(depth) +
+            '\n\n' +
+            ANTI_INTERROGATION +
             '\n\n' +
             dataGuidance(signal) +
             '\n\n' +

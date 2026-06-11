@@ -7,7 +7,7 @@ import { useHabitGoalStore } from '@/lib/habitGoalStore';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useTopicAiPage, useTopicContextRef } from '@/hooks/useTopicAiPage';
 import { generateTopicEvolve } from '@/services/topicChatClient';
-import { getLensDef, inferTopicLens } from '@/lib/topicLens';
+import { getLensDef, inferTopicLens, defaultDepthForLens, respondPrompt } from '@/lib/topicLens';
 import type { GoalHabitSuggestion } from '@/lib/topicAiTypes';
 import { VanguardPaywall } from '@/components/paywall/VanguardPaywall';
 import { HabitGoalCreateModal } from '@/components/insights/habitsGoals/HabitGoalCreateModal';
@@ -54,7 +54,9 @@ export function TopicEvolvePage({
     const addHabitGoal = useHabitGoalStore((s) => s.addHabitGoal);
     const getCtx = useTopicContextRef(topic, stats);
 
-    const lens = getLensDef(topic.lens ?? inferTopicLens(topic.title, topic.description));
+    const lensId = topic.lens ?? inferTopicLens(topic.title, topic.description);
+    const lens = getLensDef(lensId);
+    const depth = topic.depth ?? defaultDepthForLens(lensId);
 
     const [showPaywall, setShowPaywall] = useState(false);
     const [createOpen, setCreateOpen] = useState(false);
@@ -132,6 +134,7 @@ export function TopicEvolvePage({
                         {journeyStages.length > 0 && (
                             <FocusCard
                                 label={lens.labels.journey}
+                                respondLabel={respondPrompt(depth, lens.labels.journey).cta}
                                 onRespond={() => setRespond({ section: lens.labels.journey, text: journeyText })}
                             >
                                 <View style={styles.journey}>
@@ -152,34 +155,34 @@ export function TopicEvolvePage({
                         )}
 
                         {data.realizations.length > 0 && (
-                            <FocusCard
-                                label={lens.labels.realizations}
-                                onRespond={() =>
-                                    setRespond({
-                                        section: lens.labels.realizations,
-                                        text: data.realizations.map((r) => (r.date ? `${r.date}: ${r.text}` : r.text)).join('\n'),
-                                    })
-                                }
-                            >
+                            <FocusCard label={lens.labels.realizations}>
                                 <View style={styles.realizationList}>
                                     {data.realizations.map((r, i) => (
-                                        <View key={i} style={styles.realization}>
+                                        <Pressable
+                                            key={i}
+                                            style={styles.realization}
+                                            hitSlop={4}
+                                            onPress={() =>
+                                                setRespond({
+                                                    section: lens.labels.realizations,
+                                                    text: r.date ? `${r.date}: ${r.text}` : r.text,
+                                                })
+                                            }
+                                        >
                                             {!!r.date && <Text style={styles.realizationDate}>{r.date}</Text>}
                                             <Text style={styles.realizationText}>{r.text}</Text>
-                                        </View>
+                                        </Pressable>
                                     ))}
                                 </View>
                             </FocusCard>
                         )}
 
                         {data.openThreads.length > 0 && (
-                            <FocusCard
-                                label={lens.labels.openThreads}
-                                onRespond={() =>
-                                    setRespond({ section: lens.labels.openThreads, text: data.openThreads.join('\n') })
-                                }
-                            >
-                                <BulletList items={data.openThreads} />
+                            <FocusCard label={lens.labels.openThreads}>
+                                <BulletList
+                                    items={data.openThreads}
+                                    onRespondItem={(item) => setRespond({ section: lens.labels.openThreads, text: item })}
+                                />
                             </FocusCard>
                         )}
 
@@ -224,6 +227,7 @@ export function TopicEvolvePage({
                 visible={!!respond}
                 sectionLabel={respond?.section ?? ''}
                 insightText={respond?.text ?? ''}
+                placeholder={respond ? respondPrompt(depth, respond.section).placeholder : undefined}
                 onClose={() => setRespond(null)}
                 onSave={(t) => {
                     if (respond) {
