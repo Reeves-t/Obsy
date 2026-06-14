@@ -115,9 +115,9 @@ const THEME_SETTINGS = {
 } as const;
 
 // Screen-specific settings for gradient behavior
-// Focus screens (home, albums): ghosted gradient with dark overlay
+// Focus screens (home): ghosted gradient with dark overlay
 // Atmospheric screens (gallery, insights, profile): full strength (enhanced in light mode)
-type ScreenName = 'home' | 'gallery' | 'insights' | 'topics' | 'profile' | 'archive' | 'onboarding' | 'albums';
+type ScreenName = 'home' | 'gallery' | 'insights' | 'topics' | 'profile' | 'archive' | 'onboarding';
 
 interface ScreenSettings {
     // Opacity of black overlay above gradients (0 = no overlay, 0.8 = ghosted)
@@ -131,7 +131,6 @@ interface ScreenSettings {
 const SCREEN_SETTINGS: Record<ScreenName | 'default', ScreenSettings> = {
     // Focus screens: ghosted gradient (calm, content-first)
     home: { overlayOpacity: 0.80, lightModeBoost: 0, timeThemeOverlayOpacity: 0 },
-    albums: { overlayOpacity: 0.80, lightModeBoost: 0, timeThemeOverlayOpacity: 0.06 },
 
     // Atmospheric screens: full gradient (enhanced visibility in light mode)
     gallery: { overlayOpacity: 0, lightModeBoost: 0.20, timeThemeOverlayOpacity: 0.08 },
@@ -150,7 +149,7 @@ interface AmbientBackgroundProps {
 }
 
 export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName }) => {
-    const { theme, isLight, usesTimeTheme, activeGradient } = useObsyTheme();
+    const { theme, isLight, usesTimeTheme, activeGradient, auroraBackground, orbWave } = useObsyTheme();
     const isOnboarding = screenName === 'onboarding';
     const screenSettings = SCREEN_SETTINGS[screenName || 'default'];
     const themeSettings = isLight ? THEME_SETTINGS.light : THEME_SETTINGS.dark;
@@ -189,7 +188,7 @@ export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName
     const overlayOpacity = screenSettings.overlayOpacity;
 
     if (theme === 'obsy-default') {
-        return <AuroraBackground />;
+        return <AuroraBackground background={auroraBackground} orbWave={orbWave} />;
     }
 
     if (usesTimeTheme && activeGradient && gradientEndpoints) {
@@ -330,7 +329,7 @@ export const AmbientBackground: React.FC<AmbientBackgroundProps> = ({ screenName
                 />
             ))}
 
-            {/* Dimming overlay for focus screens (Home, Albums) in DARK MODE ONLY - creates "ghosted gradient" effect */}
+            {/* Dimming overlay for focus screens (Home) in DARK MODE ONLY - creates "ghosted gradient" effect */}
             {!isLight && overlayOpacity > 0 && (
                 <View
                     style={[

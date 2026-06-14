@@ -17,6 +17,9 @@ import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrappe
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useAuth } from '@/contexts/AuthContext';
 import { type ThemeMode, type TimeThemeSelection, useObsyTheme } from '@/contexts/ThemeContext';
+import { AURORA_BACKGROUNDS, AURORA_BACKGROUND_ORDER } from '@/constants/auroraBackgrounds';
+import { ORB_WAVES, ORB_WAVE_ORDER } from '@/constants/auroraOrbs';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getProfile, updateProfile, Profile } from '@/services/profile';
 import { AI_TONES, getToneDefinition } from '@/lib/aiTone';
 import { supabase } from '@/lib/supabase';
@@ -51,22 +54,10 @@ const APP_THEME_OPTIONS: Array<{
   subtitle: string;
 }> = [
   {
-    id: 'dark',
-    icon: 'moon-outline',
-    title: 'Dark Theme',
-    subtitle: 'Use the Obsy dark background across the app',
-  },
-  {
     id: 'obsy-default',
     icon: 'color-palette-outline',
     title: 'Obsy Default',
     subtitle: 'Soft aurora glow in Obsy brand colors across every screen',
-  },
-  {
-    id: 'pack1',
-    icon: 'sparkles-outline',
-    title: 'Obsy Theme Pack 1',
-    subtitle: 'Use the time-based Obsy gradient across every tab',
   },
 ];
 
@@ -268,7 +259,7 @@ const HorizonStarsInline: React.FC = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const { user, isGuest, signOut } = useAuth();
-  const { isLight, colors, theme, setTheme, timeThemeSelection, setTimeThemeSelection } = useObsyTheme();
+  const { isLight, colors, theme, setTheme, timeThemeSelection, setTimeThemeSelection, auroraBackground, setAuroraBackground, orbWave, setOrbWave, ctaButtonStyle, setCtaButtonStyle } = useObsyTheme();
   const { timeFormat, setTimeFormat } = useTimeFormatStore();
   const { t, languageLabel } = useI18n();
   const router = useRouter();
@@ -737,6 +728,96 @@ export default function ProfileScreen() {
               );
             })}
           </View>
+
+          <View style={styles.bgPickerSection}>
+            <ThemedText style={[styles.bgPickerLabel, { color: themeOptionMuted }]}>Background</ThemedText>
+            <View style={styles.bgSwatchRow}>
+              {AURORA_BACKGROUND_ORDER.map((key) => {
+                const palette = AURORA_BACKGROUNDS[key];
+                const isSelected = auroraBackground === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    activeOpacity={0.85}
+                    onPress={() => setAuroraBackground(key)}
+                    style={styles.bgSwatchItem}
+                  >
+                    <View
+                      style={[
+                        styles.swatchTile,
+                        {
+                          backgroundColor: palette.swatch,
+                          borderColor: isSelected ? Colors.obsy.silver : themeOptionBorder,
+                        },
+                      ]}
+                    />
+                    <ThemedText style={[styles.bgSwatchLabel, { color: isSelected ? colors.text : themeOptionMuted }]}>
+                      {palette.label}
+                    </ThemedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.bgPickerSection}>
+            <ThemedText style={[styles.bgPickerLabel, { color: themeOptionMuted }]}>Aurora</ThemedText>
+            <View style={styles.bgSwatchRow}>
+              {ORB_WAVE_ORDER.map((key) => {
+                const wave = ORB_WAVES[key];
+                const isSelected = orbWave === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    activeOpacity={0.85}
+                    onPress={() => setOrbWave(key)}
+                    style={styles.bgSwatchItem}
+                  >
+                    <LinearGradient
+                      colors={[`rgb(${wave.a})`, `rgb(${wave.b})`]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.swatchTile,
+                        { borderColor: isSelected ? Colors.obsy.silver : themeOptionBorder },
+                      ]}
+                    />
+                    <ThemedText style={[styles.bgSwatchLabel, { color: isSelected ? colors.text : themeOptionMuted }]}>
+                      {wave.label}
+                    </ThemedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.bgPickerSection}>
+            <ThemedText style={[styles.bgPickerLabel, { color: themeOptionMuted }]}>Button style</ThemedText>
+            <View style={styles.segmentRow}>
+              {(['reflective', 'matte'] as const).map((style) => {
+                const isSelected = ctaButtonStyle === style;
+                return (
+                  <TouchableOpacity
+                    key={style}
+                    activeOpacity={0.85}
+                    onPress={() => setCtaButtonStyle(style)}
+                    style={[
+                      styles.segmentPill,
+                      {
+                        backgroundColor: isSelected ? themeOptionActiveBg : themeOptionBg,
+                        borderColor: isSelected ? themeOptionActiveBorder : themeOptionBorder,
+                      },
+                    ]}
+                  >
+                    <ThemedText style={[styles.segmentLabel, { color: isSelected ? colors.text : themeOptionMuted }]}>
+                      {style === 'reflective' ? 'Reflective' : 'Matte'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
           <SettingRow
             icon="language-outline"
             title={t('settings.languageTitle')}
@@ -1335,6 +1416,52 @@ const styles = StyleSheet.create({
   // Theme Picker
   themePickerSection: {
     marginBottom: 12,
+  },
+  bgPickerSection: {
+    marginBottom: 16,
+  },
+  bgPickerLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+    marginLeft: 2,
+  },
+  bgSwatchRow: {
+    flexDirection: 'row',
+    gap: 18,
+  },
+  bgSwatchItem: {
+    alignItems: 'center',
+    gap: 7,
+  },
+  swatchTile: {
+    width: 60,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  bgSwatchLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  segmentRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  segmentPill: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   themeOptionRow: {
     width: '100%',

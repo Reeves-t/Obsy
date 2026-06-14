@@ -122,6 +122,7 @@ export const usePatternKeywords = create<PatternKeywordsState>((set, get) => ({
                     entryType: (c.source_type as PatternKeywordsCaptureData['entryType']) ?? 'capture',
                     sharedLinkPlatform: c.shared_link_platform ?? null,
                     sharedLinkTitle: c.shared_link_title ?? null,
+                    sharedLinkDigest: c.shared_link_digest ?? null,
                 };
             });
 

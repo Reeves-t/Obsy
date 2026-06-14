@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { TOPIC_LENSES, type TopicLensId } from '@/lib/topicLens';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
 
 interface LensSelectorProps {
     visible: boolean;
@@ -19,7 +19,7 @@ export function LensSelector({ visible, currentLensId, onClose, onSelectLens }: 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={styles.overlay}>
-                <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+                <AmbientBackground />
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
                 <View style={styles.container}>
@@ -77,16 +77,16 @@ const styles = StyleSheet.create({
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.4)',
+        backgroundColor: 'transparent',
     },
     container: {
         width: '92%',
         maxWidth: 420,
         maxHeight: '80%',
-        backgroundColor: '#0A0A0A',
+        backgroundColor: 'rgba(12,14,22,0.55)',
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: 'rgba(255,255,255,0.12)',
         overflow: 'hidden',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 12 },

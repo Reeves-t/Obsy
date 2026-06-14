@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import { computeDailyMoodFlow, formatDateKey, filterCapturesForDate } from "@/lib/dailyMoodFlows";
 import { upsertDailyMoodFlow } from "@/services/dailyMoodFlows";
+import { requestLinkDigest } from "@/services/linkDigestClient";
 import { PRIVACY_FLAGS } from "@/lib/privacyFlags";
 import { Capture } from "@/types/capture";
 import { getMoodLabel } from "@/lib/moodUtils";
@@ -19,8 +20,10 @@ import { useMonthlyInsight } from "./monthlyInsightStore";
 import { decode } from 'base64-arraybuffer';
 import { getTierLimits } from "@/hooks/useSubscription";
 import { getLocalDayKey } from "@/lib/utils";
+import { track } from "@/lib/analytics";
+import type { CaptureType } from "@/lib/analytics/events";
 
-type SubscriptionTier = 'guest' | 'free' | 'plus';
+type SubscriptionTier = 'free' | 'plus'; // OBS-19: free|plus only
 
 type CaptureState = {
     captures: Capture[];
@@ -43,6 +46,8 @@ type CaptureState = {
             shared_link_platform?: string | null,
             shared_link_title?: string | null,
             shared_link_thumbnail_url?: string | null,
+            shared_link_digest?: string | null,
+            shared_link_media_type?: string | null,
         }
     ) => Promise<string | null>;
     createJournalEntry: (
@@ -74,6 +79,16 @@ type CaptureState = {
         topicTag?: string | null,
         includeInInsights?: boolean
     ) => Promise<string | null>;
+    /** Patch a shared-link capture in local state once its background digest resolves. */
+    applySharedLinkDigest: (
+        id: string,
+        fields: {
+            digest?: string | null;
+            mediaType?: string | null;
+            title?: string | null;
+            thumbnailUrl?: string | null;
+        }
+    ) => void;
     createCapture: (
         imageUri: string,
         moodId: string,
@@ -172,6 +187,8 @@ export const useCaptureStore = create<CaptureState>()(
                                 shared_link_platform: entry.shared_link_platform || null,
                                 shared_link_title: entry.shared_link_title || null,
                                 shared_link_thumbnail_url: entry.shared_link_thumbnail_url || null,
+                                shared_link_digest: entry.shared_link_digest || null,
+                                shared_link_media_type: entry.shared_link_media_type || null,
                             };
                         });
                         set({ captures: mappedCaptures });
@@ -225,6 +242,8 @@ export const useCaptureStore = create<CaptureState>()(
                 const usePhotoForInsight = data.usePhotoForInsight ?? false;
                 const orbEffect = generateOrbEffect(data.mood_name_snapshot || data.mood_id);
                 let newCaptureId: string | null = null;
+                // Capture funnel: is this the user's first entry? (read before insert)
+                const isFirstCapture = get().captures.length === 0;
 
                 // Validate required mood fields
                 if (!data.mood_id || data.mood_id.trim() === '') {
@@ -284,6 +303,8 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_platform: data.shared_link_platform || null,
                         shared_link_title: data.shared_link_title || null,
                         shared_link_thumbnail_url: data.shared_link_thumbnail_url || null,
+                        shared_link_digest: data.shared_link_digest || null,
+                        shared_link_media_type: data.shared_link_media_type || null,
                     };
 
                     const { data: inserted, error } = await supabase
@@ -316,6 +337,8 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_platform: inserted.shared_link_platform || null,
                         shared_link_title: inserted.shared_link_title || null,
                         shared_link_thumbnail_url: inserted.shared_link_thumbnail_url || null,
+                        shared_link_digest: inserted.shared_link_digest || null,
+                        shared_link_media_type: inserted.shared_link_media_type || null,
                     };
 
                     set((state) => ({ captures: [newCapture, ...state.captures] }));
@@ -353,6 +376,17 @@ export const useCaptureStore = create<CaptureState>()(
                     useTodayInsight.getState().computePending(updatedCaptures);
                     useWeeklyInsight.getState().computePending(updatedCaptures);
                     useMonthlyInsight.getState().computePending(updatedCaptures);
+                }
+
+                // Launch-funnel analytics (no PII — type + first-capture flag only).
+                if (newCaptureId) {
+                    const captureType: CaptureType =
+                        data.source_type === 'voice' ? 'voice'
+                            : data.source_type === 'journal' ? 'text'
+                                : data.source_type === 'shared_link' ? 'link'
+                                    : 'photo';
+                    track('capture_created', { type: captureType, is_first: isFirstCapture });
+                    track('mood_logged');
                 }
                 return newCaptureId;
             },
@@ -571,7 +605,7 @@ export const useCaptureStore = create<CaptureState>()(
                     await moodCache.fetchAllMoods(user?.id ?? null);
                 }
                 const tags = topicTag ? [topicTag] : [];
-                return get().addCapture(user, {
+                const newId = await get().addCapture(user, {
                     mood_id: moodId,
                     mood_name_snapshot: moodName,
                     note: note ?? null,
@@ -587,6 +621,40 @@ export const useCaptureStore = create<CaptureState>()(
                     shared_link_title: title,
                     shared_link_thumbnail_url: thumbnailUrl,
                 });
+
+                // Background: enrich the link with a Gemini digest (content summary,
+                // media type, real title, thumbnail). Fire-and-forget — never blocks save.
+                if (newId && user) {
+                    requestLinkDigest(newId)
+                        .then((res) => {
+                            if (res.ok) {
+                                get().applySharedLinkDigest(newId, {
+                                    digest: res.digest,
+                                    mediaType: res.mediaType,
+                                    title: res.title,
+                                    thumbnailUrl: res.thumbnailUrl,
+                                });
+                            }
+                        })
+                        .catch(() => { /* best-effort enrichment */ });
+                }
+
+                return newId;
+            },
+
+            applySharedLinkDigest: (id, fields) => {
+                set((state) => ({
+                    captures: state.captures.map((c) => {
+                        if (c.id !== id) return c;
+                        return {
+                            ...c,
+                            shared_link_digest: fields.digest ?? c.shared_link_digest ?? null,
+                            shared_link_media_type: fields.mediaType ?? c.shared_link_media_type ?? null,
+                            shared_link_title: fields.title ?? c.shared_link_title ?? null,
+                            shared_link_thumbnail_url: fields.thumbnailUrl ?? c.shared_link_thumbnail_url ?? null,
+                        };
+                    }),
+                }));
             },
 
             getAllTags: () => {

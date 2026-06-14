@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Modal, TouchableOpacity, ScrollView, Text, Dimensions } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { ThemedText } from '@/components/ui/ThemedText';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { AI_TONES, AiToneId } from '@/lib/aiTone';
@@ -65,7 +65,7 @@ export function ToneSelector({ visible, onClose, currentToneId, onSelectTone }: 
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+                <AmbientBackground />
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
                 <View style={styles.container}>
@@ -232,16 +232,16 @@ const styles = StyleSheet.create({
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.4)',
+        backgroundColor: 'transparent',
     },
     container: {
         width: '92%',
         maxWidth: 420,
         maxHeight: '80%',
-        backgroundColor: '#0A0A0A',
+        backgroundColor: 'rgba(12,14,22,0.55)',
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: 'rgba(255,255,255,0.12)',
         overflow: 'hidden',
         padding: 4,
         shadowColor: '#000',

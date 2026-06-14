@@ -132,8 +132,13 @@ export const SharedLinkCard = memo(function SharedLinkCard({
                 </View>
             )}
 
-            {/* ── Metadata: note + mood + time ─────────────────────────── */}
+            {/* ── Metadata: AI digest + note + mood + time ─────────────── */}
             <View style={styles.footer}>
+                {capture.shared_link_digest && capture.shared_link_digest.trim().length > 0 && (
+                    <ThemedText numberOfLines={3} style={[styles.digest, { color: textSecondary }]}>
+                        {capture.shared_link_digest}
+                    </ThemedText>
+                )}
                 {capture.note && capture.note.trim().length > 0 && (
                     <ThemedText numberOfLines={3} style={[styles.note, { color: textSecondary }]}>
                         {capture.note}
@@ -208,6 +213,11 @@ const styles = StyleSheet.create({
         lineHeight: 18,
         fontStyle: 'italic',
         opacity: 0.85,
+    },
+    digest: {
+        fontSize: 13,
+        lineHeight: 18,
+        opacity: 0.95,
     },
     metaRow: {
         flexDirection: 'row',

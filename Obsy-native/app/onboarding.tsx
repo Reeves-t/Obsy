@@ -17,12 +17,13 @@ import { useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { ProgressIndicator } from '@/components/onboarding/ProgressIndicator';
-import { useSubscription } from '@/hooks/useSubscription';
+import { useAuth } from '@/contexts/AuthContext';
 import { createCustomTone, validateCustomTone } from '@/lib/customTone';
 import { updateProfile } from '@/services/profile';
 import { DEFAULT_AI_TONE_ID } from '@/lib/aiTone';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { track } from '@/lib/analytics';
 
 const { width, height } = Dimensions.get('window');
 
@@ -76,8 +77,15 @@ export default function OnboardingScreen() {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const { tier } = useSubscription();
+    // OBS-19: guest tier removed; distinguish signed-out users via the auth session.
+    const { isGuest } = useAuth();
     const router = useRouter();
+
+    // Funnel: onboarding begins on first launch (this screen only mounts when
+    // onboarding has not yet been completed).
+    useEffect(() => {
+        track('onboarding_started');
+    }, []);
 
     // Trigger haptic on every page change
     useEffect(() => {
@@ -87,7 +95,7 @@ export default function OnboardingScreen() {
     }, [currentIndex]);
 
     const saveToneIfNeeded = async () => {
-        if (tier !== 'guest' && tonePrompt) {
+        if (!isGuest && tonePrompt) {
             const validation = validateCustomTone(toneName || 'My Tone', tonePrompt);
             if (!validation.valid) {
                 setError(validation.error || 'Invalid input');
@@ -134,6 +142,7 @@ export default function OnboardingScreen() {
     };
 
     const completeOnboarding = async () => {
+        track('onboarding_completed', { auth_method: isGuest ? 'guest' : 'account' });
         await AsyncStorage.setItem('has_completed_onboarding', 'true');
         router.replace('/(tabs)');
     };

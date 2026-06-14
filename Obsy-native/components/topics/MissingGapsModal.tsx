@@ -6,12 +6,13 @@ import {
     Pressable,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
+    Animated,
+    Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
 
 import type { Topic, TopicStats } from '@/lib/topicStore';
 import { useTopicStore } from '@/lib/topicStore';
@@ -92,6 +93,49 @@ function GapIcon() {
                 strokeLinecap="round"
             />
         </Svg>
+    );
+}
+
+// Minimal, on-brand loading state — a soft orb that breathes while gaps generate.
+function GapsLoader() {
+    const pulse = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulse, {
+                    toValue: 1,
+                    duration: 1100,
+                    easing: Easing.inOut(Easing.quad),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulse, {
+                    toValue: 0,
+                    duration: 1100,
+                    easing: Easing.inOut(Easing.quad),
+                    useNativeDriver: true,
+                }),
+            ]),
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [pulse]);
+
+    const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.3] });
+    const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
+    const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.9] });
+    const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] });
+
+    return (
+        <View style={styles.loadingWrap}>
+            <View style={styles.orbStage}>
+                <Animated.View
+                    style={[styles.orbHalo, { transform: [{ scale: haloScale }], opacity: haloOpacity }]}
+                />
+                <Animated.View style={[styles.orb, { transform: [{ scale }], opacity }]} />
+            </View>
+            <Text style={styles.loadingText}>Surfacing gaps…</Text>
+        </View>
     );
 }
 
@@ -209,9 +253,8 @@ export function MissingGapsModal({
             statusBarTranslucent
             onRequestClose={onClose}
         >
-            <Pressable style={styles.backdrop} onPress={onClose}>
-                <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
-            </Pressable>
+            <AmbientBackground />
+            <Pressable style={styles.backdrop} onPress={onClose} />
 
             <View style={styles.centerWrap} pointerEvents="box-none">
                 <View style={styles.card}>
@@ -240,12 +283,7 @@ export function MissingGapsModal({
                         showsVerticalScrollIndicator={false}
                     >
                         {loading ? (
-                            <View style={styles.loadingRow}>
-                                <ActivityIndicator color="rgba(255,255,255,0.6)" />
-                                <Text style={styles.loadingText}>
-                                    Looking for gaps in this topic...
-                                </Text>
-                            </View>
+                            <GapsLoader />
                         ) : errorMessage ? (
                             <Text style={styles.errorText}>{errorMessage}</Text>
                         ) : parsed.sections.length > 0 ? (
@@ -320,7 +358,7 @@ export function MissingGapsModal({
 const styles = StyleSheet.create({
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(6,6,10,0.55)',
+        backgroundColor: 'transparent',
     },
     centerWrap: {
         ...StyleSheet.absoluteFillObject,
@@ -333,9 +371,9 @@ const styles = StyleSheet.create({
         maxWidth: 440,
         maxHeight: '82%',
         borderRadius: 22,
-        backgroundColor: 'rgba(18,18,26,0.96)',
+        backgroundColor: 'rgba(12,14,22,0.55)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.10)',
+        borderColor: 'rgba(255,255,255,0.12)',
         overflow: 'hidden',
     },
     header: {
@@ -394,15 +432,39 @@ const styles = StyleSheet.create({
         paddingVertical: 18,
         gap: 18,
     },
-    loadingRow: {
-        flexDirection: 'row',
+    loadingWrap: {
         alignItems: 'center',
-        gap: 12,
-        paddingVertical: 18,
+        justifyContent: 'center',
+        gap: 16,
+        paddingVertical: 36,
+    },
+    orbStage: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    orbHalo: {
+        position: 'absolute',
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: 'rgba(180,200,240,0.5)',
+    },
+    orb: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#fff',
+        shadowColor: '#cdd9ff',
+        shadowOpacity: 0.9,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 0 },
     },
     loadingText: {
         fontSize: 13,
-        color: 'rgba(255,255,255,0.55)',
+        color: 'rgba(255,255,255,0.6)',
+        letterSpacing: 0.2,
     },
     errorText: {
         fontSize: 14,

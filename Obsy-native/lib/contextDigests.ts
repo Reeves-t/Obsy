@@ -19,6 +19,8 @@ export interface DigestEntry {
     sourceType?: DigestEntryType | string | null;
     sharedLinkPlatform?: string | null;
     sharedLinkTitle?: string | null;
+    /** Gemini-generated content digest of the link (what it's about). */
+    sharedLinkDigest?: string | null;
 }
 
 function fmtDate(dateInput: string): string {
@@ -63,8 +65,9 @@ export function buildContextDigest(entries: DigestEntry[]): string {
             .map(e => {
                 const platform = e.sharedLinkPlatform || 'Web';
                 const titlePart = e.sharedLinkTitle ? ` "${e.sharedLinkTitle}"` : '';
+                const aboutPart = e.sharedLinkDigest?.trim() ? ` — about: "${truncateNote(e.sharedLinkDigest, 200)}"` : '';
                 const notePart = e.note?.trim() ? ` — note: "${truncateNote(e.note)}"` : '';
-                return `- ${fmtDate(e.date)} [${platform}]${titlePart} — felt: ${e.mood}${notePart}`;
+                return `- ${fmtDate(e.date)} [${platform}]${titlePart} — felt: ${e.mood}${aboutPart}${notePart}`;
             });
         sections.push(`SHARED LINKS THIS PERIOD (external content the user chose to save):\n${lines.join('\n')}`);
     }

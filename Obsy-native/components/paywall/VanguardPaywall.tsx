@@ -20,6 +20,7 @@ import * as WebBrowser from 'expo-web-browser';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../constants/legal';
 import { getPlusPackages, findPackage, purchasePlusPackage, restorePurchases } from '../../lib/revenuecat';
+import { track } from '../../lib/analytics';
 
 const { width, height } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.85; // ~85% of screen height
@@ -98,6 +99,7 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
     // Load the Plus offering when the sheet opens.
     useEffect(() => {
         if (!visible) return;
+        track('paywall_shown', { trigger: featureName ?? 'unknown' });
         let active = true;
         getPlusPackages()
             .then((pkgs) => { if (active) setPackages(pkgs); })
@@ -121,9 +123,11 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
             return;
         }
         setPurchasing(true);
+        track('purchase_started', { plan: selectedPlan });
         try {
             const res = await purchasePlusPackage(pkg);
             if (res.ok && res.isPlus) {
+                track('purchase_completed', { plan: selectedPlan });
                 await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 onClose();
             } else if (!res.userCancelled) {
@@ -140,6 +144,7 @@ export function VanguardPaywall({ visible, onClose, featureName }: VanguardPaywa
         try {
             const res = await restorePurchases();
             if (res.ok && res.isPlus) {
+                track('purchase_restored');
                 await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 Alert.alert('Purchases restored', 'Your Obsy Plus subscription is active.');
                 onClose();

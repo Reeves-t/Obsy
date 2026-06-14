@@ -14,6 +14,7 @@ interface CaptureData {
   entryType?: 'capture' | 'journal' | 'voice' | 'shared_link';
   sharedLinkPlatform?: string | null;
   sharedLinkTitle?: string | null;
+  sharedLinkDigest?: string | null;
 }
 
 interface PatternKeywordsRequest {
@@ -272,6 +273,7 @@ function formatEntry(c: CaptureData): string {
   if (tags) line += ` | tags: ${tags}`;
   if (c.sharedLinkPlatform) line += ` | link_platform: ${c.sharedLinkPlatform}`;
   if (c.sharedLinkTitle) line += ` | link_title: ${c.sharedLinkTitle}`;
+  if (c.sharedLinkDigest) line += ` | link_about: ${c.sharedLinkDigest}`;
   return line;
 }
 

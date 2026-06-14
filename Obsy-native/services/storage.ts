@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 
-type SubscriptionTier = 'guest' | 'free' | 'plus';
+type SubscriptionTier = 'free' | 'plus'; // OBS-19: free|plus only
 
 /**
  * Uploads a local capture image to Supabase Storage.
@@ -17,8 +17,8 @@ export async function uploadCaptureImage(
     userId: string,
     tier?: SubscriptionTier
 ): Promise<string | null> {
-    // Skip cloud upload for free/guest tiers
-    if (tier === 'guest' || tier === 'free') {
+    // Cloud backup is Plus-only; skip upload for the free tier.
+    if (tier === 'free') {
         console.log('[Storage] Skipping cloud upload for', tier, 'tier');
         return null;
     }

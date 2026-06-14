@@ -12,6 +12,10 @@ import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { QuickMoodButton } from '@/components/home/QuickMoodButton';
 import { AnimatedDocumentsButton } from '@/components/home/AnimatedDocumentsButton';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
+import { useObsyTheme } from '@/contexts/ThemeContext';
+import { getThemeAccentRgb } from '@/lib/themeAccent';
+import { ReflectedCaption } from '@/components/ui/ReflectedCaption';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -186,13 +190,48 @@ export function TopicEntrySheet({ topicId, topicTitle, onClose, onSelectDocument
     const router = useRouter();
     const [activeIdx, setActiveIdx] = useState(1);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [displayedLabel, setDisplayedLabel] = useState(ACTIONS[1].label);
     const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const captionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const { auroraBackground, orbWave } = useObsyTheme();
+    const accentRgb = getThemeAccentRgb(auroraBackground, orbWave);
+
+    const capOpacity = useSharedValue(1);
+    const capLift = useSharedValue(0);
+    const capScale = useSharedValue(1);
 
     useEffect(() => {
         return () => {
             if (animTimerRef.current) clearTimeout(animTimerRef.current);
+            if (captionTimerRef.current) clearTimeout(captionTimerRef.current);
         };
     }, []);
+
+    // Cross-fade the caption (with a scale settle) when the front action changes.
+    useEffect(() => {
+        const nextLabel = ACTIONS[activeIdx].label;
+        if (nextLabel === displayedLabel) return;
+        if (captionTimerRef.current) clearTimeout(captionTimerRef.current);
+
+        capOpacity.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.quad) });
+        capLift.value = withTiming(-6, { duration: 170, easing: Easing.out(Easing.quad) });
+
+        captionTimerRef.current = setTimeout(() => {
+            setDisplayedLabel(nextLabel);
+            capLift.value = 6;
+            capScale.value = 0.96;
+            capOpacity.value = withTiming(1, { duration: 230, easing: Easing.out(Easing.cubic) });
+            capLift.value = withTiming(0, { duration: 230, easing: Easing.out(Easing.cubic) });
+            capScale.value = withTiming(1, { duration: 230, easing: Easing.out(Easing.cubic) });
+            captionTimerRef.current = null;
+        }, 180);
+    }, [activeIdx, displayedLabel, capOpacity, capLift, capScale]);
+
+    const captionStyle = useAnimatedStyle(() => ({
+        opacity: capOpacity.value,
+        transform: [{ translateY: capLift.value }, { scale: capScale.value }],
+    }));
 
     const rotate = useCallback((dir: 'left' | 'right') => {
         if (isAnimating) return;
@@ -230,8 +269,6 @@ export function TopicEntrySheet({ topicId, topicTitle, onClose, onSelectDocument
         else if (key === 'capture') router.push({ pathname: '/capture', params } as never);
     }, [onClose, router, topicId, topicTitle, onSelectDocuments]);
 
-    const activeAction = ACTIONS[activeIdx];
-
     return (
         <Modal
             visible
@@ -241,6 +278,7 @@ export function TopicEntrySheet({ topicId, topicTitle, onClose, onSelectDocument
             onRequestClose={onClose}
         >
             <View style={styles.backdrop}>
+                <AmbientBackground />
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
                 <View style={styles.sheet}>
                     {/* Drag handle */}
@@ -270,7 +308,13 @@ export function TopicEntrySheet({ topicId, topicTitle, onClose, onSelectDocument
                     </View>
 
                     {/* Caption */}
-                    <Text style={styles.caption}>{activeAction.label}</Text>
+                    <Animated.View style={captionStyle}>
+                        <ReflectedCaption
+                            text={displayedLabel}
+                            textStyle={styles.caption}
+                            reflectionColor={`rgb(${accentRgb})`}
+                        />
+                    </Animated.View>
                 </View>
             </View>
         </Modal>
@@ -280,18 +324,18 @@ export function TopicEntrySheet({ topicId, topicTitle, onClose, onSelectDocument
 const styles = StyleSheet.create({
     backdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.55)',
+        backgroundColor: 'transparent',
         justifyContent: 'flex-end',
     },
     sheet: {
-        backgroundColor: '#0e0e14',
+        backgroundColor: 'rgba(12,14,22,0.55)',
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         paddingTop: 12,
         paddingBottom: 42,
         alignItems: 'center',
         borderTopWidth: 1,
-        borderColor: 'rgba(255,255,255,0.07)',
+        borderColor: 'rgba(255,255,255,0.12)',
     },
     handle: {
         width: 36,
@@ -347,10 +391,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     caption: {
-        marginTop: 8,
-        fontSize: 14,
-        color: 'rgba(210,212,218,0.6)',
+        marginTop: 16,
+        fontSize: 17,
+        lineHeight: 22,
+        color: 'rgba(228,232,242,0.7)',
         fontWeight: '500',
-        letterSpacing: 0.2,
+        letterSpacing: 0.3,
     },
 });

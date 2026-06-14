@@ -114,6 +114,7 @@ export interface CaptureData {
     entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link';
     shared_link_platform?: string | null;
     shared_link_title?: string | null;
+    shared_link_digest?: string | null;
 }
 
 export interface AlbumEntry {

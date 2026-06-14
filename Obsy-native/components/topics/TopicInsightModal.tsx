@@ -9,9 +9,9 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
 
 import type { Topic, TopicStats } from '@/lib/topicStore';
 import { useTopicStore } from '@/lib/topicStore';
@@ -154,9 +154,8 @@ export function TopicInsightModal({
             statusBarTranslucent
             onRequestClose={onClose}
         >
-            <Pressable style={styles.backdrop} onPress={onClose}>
-                <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
-            </Pressable>
+            <AmbientBackground />
+            <Pressable style={styles.backdrop} onPress={onClose} />
 
             <View style={styles.centerWrap} pointerEvents="box-none">
                 <View style={styles.card}>
@@ -245,7 +244,7 @@ export function TopicInsightModal({
 const styles = StyleSheet.create({
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(6,6,10,0.55)',
+        backgroundColor: 'transparent',
     },
     centerWrap: {
         ...StyleSheet.absoluteFillObject,
@@ -258,9 +257,9 @@ const styles = StyleSheet.create({
         maxWidth: 420,
         maxHeight: '78%',
         borderRadius: 22,
-        backgroundColor: 'rgba(18,18,26,0.96)',
+        backgroundColor: 'rgba(12,14,22,0.55)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.10)',
+        borderColor: 'rgba(255,255,255,0.12)',
         overflow: 'hidden',
     },
     header: {

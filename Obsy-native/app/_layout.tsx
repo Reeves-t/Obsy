@@ -13,6 +13,7 @@ import { ObsyThemeProvider, useObsyTheme } from '@/contexts/ThemeContext';
 import { I18nProvider } from '@/i18n/config';
 import { moodCache } from '@/lib/moodCache';
 import { configureRevenueCat, identifyRevenueCatUser, resetRevenueCatUser } from '@/lib/revenuecat';
+import { initAnalytics, identifyUser, resetAnalytics } from '@/lib/analytics';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTodayInsight } from '@/lib/todayInsightStore';
 import { useWeeklyInsight } from '@/lib/weeklyInsightStore';
@@ -104,6 +105,7 @@ function RootLayoutNav({ onDataReady }: { onDataReady: () => void }) {
           <ObsyThemeProvider>
             <MoodCacheInitializer />
             <RevenueCatInitializer />
+            <AnalyticsInitializer />
             <SnapshotLoader onDataReady={onDataReady} />
             <ThemedNavigator />
           </ObsyThemeProvider>
@@ -125,6 +127,24 @@ function RevenueCatInitializer() {
       identifyRevenueCatUser(user.id);
     } else {
       resetRevenueCatUser();
+    }
+  }, [user]);
+
+  return null;
+}
+
+function AnalyticsInitializer() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      identifyUser(user.id);
+    } else {
+      resetAnalytics();
     }
   }, [user]);
 

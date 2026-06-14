@@ -10,6 +10,7 @@ export interface PatternKeywordsCaptureData {
     entryType?: 'capture' | 'journal' | 'voice' | 'shared_link';
     sharedLinkPlatform?: string | null;
     sharedLinkTitle?: string | null;
+    sharedLinkDigest?: string | null;
 }
 
 export interface PatternKeywordsResponse {

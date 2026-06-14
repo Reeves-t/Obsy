@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { callTopicChat, generateTopicNote, type TopicContext } from '@/services/topicChatClient';
 import { ObsyIcon } from '@/components/ui/ObsyIcon';
 import { useAiFreeMode } from '@/hooks/useAiFreeMode';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
 
 // Show note helper after this many AI responses
 const NOTE_THRESHOLD = 3;
@@ -445,6 +446,8 @@ export default function TopicChatScreen() {
 
     return (
         <View style={[styles.root, { paddingTop: insets.top }]}>
+            <AmbientBackground />
+
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -557,7 +560,7 @@ export default function TopicChatScreen() {
 const styles = StyleSheet.create({
     root: {
         flex: 1,
-        backgroundColor: '#06060a',
+        backgroundColor: 'transparent',
     },
     // ── Header ─────────────────────────────────────────────────
     header: {
@@ -627,15 +630,15 @@ const styles = StyleSheet.create({
     },
     messageListContent: {
         flexGrow: 1,
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-start',
         paddingTop: 12,
         paddingBottom: 8,
     },
     emptyChat: {
-        flex: 1,
         minHeight: 160,
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
+        paddingTop: 24,
         gap: 16,
     },
     emptyChatText: {

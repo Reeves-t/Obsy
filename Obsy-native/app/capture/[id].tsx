@@ -633,6 +633,12 @@ function LinkHero({ capture, moodDisplay, onBack, onDelete, isDeleting }: {
                     />
                 </TouchableOpacity>
 
+                {capture.shared_link_digest && capture.shared_link_digest.trim().length > 0 && (
+                    <ThemedText style={styles.linkDigestText}>
+                        {capture.shared_link_digest}
+                    </ThemedText>
+                )}
+
                 {embeddable && (
                     <View style={styles.linkEmbedHolder}>
                         <PlatformEmbed
@@ -909,6 +915,11 @@ const styles = StyleSheet.create({
     },
     linkEmbedHolder: {
         // PlatformEmbed manages its own border/height
+    },
+    linkDigestText: {
+        fontSize: 14,
+        lineHeight: 20,
+        color: 'rgba(255,255,255,0.82)',
     },
     linkBottomRow: {
         flexDirection: 'row',

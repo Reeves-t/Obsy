@@ -11,6 +11,10 @@ import { AnimatedMicButton } from '@/components/home/AnimatedMicButton';
 import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { QuickMoodButton } from '@/components/home/QuickMoodButton';
+import { useAuroraPulseStore } from '@/lib/auroraPulseStore';
+import { useObsyTheme } from '@/contexts/ThemeContext';
+import { getThemeAccentRgb } from '@/lib/themeAccent';
+import { ReflectedCaption } from '@/components/ui/ReflectedCaption';
 
 type ActionKey = 'voice' | 'capture' | 'journal' | 'quick-mood';
 type OrbitSlotName = 'front' | 'left' | 'right' | 'top';
@@ -58,8 +62,9 @@ const BUTTON_RING_PADDING = 8;
 const STAGE_SIZE = MAIN_BUTTON_SIZE + BUTTON_RING_PADDING;
 const CONTAINER_WIDTH = 360;
 const CONTAINER_HEIGHT = 300;
-const CAPTION_SWAP_OUT_DURATION = 100;
-const CAPTION_SWAP_DELAY = 110;
+const CAPTION_SWAP_OUT_DURATION = 170;
+const CAPTION_SWAP_DELAY = 180;
+const CAPTION_SWAP_IN_DURATION = 230;
 const ORBIT_ANIMATION_DURATION = 680;
 const TRANSLATE_DURATION = 500;
 const SCALE_DURATION = 500;
@@ -142,37 +147,6 @@ const CTA_DESCRIPTIONS: Record<ActionKey, string> = {
   voice: "say what's on your mind out loud",
   'quick-mood': 'no words needed, just log the mood',
 };
-
-// ─── Caption fade ───────────────────────────────────────────────────
-
-function FadeInCaption({
-  text,
-  animKey,
-}: {
-  text: string;
-  animKey: number;
-}) {
-  const opacity = useSharedValue(0);
-  const lift = useSharedValue(6);
-
-  useEffect(() => {
-    opacity.value = 0;
-    lift.value = 6;
-    opacity.value = withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) });
-    lift.value = withTiming(0, { duration: 240, easing: Easing.out(Easing.cubic) });
-  }, [animKey, opacity, lift]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: lift.value }],
-  }));
-
-  return (
-    <Animated.View style={animStyle}>
-      <Text style={styles.captionText}>{text}</Text>
-    </Animated.View>
-  );
-}
 
 // ─── Carousel helpers ────────────────────────────────────────────────
 
@@ -373,8 +347,12 @@ export function HomeActionCarousel() {
   const [motionKey, setMotionKey] = useState(0);
   const animationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const captionOpacity = useSharedValue(1);
-  const [captionAnimKey, setCaptionAnimKey] = useState(0);
+  const capOpacity = useSharedValue(1);
+  const capLift = useSharedValue(0);
+  const capScale = useSharedValue(1);
+
+  const { auroraBackground, orbWave } = useObsyTheme();
+  const accentRgb = getThemeAccentRgb(auroraBackground, orbWave);
 
   useEffect(() => {
     return () => {
@@ -396,25 +374,33 @@ export function HomeActionCarousel() {
       clearTimeout(captionTimeoutRef.current);
     }
 
-    captionOpacity.value = withTiming(0, {
-      duration: CAPTION_SWAP_OUT_DURATION,
-      easing: Easing.out(Easing.quad),
-    });
+    // Fade out + lift away.
+    capOpacity.value = withTiming(0, { duration: CAPTION_SWAP_OUT_DURATION, easing: Easing.out(Easing.quad) });
+    capLift.value = withTiming(-6, { duration: CAPTION_SWAP_OUT_DURATION, easing: Easing.out(Easing.quad) });
 
     captionTimeoutRef.current = setTimeout(() => {
+      // Swap text at the opacity trough, then fade in with a gentle scale settle.
       setDisplayedActionKey(nextActionKey);
-      captionOpacity.value = withTiming(1, { duration: 0 });
-      setCaptionAnimKey(k => k + 1);
+      capLift.value = 6;
+      capScale.value = 0.96;
+      capOpacity.value = withTiming(1, { duration: CAPTION_SWAP_IN_DURATION, easing: Easing.out(Easing.cubic) });
+      capLift.value = withTiming(0, { duration: CAPTION_SWAP_IN_DURATION, easing: Easing.out(Easing.cubic) });
+      capScale.value = withTiming(1, { duration: CAPTION_SWAP_IN_DURATION, easing: Easing.out(Easing.cubic) });
       captionTimeoutRef.current = null;
     }, CAPTION_SWAP_DELAY);
-  }, [activeIndex, captionOpacity, displayedActionKey]);
+  }, [activeIndex, capOpacity, capLift, capScale, displayedActionKey]);
 
   const captionStyle = useAnimatedStyle(() => ({
-    opacity: captionOpacity.value,
+    opacity: capOpacity.value,
+    transform: [{ translateY: capLift.value }, { scale: capScale.value }],
   }));
 
   const rotate = useCallback((direction: 'left' | 'right') => {
     if (isAnimating) return;
+
+    // Nudge the Aurora background orbs to wander with the carousel move.
+    // getState() avoids adding a re-render dependency to this callback.
+    useAuroraPulseStore.getState().pulse(direction);
 
     setIsAnimating(true);
     setMotionKey((current) => current + 1);
@@ -470,9 +456,10 @@ export function HomeActionCarousel() {
 
       <View style={styles.captionWrap}>
         <Animated.View style={[styles.captionInner, captionStyle]}>
-          <FadeInCaption
+          <ReflectedCaption
             text={CTA_DESCRIPTIONS[displayedActionKey]}
-            animKey={captionAnimKey}
+            textStyle={styles.captionText}
+            reflectionColor={`rgb(${accentRgb})`}
           />
         </Animated.View>
       </View>
@@ -517,7 +504,7 @@ const styles = StyleSheet.create({
   captionWrap: {
     width: CONTAINER_WIDTH,
     minHeight: 32,
-    marginTop: 68,
+    marginTop: 80,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingHorizontal: 28,
@@ -531,13 +518,10 @@ const styles = StyleSheet.create({
   captionText: {
     maxWidth: 320,
     textAlign: 'center',
-    color: 'rgba(210,212,218,0.72)',
-    fontSize: 18,
-    lineHeight: 26,
+    color: 'rgba(232,236,245,0.82)',
+    fontSize: 22,
+    lineHeight: 30,
     fontWeight: '500',
-    letterSpacing: 0.3,
-    textShadowColor: 'rgba(180,190,210,0.18)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
+    letterSpacing: 0.4,
   },
 });

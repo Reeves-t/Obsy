@@ -8,8 +8,8 @@ import {
     Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
+import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTopicStore } from '@/lib/topicStore';
 import { useTopicAttachmentStore } from '@/lib/topicAttachmentStore';
@@ -41,7 +41,6 @@ const GROUP_ORDER: TopicEntryItem['kind'][] = ['capture', 'attachment', 'note', 
 
 export default function TopicEntriesScreen() {
     const router = useRouter();
-    const insets = useSafeAreaInsets();
     const { topicId, topicTitle } = useLocalSearchParams<{
         topicId: string;
         topicTitle: string;
@@ -148,7 +147,8 @@ export default function TopicEntriesScreen() {
     );
 
     return (
-        <View style={[styles.root, { paddingTop: insets.top }]}>
+        <ScreenWrapper screenName="topics">
+            <View style={styles.root}>
             {/* Header */}
             <View style={styles.header}>
                 <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
@@ -245,14 +245,15 @@ export default function TopicEntriesScreen() {
                 attachment={viewingAttachment}
                 onClose={() => setViewingAttachmentId(null)}
             />
-        </View>
+            </View>
+        </ScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
     root: {
         flex: 1,
-        backgroundColor: '#06060a',
+        backgroundColor: 'transparent',
     },
     header: {
         flexDirection: 'row',
@@ -286,10 +287,11 @@ const styles = StyleSheet.create({
         width: 40,
     },
     filterScroll: {
-        maxHeight: 48,
         flexGrow: 0,
     },
     filterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: 16,
         paddingTop: 4,
         paddingBottom: 12,

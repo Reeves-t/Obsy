@@ -22,8 +22,12 @@ RELEASE_CHECKLIST).
   `hooks/useAlbumInsightPosts.ts`, `types/albums.ts`.
 - De-coupled from: `app/capture/review.tsx` (no more destination selector / album linking),
   `app/_layout.tsx`, `services/friends.ts` (dropped `getFriendAlbums`/`addFriendToAlbum`),
-  `services/archive.ts` (dropped the `'album'` insight type), `services/storage.ts`,
-  `hooks/useSubscription.ts` (dropped the dead `'albums'` feature gate), `services/ai.ts`.
+  `services/storage.ts`, `hooks/useSubscription.ts` (dropped the dead `'albums'` feature gate),
+  `services/ai.ts`.
+- **Archive `'album'` insight type** — fully removed under OBS-19 (`types/insights.ts`,
+  `services/archive.ts` validTypes, and the always-empty "Album Insights" section + grouping in
+  `app/archive/index.tsx`). The dead `'albums'` screen-name was also dropped from
+  `components/ScreenWrapper.tsx` and `components/ui/AmbientBackground.tsx`.
 
 ### 2. Moodverse
 - Was already hidden (`MOODVERSE_MVP_HIDDEN`); now fully deleted: `app/moodverse/`,
@@ -37,6 +41,23 @@ RELEASE_CHECKLIST).
 - `createCapture()` (`lib/captureStore.ts`) no longer takes `obsyNote` / `usePhotoForInsight`.
 - Core daily/weekly/monthly **insights are untouched** — only the per-photo note + the
   photo-as-AI-input consent were removed.
+
+### 4. Guest subscription tier (OBS-19 — collapse to free | plus)
+- The app now recognizes **`free | plus` only**. `LIMITS` lost its `guest` entry and the
+  `SubscriptionTier` type narrowed to `'free' | 'plus'` in `hooks/useSubscription.ts`,
+  `lib/captureStore.ts`, and `services/storage.ts`. A signed-out user now resolves to the
+  **`free`** tier.
+- The **signed-out *state*** is still detected, just not via a tier: `PremiumGate.tsx` and
+  `app/onboarding.tsx` read `useAuth().isGuest` (`= !session`) so signed-out users are still
+  routed to **sign-up** (not the paywall) and the `onboarding_completed` analytic still records
+  `auth_method: guest|account`. The **"Continue as Guest" auth mode was kept** — removing it is a
+  navigation/structure change, out of OBS-19 guardrails.
+- **Behavioral consequence:** signed-out users get the free local-capture allowance (10/day, 200
+  stored) instead of the old restrictive guest allowance (3/day, 50 stored). Flagged to the board.
+- **Code-only**, consistent with the convention below: `types/supabase.types.ts` (schema mirror)
+  was **not** edited — its enum still lists the legacy `'guest'` value, which is never written by
+  the app and is normalized to `'free'` by `normalizeTier()`. Dropping it from the DB enum is a
+  separate, optional migration.
 
 ---
 

@@ -78,6 +78,12 @@ export type Capture = {
     /** Thumbnail URL for shared link preview (if available) */
     shared_link_thumbnail_url?: string | null;
 
+    /** Gemini-generated content digest of the shared link (article/video/song themes). Null until digested / if not digestible. */
+    shared_link_digest?: string | null;
+
+    /** Resolved media type for shared links: article | post | video | music | playlist | podcast | social | link */
+    shared_link_media_type?: string | null;
+
     /** Persisted randomized orb surface effect parameters */
     orb_effect?: OrbEffect | null;
 };

@@ -2,6 +2,7 @@ import React, { useState, ReactNode } from 'react';
 import { TouchableOpacity, ViewStyle } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSubscription, FeatureName } from '../hooks/useSubscription';
+import { useAuth } from '../contexts/AuthContext';
 import { VanguardPaywall } from './paywall/VanguardPaywall';
 import { useRouter } from 'expo-router';
 
@@ -22,7 +23,11 @@ export function PremiumGate({
     style,
     onAction
 }: PremiumGateProps) {
-    const { checkLimit, tier } = useSubscription();
+    const { checkLimit } = useSubscription();
+    // No active session (OBS-19: the guest *tier* was removed, but a signed-out
+    // user must still be routed to sign-up rather than the paywall — RevenueCat
+    // purchases require a logged-in user id).
+    const { isGuest } = useAuth();
     const [showPaywall, setShowPaywall] = useState(false);
     const router = useRouter();
 
@@ -39,7 +44,7 @@ export function PremiumGate({
         // If we are here, it's blocked.
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
-        if (tier === 'guest' && guestAction === 'signup') {
+        if (isGuest && guestAction === 'signup') {
             // Trigger Auth Modal
             // We'll assume a standard route for now.
             // If the user hasn't implemented the auth modal route yet, this might fail, 

@@ -32,6 +32,7 @@ function describeCapture(c: Capture, dateStr: string): string {
         const platform = c.shared_link_platform || 'web';
         const title = c.shared_link_title || c.shared_link_url || 'shared link';
         lines.push(`- [${dateStr}] SHARED LINK from ${platform}: "${title}"`);
+        if (c.shared_link_digest) lines.push(`    about: "${c.shared_link_digest}"`);
         if (c.shared_link_url) lines.push(`    url: ${c.shared_link_url}`);
         if (c.note) lines.push(`    user note: "${c.note}"`);
         lines.push(`    mood: ${moodPart}`);
@@ -227,6 +228,7 @@ export function buildTopicDigest(input: TopicDigestInput): string {
         sourceType: c.source_type,
         sharedLinkPlatform: c.shared_link_platform,
         sharedLinkTitle: c.shared_link_title,
+        sharedLinkDigest: c.shared_link_digest,
     }));
     const timeDigest = buildContextDigest(digestEntries);
     if (timeDigest) {

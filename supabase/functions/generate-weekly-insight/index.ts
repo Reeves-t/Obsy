@@ -20,6 +20,7 @@ interface CaptureData {
   entry_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'mood_checkin';
   shared_link_platform?: string | null;
   shared_link_title?: string | null;
+  shared_link_digest?: string | null;
 }
 
 interface HabitGoalContext {
@@ -331,7 +332,7 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
       };
       const typeLabel = c.entry_type ? (typeLabels[c.entry_type] ?? c.entry_type) : 'capture';
       const linkMeta = c.entry_type === 'shared_link'
-        ? ` | platform: ${c.shared_link_platform ?? 'Web'} | link title: ${c.shared_link_title ?? 'unknown'}`
+        ? ` | platform: ${c.shared_link_platform ?? 'Web'} | link title: ${c.shared_link_title ?? 'unknown'}${c.shared_link_digest ? ` | about: ${c.shared_link_digest}` : ''}`
         : '';
       return `${time} | ${part} | type: ${typeLabel} | mood: ${c.mood}${linkMeta}${note ? ` | note: ${note}` : ""}`;
     });

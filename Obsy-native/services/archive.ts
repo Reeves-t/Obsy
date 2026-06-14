@@ -112,7 +112,7 @@ function validateArchiveInput(input: ArchiveInput): ArchiveError | null {
     }
 
     // Validate type
-    const validTypes: ArchiveInsightType[] = ['daily', 'weekly', 'monthly', 'album', 'tagging'];
+    const validTypes: ArchiveInsightType[] = ['daily', 'weekly', 'monthly', 'tagging'];
     if (!validTypes.includes(input.type)) {
         return {
             code: ARCHIVE_ERROR_CODES.INVALID_INPUT,

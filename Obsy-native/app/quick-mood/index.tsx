@@ -80,23 +80,25 @@ export default function QuickMoodScreen() {
       </View>
 
       <View style={styles.content}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => setMoodModalVisible(true)}
-          style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
-        >
-          {moodId ? (
-            <>
-              <ThemedText style={styles.moodTriggerText}>{moodName}</ThemedText>
-              <Ionicons name="chevron-down" size={14} color="rgba(0,0,0,0.6)" />
-            </>
-          ) : (
-            <>
-              <Ionicons name="add" size={16} color="rgba(255,255,255,0.6)" />
-              <ThemedText style={styles.moodTriggerPlaceholder}>Select mood</ThemedText>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.pillCenter}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => setMoodModalVisible(true)}
+            style={[styles.moodTrigger, moodId && styles.moodTriggerSelected]}
+          >
+            {moodId ? (
+              <>
+                <ThemedText style={styles.moodTriggerText}>{moodName}</ThemedText>
+                <Ionicons name="chevron-down" size={18} color="rgba(0,0,0,0.6)" />
+              </>
+            ) : (
+              <>
+                <Ionicons name="add" size={20} color="rgba(255,255,255,0.6)" />
+                <ThemedText style={styles.moodTriggerPlaceholder}>Select mood</ThemedText>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
         {!isTopicEntry && (
           <View style={[styles.includeRow, { borderColor: colors.cardBorder }, aiFreeMode && styles.includeRowDisabled]}>
@@ -172,19 +174,23 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: 24,
-    gap: 18,
+    paddingBottom: 24,
+  },
+  pillCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   moodTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
-    gap: 8,
-    minWidth: 180,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    gap: 10,
+    minWidth: 260,
+    paddingHorizontal: 32,
+    paddingVertical: 24,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
@@ -192,12 +198,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   moodTriggerText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: '#000000',
   },
   moodTriggerPlaceholder: {
-    fontSize: 15,
+    fontSize: 20,
     color: 'rgba(255,255,255,0.58)',
   },
   includeRow: {

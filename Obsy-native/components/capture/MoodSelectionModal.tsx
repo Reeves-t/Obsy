@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator, Animated } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomMoodStore, initializeMoodStore } from '@/lib/customMoodStore';
@@ -279,10 +279,11 @@ export function MoodSelectionModal({
         <Modal
             visible={visible}
             animationType="slide"
-            transparent={true}
+            transparent={false}
             onRequestClose={onClose}
         >
-            <BlurView intensity={95} tint="dark" style={styles.modalContainer}>
+            <View style={styles.modalContainer}>
+                <AmbientBackground />
                 <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 16) }]}>
                     {/* Header */}
                     <View style={styles.header}>
@@ -410,7 +411,7 @@ export function MoodSelectionModal({
                     isLoading={isCreating}
                     error={createError}
                 />
-            </BlurView>
+            </View>
         </Modal>
     );
 }
@@ -418,11 +419,10 @@ export function MoodSelectionModal({
 const styles = StyleSheet.create({
     modalContainer: {
         flex: 1,
-        justifyContent: 'flex-end',
     },
     modalContent: {
         flex: 1,
-        backgroundColor: '#0A0A0A',
+        backgroundColor: 'transparent',
     },
     header: {
         alignItems: 'center',

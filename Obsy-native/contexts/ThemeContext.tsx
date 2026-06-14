@@ -2,9 +2,12 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PeriodName, type GradientOutput, resolveGradient, resolveGradientForPeriod } from '@/lib/timeThemes';
 import { currentPreset } from '@/lib/timeThemes/presets/current';
+import { type AuroraBackgroundKey, isAuroraBackgroundKey } from '@/constants/auroraBackgrounds';
+import { type OrbWaveKey, isOrbWaveKey } from '@/constants/auroraOrbs';
 
 export type ThemeMode = 'dark' | 'light' | 'pack1' | 'obsy-default';
 export type TimeThemeSelection = 'auto' | PeriodName;
+export type CtaButtonStyle = 'reflective' | 'matte';
 
 interface ThemeContextType {
     theme: ThemeMode;
@@ -12,6 +15,12 @@ interface ThemeContextType {
     setTheme: (theme: ThemeMode) => void;
     timeThemeSelection: TimeThemeSelection;
     setTimeThemeSelection: (selection: TimeThemeSelection) => void;
+    auroraBackground: AuroraBackgroundKey;
+    setAuroraBackground: (background: AuroraBackgroundKey) => void;
+    orbWave: OrbWaveKey;
+    setOrbWave: (wave: OrbWaveKey) => void;
+    ctaButtonStyle: CtaButtonStyle;
+    setCtaButtonStyle: (style: CtaButtonStyle) => void;
     usesTimeTheme: boolean;
     activeTimeThemePeriod: PeriodName | null;
     activeGradient: GradientOutput | null;
@@ -87,28 +96,38 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'obsy-theme-mode';
 const TIME_THEME_SELECTION_KEY = 'obsy-time-theme-selection';
+const AURORA_BACKGROUND_KEY = 'obsy-aurora-background';
+const ORB_WAVE_KEY = 'obsy-orb-wave';
+const CTA_BUTTON_STYLE_KEY = 'obsy-cta-button-style';
 
 export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setThemeState] = useState<ThemeMode>('dark');
+    const [theme, setThemeState] = useState<ThemeMode>('obsy-default');
     const [timeThemeSelection, setTimeThemeSelectionState] = useState<TimeThemeSelection>('auto');
+    const [auroraBackground, setAuroraBackgroundState] = useState<AuroraBackgroundKey>('default');
+    const [orbWave, setOrbWaveState] = useState<OrbWaveKey>('aurora');
+    const [ctaButtonStyle, setCtaButtonStyleState] = useState<CtaButtonStyle>('reflective');
     const [now, setNow] = useState(() => new Date());
     const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
         const loadTheme = async () => {
             try {
-                const [storedTheme, storedTimeThemeSelection] = await Promise.all([
+                const [storedTheme, storedTimeThemeSelection, storedAuroraBackground, storedOrbWave, storedCtaButtonStyle] = await Promise.all([
                     AsyncStorage.getItem(STORAGE_KEY),
                     AsyncStorage.getItem(TIME_THEME_SELECTION_KEY),
+                    AsyncStorage.getItem(AURORA_BACKGROUND_KEY),
+                    AsyncStorage.getItem(ORB_WAVE_KEY),
+                    AsyncStorage.getItem(CTA_BUTTON_STYLE_KEY),
                 ]);
 
-                if (
-                    storedTheme === 'dark' ||
-                    storedTheme === 'light' ||
-                    storedTheme === 'pack1' ||
-                    storedTheme === 'obsy-default'
-                ) {
-                    setThemeState(storedTheme);
+                // Obsy Default is the only selectable background now. Honor it if
+                // stored; otherwise migrate any legacy selection (dark/pack1/light)
+                // over to obsy-default and persist the migration.
+                if (storedTheme === 'obsy-default') {
+                    setThemeState('obsy-default');
+                } else if (storedTheme !== null) {
+                    setThemeState('obsy-default');
+                    AsyncStorage.setItem(STORAGE_KEY, 'obsy-default').catch(() => {});
                 }
 
                 if (
@@ -118,6 +137,18 @@ export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
                     storedTimeThemeSelection === 'evening'
                 ) {
                     setTimeThemeSelectionState(storedTimeThemeSelection);
+                }
+
+                if (isAuroraBackgroundKey(storedAuroraBackground)) {
+                    setAuroraBackgroundState(storedAuroraBackground);
+                }
+
+                if (isOrbWaveKey(storedOrbWave)) {
+                    setOrbWaveState(storedOrbWave);
+                }
+
+                if (storedCtaButtonStyle === 'reflective' || storedCtaButtonStyle === 'matte') {
+                    setCtaButtonStyleState(storedCtaButtonStyle);
                 }
             } catch (error) {
                 console.error('Error loading theme:', error);
@@ -162,6 +193,33 @@ export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
+    const setAuroraBackground = useCallback(async (background: AuroraBackgroundKey) => {
+        setAuroraBackgroundState(background);
+        try {
+            await AsyncStorage.setItem(AURORA_BACKGROUND_KEY, background);
+        } catch (error) {
+            console.error('Error saving aurora background:', error);
+        }
+    }, []);
+
+    const setOrbWave = useCallback(async (wave: OrbWaveKey) => {
+        setOrbWaveState(wave);
+        try {
+            await AsyncStorage.setItem(ORB_WAVE_KEY, wave);
+        } catch (error) {
+            console.error('Error saving orb wave:', error);
+        }
+    }, []);
+
+    const setCtaButtonStyle = useCallback(async (style: CtaButtonStyle) => {
+        setCtaButtonStyleState(style);
+        try {
+            await AsyncStorage.setItem(CTA_BUTTON_STYLE_KEY, style);
+        } catch (error) {
+            console.error('Error saving CTA button style:', error);
+        }
+    }, []);
+
     const toggleTheme = useCallback(() => {
         setTheme(theme === 'dark' ? 'pack1' : 'dark');
     }, [theme, setTheme]);
@@ -198,6 +256,12 @@ export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
         setTheme,
         timeThemeSelection,
         setTimeThemeSelection,
+        auroraBackground,
+        setAuroraBackground,
+        orbWave,
+        setOrbWave,
+        ctaButtonStyle,
+        setCtaButtonStyle,
         usesTimeTheme,
         activeTimeThemePeriod,
         activeGradient,
@@ -210,6 +274,12 @@ export function ObsyThemeProvider({ children }: { children: React.ReactNode }) {
         setTheme,
         timeThemeSelection,
         setTimeThemeSelection,
+        auroraBackground,
+        setAuroraBackground,
+        orbWave,
+        setOrbWave,
+        ctaButtonStyle,
+        setCtaButtonStyle,
         usesTimeTheme,
         activeTimeThemePeriod,
         activeGradient,

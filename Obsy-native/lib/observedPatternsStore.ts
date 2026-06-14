@@ -145,6 +145,7 @@ export const useObservedPatterns = create<ObservedPatternsState>((set, get) => (
                 sourceType: c.source_type,
                 sharedLinkPlatform: c.shared_link_platform,
                 sharedLinkTitle: c.shared_link_title,
+                sharedLinkDigest: c.shared_link_digest,
             }));
             const contextDigest = buildContextDigest(digestEntries) || undefined;
 

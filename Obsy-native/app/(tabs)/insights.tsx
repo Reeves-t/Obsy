@@ -20,6 +20,7 @@ import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useCaptureStore } from '@/lib/captureStore';
+import { track } from '@/lib/analytics';
 import { ensureRecentSnapshots } from '@/lib/dailySnapshotSync';
 import { buildWeeklyStatsFromDaily, buildWeeklyStatsFromCaptures, DailyInsightSnapshot, WeeklyStats } from '@/lib/insightsAnalytics';
 import { getWeekRangeForUser } from '@/lib/dateUtils';
@@ -109,6 +110,12 @@ export default function InsightsScreen() {
     const capturesCount = captures.length;
     const { colors, isLight } = useObsyTheme();
     const [selectedTimeframe, setSelectedTimeframe] = useState<'day' | 'week' | 'month'>('day');
+
+    // Funnel: fire when the Insights tab opens and on each timeframe switch.
+    useEffect(() => {
+        const period = selectedTimeframe === 'week' ? 'weekly' : selectedTimeframe === 'month' ? 'monthly' : 'daily';
+        track('insight_viewed', { period });
+    }, [selectedTimeframe]);
     const {
         status: dailyStatus,
         text: dailyText,

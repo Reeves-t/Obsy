@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, AppState, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Dimensions, AppState, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -99,10 +99,6 @@ export default function HomeScreen() {
   // Theme dots are part of the background, not the ambient feature — only pause when truly invisible
   const isThemeDotsPaused = !isScreenFocused || !isAppActive;
 
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // Scroll tracking removed with Lens removal
-  }, []);
-
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -157,15 +153,8 @@ export default function HomeScreen() {
         />
       )}
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        snapToInterval={pageHeight}
-        decelerationRate="fast"
-        showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        <View style={[styles.heroSection, { height: pageHeight }]}>
+      <View style={styles.staticContent}>
+        <View style={[styles.heroSection, { flex: 1 }]}>
           <View style={[styles.headerContainer, { top: headerTop }]}>
             <ThemedText style={[styles.clockTime, { color: onBgText }]}>
               {getFormattedTime(currentTime, timeFormat)}
@@ -222,7 +211,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-      </ScrollView>
+      </View>
 
       {pendingSaveAnimationUri && (
         <SaveCaptureAnimation
@@ -248,8 +237,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    paddingBottom: 0,
+  staticContent: {
+    flex: 1,
   },
   section: {
     height,
@@ -304,7 +293,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -184 }],
+    transform: [{ translateY: -140 }],
   },
   firstCaptureHint: {
     position: 'absolute',

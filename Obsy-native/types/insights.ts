@@ -1,6 +1,7 @@
 import { MoodSegment, MoodFlowReading, MoodFlowData } from '@/lib/dailyMoodFlows';
 
-export type ArchiveInsightType = 'daily' | 'weekly' | 'monthly' | 'album' | 'tagging';
+// OBS-19 / OBS-11: 'album' removed with the Albums feature excise.
+export type ArchiveInsightType = 'daily' | 'weekly' | 'monthly' | 'tagging';
 
 export interface ArchiveInsight {
     id: string;

@@ -28,7 +28,6 @@ export default function ArchiveScreen() {
         daily: PAGINATION_INCREMENT,
         weekly: PAGINATION_INCREMENT,
         monthly: PAGINATION_INCREMENT,
-        album: PAGINATION_INCREMENT,
         tagging: PAGINATION_INCREMENT,
     });
     const [exportModalVisible, setExportModalVisible] = useState(false);
@@ -60,7 +59,6 @@ export default function ArchiveScreen() {
             daily: [] as ArchiveInsight[],
             weekly: [] as ArchiveInsight[],
             monthly: [] as ArchiveInsight[],
-            album: [] as ArchiveInsight[],
             tagging: [] as ArchiveInsight[],
         };
 
@@ -160,7 +158,6 @@ export default function ArchiveScreen() {
             { title: "Daily Insights", type: "daily" },
             { title: "Weekly Insights", type: "weekly" },
             { title: "Monthly Insights", type: "monthly" },
-            { title: "Album Insights", type: "album" },
             { title: "Tagging Insights", type: "tagging" },
         ];
 
