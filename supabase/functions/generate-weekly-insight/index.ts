@@ -2,6 +2,7 @@
 // Generates weekly insights with isolated routing, strict envelopes, CORS, and auth.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { runAiTextTask } from "../_shared/ai/router.ts";
 import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
@@ -59,6 +60,26 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+async function verifyAuthHeader(authHeader: string | null): Promise<{ ok: true; userId: string } | { ok: false; message: string; status: number }> {
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { ok: false, message: "Missing authorization header", status: 401 };
+  }
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return { ok: false, message: "Server configuration error", status: 500 };
+  }
+  const token = authHeader.replace("Bearer ", "");
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) {
+    return { ok: false, message: "Invalid or expired token", status: 401 };
+  }
+  return { ok: true, userId: user.id };
+}
 
 const SYSTEM_PROMPT =
   `ROLE: You are writing a weekly mood insight as a direct reflection of the user's emotional weather across the past 7 days.
@@ -208,13 +229,9 @@ serve(async (req) => {
     console.log(`[WEEKLY_INSIGHT_REQUEST] requestId: ${requestId} | method: ${req.method}`);
 
     const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return errorResponse(401, "auth", "Missing authorization header", requestId);
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    if (!token) {
-      return errorResponse(401, "auth", "Invalid bearer token", requestId);
+    const auth = await verifyAuthHeader(authHeader);
+    if (!auth.ok) {
+      return errorResponse(auth.status, "auth", auth.message, requestId);
     }
 
     // Parse body immediately — avoid reading after async DB calls (Deno stream timeout risk)

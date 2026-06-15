@@ -2,6 +2,7 @@
 // Generates a shareable Moodverse insight card (reflective or analytical) from mood captures.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { runAiTextTask } from "../_shared/ai/router.ts";
 import type { AiPostProcessResult } from "../_shared/ai/types.ts";
 
@@ -52,6 +53,26 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+async function verifyAuthHeader(authHeader: string | null): Promise<{ ok: true; userId: string } | { ok: false; message: string; status: number }> {
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { ok: false, message: "Missing Authorization header", status: 401 };
+  }
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return { ok: false, message: "Server configuration error", status: 500 };
+  }
+  const token = authHeader.replace("Bearer ", "");
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) {
+    return { ok: false, message: "Invalid or expired token", status: 401 };
+  }
+  return { ok: true, userId: user.id };
+}
 
 const RATE_LIMIT_PER_DAY = 10;
 
@@ -210,8 +231,9 @@ serve(async (req) => {
 
   // Auth
   const authHeader = req.headers.get("Authorization") || "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return errorResponse(401, "auth", "Missing Authorization header");
+  const auth = await verifyAuthHeader(authHeader);
+  if (!auth.ok) {
+    return errorResponse(auth.status, "auth", auth.message);
   }
 
   // Parse body
