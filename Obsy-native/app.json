@@ -31,7 +31,7 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "softwareKeyboardLayoutMode": "adjustResize",
+      "softwareKeyboardLayoutMode": "pan",
       "predictiveBackGestureEnabled": false,
       "package": "com.innostudio.obsy",
       "versionCode": 1
@@ -66,7 +66,10 @@
           "photosPermission": "Obsy accesses your photo library so you can attach images to your entries and topics.",
           "savePhotosPermission": "Obsy saves images to your photo library when you export them."
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true
