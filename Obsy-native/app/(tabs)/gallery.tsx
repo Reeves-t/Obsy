@@ -383,7 +383,7 @@ export default function GalleryScreen() {
     const showList = viewMode === 'list';
 
     return (
-        <ScreenWrapper screenName="gallery" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
+        <ScreenWrapper screenName="gallery" bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
             {/* Header */}
             <View style={styles.header}>
                 <ThemedText type="title" style={{ color: onBgText }}>Entries</ThemedText>

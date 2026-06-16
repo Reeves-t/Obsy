@@ -159,7 +159,7 @@ export default function RecycleBinScreen() {
     };
 
     return (
-        <ScreenWrapper screenName="archive" hideFloatingBackground>
+        <ScreenWrapper screenName="archive">
             <Stack.Screen options={{ headerShown: false }} />
 
             <View style={styles.header}>

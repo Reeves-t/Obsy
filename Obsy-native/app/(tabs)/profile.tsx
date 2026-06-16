@@ -5,10 +5,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Modal,
-  FlatList,
   Alert,
   ActivityIndicator,
+  TextInput,
+  Platform,
+  UIManager,
+  LayoutAnimation,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,25 +18,21 @@ import { useRouter } from 'expo-router';
 import { DEFAULT_TAB_BAR_HEIGHT, ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { useAuth } from '@/contexts/AuthContext';
-import { type ThemeMode, type TimeThemeSelection, useObsyTheme } from '@/contexts/ThemeContext';
+import { useObsyTheme } from '@/contexts/ThemeContext';
 import { AURORA_BACKGROUNDS, AURORA_BACKGROUND_ORDER } from '@/constants/auroraBackgrounds';
 import { ORB_WAVES, ORB_WAVE_ORDER } from '@/constants/auroraOrbs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getProfile, updateProfile, Profile } from '@/services/profile';
-import { AI_TONES, getToneDefinition } from '@/lib/aiTone';
 import { supabase } from '@/lib/supabase';
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { useTimeFormatStore } from '@/lib/timeFormatStore';
-import { useFloatingBackgroundStore } from '@/lib/floatingBackgroundStore';
-import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
-import { useHorizonStarsStore } from '@/lib/horizonStarsStore';
 import { useI18n } from '@/i18n/config';
 import * as WebBrowser from 'expo-web-browser';
 import { exportUserData } from '@/services/export';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/legal';
 import { restorePurchases } from '@/lib/revenuecat';
+import { submitRecommendation, MAX_RECOMMENDATION_LENGTH } from '@/services/recommendations';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -47,26 +45,10 @@ interface UserProfile {
   updated_at: string | null;
 }
 
-const APP_THEME_OPTIONS: Array<{
-  id: ThemeMode;
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-}> = [
-  {
-    id: 'obsy-default',
-    icon: 'color-palette-outline',
-    title: 'Obsy Default',
-    subtitle: 'Soft aurora glow in Obsy brand colors across every screen',
-  },
-];
-
-const TIME_THEME_OPTION_LABELS: Record<TimeThemeSelection, string> = {
-  auto: 'Auto',
-  morning: 'Morning',
-  afternoon: 'Afternoon',
-  evening: 'Evening',
-};
+// Enable smooth expand/collapse animations on Android (no-op / default on iOS).
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings Row Component
@@ -154,102 +136,132 @@ const SettingRow: React.FC<SettingRowProps> = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section Header Component
+// Collapsible Section — every settings group starts collapsed; tap to expand
 // ─────────────────────────────────────────────────────────────────────────────
-const SectionHeader: React.FC<{ title: string; flat?: boolean }> = ({ title, flat = false }) => {
+const CollapsibleSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   const { colors, isLight } = useObsyTheme();
+  const [expanded, setExpanded] = useState(false);
+
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((prev) => !prev);
+  };
+
   return (
-    <View style={flat ? styles.flatSectionHeaderContainer : null}>
-      <ThemedText style={[styles.sectionHeader, { color: colors.textTertiary, marginBottom: flat ? 8 : 12 }]}>{title}</ThemedText>
-      {flat && <View style={[styles.flatSectionDivider, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)' }]} />}
+    <View style={styles.collapsibleSection}>
+      <TouchableOpacity style={styles.collapsibleHeader} onPress={toggle} activeOpacity={0.7}>
+        <ThemedText style={[styles.collapsibleTitle, { color: colors.textTertiary }]}>{title}</ThemedText>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textTertiary} />
+      </TouchableOpacity>
+      <View style={[styles.flatSectionDivider, { backgroundColor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)' }]} />
+      {expanded && <View style={styles.collapsibleBody}>{children}</View>}
     </View>
   );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Floating Backgrounds Inline Component
+// Pill Dropdown (Appearance) — shows the selected option; expands to slim pills
 // ─────────────────────────────────────────────────────────────────────────────
-const FloatingBackgroundsInline: React.FC = () => {
-  const { isLight } = useObsyTheme();
-  const { enabled, toggleEnabled } = useFloatingBackgroundStore();
+const PillDropdown: React.FC<{
+  label: string;
+  selectedSwatch: React.ReactNode;
+  selectedLabel: string;
+  children: React.ReactNode;
+}> = ({ label, selectedSwatch, selectedLabel, children }) => {
+  const { colors, isLight } = useObsyTheme();
+  const [open, setOpen] = useState(false);
+  const muted = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)';
 
-  const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen((prev) => !prev);
+  };
 
   return (
-    <View style={styles.floatingInlineContainer}>
-      <SettingRow
-        icon="images-outline"
-        title="Floating Images"
-        subtitle="Capture bubbles drift across the home screen"
-        showChevron={false}
-        rightElement={
-          <Switch
-            value={enabled}
-            onValueChange={toggleEnabled}
-            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
-            thumbColor="#fff"
-          />
-        }
-      />
+    <View style={styles.pillDropdown}>
+      <TouchableOpacity style={styles.pillDropdownHeader} onPress={toggle} activeOpacity={0.7}>
+        <ThemedText style={[styles.pillDropdownLabel, { color: colors.text }]}>{label}</ThemedText>
+        <View style={styles.pillDropdownValue}>
+          {selectedSwatch}
+          <ThemedText style={[styles.pillDropdownValueText, { color: muted }]}>{selectedLabel}</ThemedText>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={muted} />
+        </View>
+      </TouchableOpacity>
+      {open && <View style={styles.pillOptionsRow}>{children}</View>}
     </View>
   );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Ambient Background Inline Component (with mode toggle)
+// Recommendations Block — "tell us what you want to see in the app"
 // ─────────────────────────────────────────────────────────────────────────────
-const AmbientMoodFieldInline: React.FC = () => {
-  const { isLight } = useObsyTheme();
-  const { enabled, toggleEnabled } = useAmbientMoodFieldStore();
+const RecommendationsBlock: React.FC = () => {
+  const { colors, isLight } = useObsyTheme();
+  const { isGuest } = useAuth();
+  const router = useRouter();
+  const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
 
-  const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+  const canSend = text.trim().length > 0 && !submitting;
+
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || submitting) return;
+
+    if (isGuest) {
+      Alert.alert('Sign In Required', 'Create an account to send us your ideas.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/auth/login') },
+      ]);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await submitRecommendation(trimmed);
+      setText('');
+      setSent(true);
+      setTimeout(() => setSent(false), 4000);
+    } catch (error) {
+      console.error('Error submitting recommendation:', error);
+      Alert.alert('Could not send', 'Something went wrong. Please try again in a moment.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputBg = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)';
+  const inputBorder = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)';
 
   return (
-    <View style={styles.floatingInlineContainer}>
-      <SettingRow
-        icon="planet-outline"
-        title="Ambient Background"
-        subtitle="Home screen atmosphere"
-        showChevron={false}
-        isLast={!enabled}
-        rightElement={
-          <Switch
-            value={enabled}
-            onValueChange={toggleEnabled}
-            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
-            thumbColor="#fff"
-          />
-        }
+    <View style={styles.recommendBlock}>
+      <ThemedText style={[styles.recommendTitle, { color: colors.text }]}>Tell us what you want to see in Obsy</ThemedText>
+      <ThemedText style={[styles.recommendSubtitle, { color: colors.textSecondary }]}>
+        Your ideas shape what we build next — share a feature, a fix, or a wish.
+      </ThemedText>
+      <TextInput
+        style={[styles.recommendInput, { backgroundColor: inputBg, borderColor: inputBorder, color: colors.text }]}
+        placeholder="I'd love it if Obsy could…"
+        placeholderTextColor={isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)'}
+        value={text}
+        onChangeText={setText}
+        multiline
+        maxLength={MAX_RECOMMENDATION_LENGTH}
+        textAlignVertical="top"
       />
-    </View>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Horizon Stars Inline Component
-// ─────────────────────────────────────────────────────────────────────────────
-const HorizonStarsInline: React.FC = () => {
-  const { isLight } = useObsyTheme();
-  const { enabled, toggleEnabled } = useHorizonStarsStore();
-  const switchTrackFalse = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-
-  return (
-    <View style={styles.floatingInlineContainer}>
-      <SettingRow
-        icon="star-outline"
-        title="Horizon Stars"
-        subtitle="Subtle particles rising from the horizon"
-        showChevron={false}
-        isLast
-        rightElement={
-          <Switch
-            value={enabled}
-            onValueChange={toggleEnabled}
-            trackColor={{ false: switchTrackFalse, true: Colors.obsy.silver }}
-            thumbColor="#fff"
-          />
-        }
-      />
+      <TouchableOpacity
+        style={[styles.recommendButton, { opacity: canSend ? 1 : 0.5 }]}
+        onPress={handleSend}
+        disabled={!canSend}
+        activeOpacity={0.85}
+      >
+        {submitting ? (
+          <ActivityIndicator color="#000" />
+        ) : (
+          <ThemedText style={styles.recommendButtonText}>{sent ? 'Sent — thank you!' : 'Send'}</ThemedText>
+        )}
+      </TouchableOpacity>
     </View>
   );
 };
@@ -259,7 +271,7 @@ const HorizonStarsInline: React.FC = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const { user, isGuest, signOut } = useAuth();
-  const { isLight, colors, theme, setTheme, timeThemeSelection, setTimeThemeSelection, auroraBackground, setAuroraBackground, orbWave, setOrbWave, ctaButtonStyle, setCtaButtonStyle } = useObsyTheme();
+  const { isLight, colors, auroraBackground, setAuroraBackground, orbWave, setOrbWave, ctaButtonStyle, setCtaButtonStyle } = useObsyTheme();
   const { timeFormat, setTimeFormat } = useTimeFormatStore();
   const { t, languageLabel } = useI18n();
   const router = useRouter();
@@ -267,8 +279,6 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [toneModalVisible, setToneModalVisible] = useState(false);
-  const [timeThemeModalVisible, setTimeThemeModalVisible] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Load Profile Data
@@ -515,20 +525,8 @@ export default function ProfileScreen() {
     );
   };
 
-  const handleSelectAppTheme = useCallback((nextTheme: ThemeMode) => {
-    setTheme(nextTheme);
-  }, [setTheme]);
-
-  const handleSelectTimeTheme = useCallback((selection: TimeThemeSelection) => {
-    setTimeThemeSelection(selection);
-    setTheme('pack1');
-    setTimeThemeModalVisible(false);
-  }, [setTheme, setTimeThemeSelection]);
-
-  const currentTone = getToneDefinition(profile?.ai_tone);
   const avatarUrl = getAvatarUrl(userProfile?.avatar_url || null);
   const displayName = userProfile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Guest';
-  const themePickerLabel = TIME_THEME_OPTION_LABELS[timeThemeSelection];
   const themeOptionBg = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)';
   const themeOptionBorder = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
   const themeOptionActiveBg = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)';
@@ -537,37 +535,10 @@ export default function ProfileScreen() {
   const themeOptionMuted = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.55)';
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Render Tone Item
-  // ─────────────────────────────────────────────────────────────────────────
-  const renderToneItem = ({ item }: { item: typeof AI_TONES[0] }) => {
-    const isSelected = profile?.ai_tone === item.id;
-    return (
-      <TouchableOpacity
-        style={[styles.toneItem, isSelected && styles.toneItemActive]}
-        onPress={() => {
-          handleUpdateProfile({ ai_tone: item.id, selected_custom_tone_id: null });
-          setToneModalVisible(false);
-        }}
-        activeOpacity={0.7}
-      >
-        <View style={styles.toneInfo}>
-          <ThemedText style={[styles.toneLabel, isSelected && styles.toneActiveText]}>
-            {item.label}
-          </ThemedText>
-          <ThemedText style={[styles.toneDesc, isSelected && styles.toneActiveText]}>
-            {item.shortDescription}
-          </ThemedText>
-        </View>
-        {isSelected && <View style={styles.toneIndicator} />}
-      </TouchableOpacity>
-    );
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <ScreenWrapper screenName="profile" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
+    <ScreenWrapper screenName="profile" bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -664,135 +635,81 @@ export default function ProfileScreen() {
         {/* Guest CTA Card (Removed as it's now the main view) */}
 
         {/* APPEARANCE */}
-        <SectionHeader title={t('settings.appearance')} flat />
-        <View style={styles.flatSection}>
-          <View style={styles.themePickerSection}>
-            {APP_THEME_OPTIONS.map((option) => {
-              const isSelected = theme === option.id;
-              const isPack1 = option.id === 'pack1';
-
+        <CollapsibleSection title={t('settings.appearance')}>
+          <PillDropdown
+            label="Background"
+            selectedSwatch={<View style={[styles.pillDot, { backgroundColor: AURORA_BACKGROUNDS[auroraBackground].swatch }]} />}
+            selectedLabel={AURORA_BACKGROUNDS[auroraBackground].label}
+          >
+            {AURORA_BACKGROUND_ORDER.map((key) => {
+              const palette = AURORA_BACKGROUNDS[key];
+              const isSelected = auroraBackground === key;
               return (
-                <View
-                  key={option.id}
+                <TouchableOpacity
+                  key={key}
+                  activeOpacity={0.85}
+                  onPress={() => setAuroraBackground(key)}
                   style={[
-                    styles.themeOptionRow,
-                    !isPack1 ? { marginBottom: 12 } : null,
-                    isPack1 ? styles.themePackRow : null,
+                    styles.colorPill,
+                    {
+                      backgroundColor: isSelected ? themeOptionActiveBg : themeOptionBg,
+                      borderColor: isSelected ? Colors.obsy.silver : themeOptionBorder,
+                    },
                   ]}
                 >
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => handleSelectAppTheme(option.id)}
-                    style={[
-                      styles.themeOptionButton,
-                      isPack1 ? styles.themePackMainButton : null,
-                      {
-                        backgroundColor: isSelected ? themeOptionActiveBg : themeOptionBg,
-                        borderColor: isSelected ? themeOptionActiveBorder : themeOptionBorder,
-                      },
-                    ]}
-                  >
-                    <View style={[styles.themeOptionIcon, { backgroundColor: themeOptionIconBg }]}>
-                      <Ionicons name={option.icon} size={18} color={colors.text} />
-                    </View>
-                    <View style={styles.themeOptionCopy}>
-                      <ThemedText style={styles.themeOptionTitle}>{option.title}</ThemedText>
-                      <ThemedText style={[styles.themeOptionSubtitle, { color: themeOptionMuted }]}>
-                        {option.subtitle}
-                      </ThemedText>
-                    </View>
-                    <Ionicons
-                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={20}
-                      color={isSelected ? Colors.obsy.silver : themeOptionMuted}
-                    />
-                  </TouchableOpacity>
-
-                  {isPack1 && (
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => setTimeThemeModalVisible(true)}
-                      style={[
-                        styles.themePackDropdown,
-                        {
-                          backgroundColor: theme === 'pack1' ? themeOptionActiveBg : themeOptionBg,
-                          borderColor: theme === 'pack1' ? themeOptionActiveBorder : themeOptionBorder,
-                        },
-                      ]}
-                    >
-                      <ThemedText style={styles.themePackDropdownLabel}>{themePickerLabel}</ThemedText>
-                      <Ionicons name="chevron-down" size={16} color={themeOptionMuted} />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                  <View style={[styles.pillDot, { backgroundColor: palette.swatch }]} />
+                  <ThemedText style={[styles.pillText, { color: isSelected ? colors.text : themeOptionMuted }]}>
+                    {palette.label}
+                  </ThemedText>
+                </TouchableOpacity>
               );
             })}
-          </View>
+          </PillDropdown>
 
-          <View style={styles.bgPickerSection}>
-            <ThemedText style={[styles.bgPickerLabel, { color: themeOptionMuted }]}>Background</ThemedText>
-            <View style={styles.bgSwatchRow}>
-              {AURORA_BACKGROUND_ORDER.map((key) => {
-                const palette = AURORA_BACKGROUNDS[key];
-                const isSelected = auroraBackground === key;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    activeOpacity={0.85}
-                    onPress={() => setAuroraBackground(key)}
-                    style={styles.bgSwatchItem}
-                  >
-                    <View
-                      style={[
-                        styles.swatchTile,
-                        {
-                          backgroundColor: palette.swatch,
-                          borderColor: isSelected ? Colors.obsy.silver : themeOptionBorder,
-                        },
-                      ]}
-                    />
-                    <ThemedText style={[styles.bgSwatchLabel, { color: isSelected ? colors.text : themeOptionMuted }]}>
-                      {palette.label}
-                    </ThemedText>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+          <PillDropdown
+            label="Aurora"
+            selectedSwatch={
+              <LinearGradient
+                colors={[`rgb(${ORB_WAVES[orbWave].a})`, `rgb(${ORB_WAVES[orbWave].b})`]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.pillDot}
+              />
+            }
+            selectedLabel={ORB_WAVES[orbWave].label}
+          >
+            {ORB_WAVE_ORDER.map((key) => {
+              const wave = ORB_WAVES[key];
+              const isSelected = orbWave === key;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  activeOpacity={0.85}
+                  onPress={() => setOrbWave(key)}
+                  style={[
+                    styles.colorPill,
+                    {
+                      backgroundColor: isSelected ? themeOptionActiveBg : themeOptionBg,
+                      borderColor: isSelected ? Colors.obsy.silver : themeOptionBorder,
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[`rgb(${wave.a})`, `rgb(${wave.b})`]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.pillDot}
+                  />
+                  <ThemedText style={[styles.pillText, { color: isSelected ? colors.text : themeOptionMuted }]}>
+                    {wave.label}
+                  </ThemedText>
+                </TouchableOpacity>
+              );
+            })}
+          </PillDropdown>
 
-          <View style={styles.bgPickerSection}>
-            <ThemedText style={[styles.bgPickerLabel, { color: themeOptionMuted }]}>Aurora</ThemedText>
-            <View style={styles.bgSwatchRow}>
-              {ORB_WAVE_ORDER.map((key) => {
-                const wave = ORB_WAVES[key];
-                const isSelected = orbWave === key;
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    activeOpacity={0.85}
-                    onPress={() => setOrbWave(key)}
-                    style={styles.bgSwatchItem}
-                  >
-                    <LinearGradient
-                      colors={[`rgb(${wave.a})`, `rgb(${wave.b})`]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[
-                        styles.swatchTile,
-                        { borderColor: isSelected ? Colors.obsy.silver : themeOptionBorder },
-                      ]}
-                    />
-                    <ThemedText style={[styles.bgSwatchLabel, { color: isSelected ? colors.text : themeOptionMuted }]}>
-                      {wave.label}
-                    </ThemedText>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          <View style={styles.bgPickerSection}>
-            <ThemedText style={[styles.bgPickerLabel, { color: themeOptionMuted }]}>Button style</ThemedText>
+          <View style={styles.buttonStyleRow}>
+            <ThemedText style={[styles.pillDropdownLabel, { color: colors.text }]}>Button style</ThemedText>
             <View style={styles.segmentRow}>
               {(['reflective', 'matte'] as const).map((style) => {
                 const isSelected = ctaButtonStyle === style;
@@ -833,21 +750,10 @@ export default function ProfileScreen() {
             onPress={handleTimeFormatPress}
             isLast
           />
-        </View>
+        </CollapsibleSection>
 
         {/* AI PERSONALIZATION */}
-        <SectionHeader title="AI PERSONALIZATION" flat />
-        <View style={styles.flatSection}>
-          <SettingRow
-            icon="sparkles-outline"
-            title="Insight Tone"
-            subtitle="Choose how Obsy narrates your day"
-            value={currentTone.label}
-            onPress={() => {
-              if (profile?.ai_free_mode) return;
-              setToneModalVisible(true);
-            }}
-          />
+        <CollapsibleSection title="AI PERSONALIZATION">
           <SettingRow
             icon="flash-off-outline"
             title="AI-Free Mode"
@@ -893,81 +799,50 @@ export default function ProfileScreen() {
               />
             }
           />
-        </View>
+        </CollapsibleSection>
 
-        {/* VISUAL ATMOSPHERE */}
-        <SectionHeader title="VISUAL ATMOSPHERE" flat />
-        <View style={styles.flatSection}>
-          <FloatingBackgroundsInline />
-          <AmbientMoodFieldInline />
-          <HorizonStarsInline />
-        </View>
-
-        {/* FEATURES */}
-        <SectionHeader title="FEATURES" flat />
-        <View style={styles.flatSection}>
+        {/* ARCHIVE */}
+        <CollapsibleSection title="ARCHIVE">
           <SettingRow
             icon="archive-outline"
             title="Archive"
             subtitle="Browse all past insights by type"
             onPress={() => router.push('/archive')}
-          />
-          <SettingRow
-            icon="newspaper-outline"
-            title="Weekly Digest"
-            subtitle="Coming soon"
-            onPress={() => { }}
-          />
-          <SettingRow
-            icon="pricetag-outline"
-            title="Tag Reflections"
-            subtitle="Generate insights from topics"
-            onPress={() => { }}
-          />
-          <SettingRow
-            icon="cube-outline"
-            title="Object Stories"
-            subtitle="Short stories about your objects"
-            onPress={() => { }}
             isLast
           />
-        </View>
+        </CollapsibleSection>
 
         {/* ACCOUNT */}
         {user && (
-          <>
-            <SectionHeader title="ACCOUNT" flat />
-            <View style={styles.flatSection}>
-              <SettingRow
-                icon="refresh-outline"
-                title="Restore Purchases"
-                subtitle="Restore an active Obsy Plus subscription."
-                onPress={handleRestorePurchases}
-              />
-              <SettingRow
-                icon="download-outline"
-                title="Export Data"
-                onPress={handleExportData}
-              />
-              <SettingRow
-                icon="trash-outline"
-                title="Delete Account"
-                danger
-                onPress={handleDeleteAccount}
-              />
-              <SettingRow
-                icon="log-out-outline"
-                title="Sign Out"
-                onPress={handleSignOut}
-                isLast
-              />
-            </View>
-          </>
+          <CollapsibleSection title="ACCOUNT">
+            <SettingRow
+              icon="refresh-outline"
+              title="Restore Purchases"
+              subtitle="Restore an active Obsy Plus subscription."
+              onPress={handleRestorePurchases}
+            />
+            <SettingRow
+              icon="download-outline"
+              title="Export Data"
+              onPress={handleExportData}
+            />
+            <SettingRow
+              icon="trash-outline"
+              title="Delete Account"
+              danger
+              onPress={handleDeleteAccount}
+            />
+            <SettingRow
+              icon="log-out-outline"
+              title="Sign Out"
+              onPress={handleSignOut}
+              isLast
+            />
+          </CollapsibleSection>
         )}
 
         {/* DATA & PRIVACY */}
-        <SectionHeader title="DATA & PRIVACY" flat />
-        <View style={styles.flatSection}>
+        <CollapsibleSection title="DATA & PRIVACY">
           <SettingRow
             icon="shield-checkmark-outline"
             title="Data Trust Foundation"
@@ -1000,11 +875,10 @@ export default function ProfileScreen() {
             onPress={() => openLegal(TERMS_OF_SERVICE_URL)}
             isLast
           />
-        </View>
+        </CollapsibleSection>
 
         {/* SUPPORT & ABOUT */}
-        <SectionHeader title="SUPPORT & ABOUT" flat />
-        <View style={styles.flatSection}>
+        <CollapsibleSection title="SUPPORT & ABOUT">
           <SettingRow
             icon="help-circle-outline"
             title="FAQ / Help"
@@ -1021,89 +895,16 @@ export default function ProfileScreen() {
             onPress={() => { }}
             isLast
           />
-        </View>
+        </CollapsibleSection>
+
+        {/* RECOMMENDATIONS */}
+        <RecommendationsBlock />
 
         {/* Footer */}
         <View style={styles.footer}>
           <ThemedText style={[styles.footerText, { color: colors.textTertiary }]}>Obsy v1.0.0 • Built with ❤️</ThemedText>
         </View>
       </ScrollView>
-
-      {/* Tone Selection Modal */}
-      <Modal
-        animationType="slide"
-        transparent
-        visible={toneModalVisible}
-        onRequestClose={() => setToneModalVisible(false)}
-      >
-        <BlurView intensity={90} tint="dark" style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <View>
-              <ThemedText style={styles.modalTitle}>Select AI Tone</ThemedText>
-              <ThemedText style={styles.modalSubtitle}>
-                Switch tones any time. Regenerate insights to apply.
-              </ThemedText>
-            </View>
-            <TouchableOpacity onPress={() => setToneModalVisible(false)}>
-              <Ionicons name="close-circle" size={32} color={Colors.obsy.silver} />
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={AI_TONES}
-            renderItem={renderToneItem}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.toneList}
-            showsVerticalScrollIndicator={false}
-          />
-        </BlurView>
-      </Modal>
-
-      <Modal
-        animationType="fade"
-        transparent
-        visible={timeThemeModalVisible}
-        onRequestClose={() => setTimeThemeModalVisible(false)}
-      >
-        <BlurView intensity={90} tint="dark" style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <View>
-              <ThemedText style={styles.modalTitle}>Obsy Theme Pack 1</ThemedText>
-              <ThemedText style={styles.modalSubtitle}>
-                Keep it automatic or lock the app to one time-of-day scene.
-              </ThemedText>
-            </View>
-            <TouchableOpacity onPress={() => setTimeThemeModalVisible(false)}>
-              <Ionicons name="close-circle" size={32} color={Colors.obsy.silver} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.themeModalList}>
-            {(Object.keys(TIME_THEME_OPTION_LABELS) as TimeThemeSelection[]).map((selection) => {
-              const isSelected = timeThemeSelection === selection;
-              return (
-                <TouchableOpacity
-                  key={selection}
-                  activeOpacity={0.8}
-                  onPress={() => handleSelectTimeTheme(selection)}
-                  style={[
-                    styles.themeModalItem,
-                    isSelected && styles.themeModalItemActive,
-                  ]}
-                >
-                  <View style={styles.themeModalCopy}>
-                    <ThemedText style={styles.themeModalLabel}>{TIME_THEME_OPTION_LABELS[selection]}</ThemedText>
-                    <ThemedText style={styles.themeModalDescription}>
-                      {selection === 'auto'
-                        ? 'Switch between morning, afternoon, and evening automatically.'
-                        : `Keep Obsy Theme Pack 1 fixed on ${TIME_THEME_OPTION_LABELS[selection].toLowerCase()}.`}
-                    </ThemedText>
-                  </View>
-                  {isSelected && <View style={styles.toneIndicator} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </BlurView>
-      </Modal>
     </ScreenWrapper >
   );
 }
@@ -1328,30 +1129,26 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  // Section Header
-  sectionHeader: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.4)',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-    marginLeft: 4,
+  // Collapsible Section
+  collapsibleSection: {
+    marginBottom: 4,
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
     marginTop: 8,
   },
-
-  // Card
-  card: {
-    marginBottom: 24,
+  collapsibleTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-
-  // Flat Styles
-  flatSection: {
-    marginBottom: 24,
-  },
-  flatSectionHeaderContainer: {
-    marginTop: 24,
-    marginBottom: 4,
+  collapsibleBody: {
+    marginTop: 4,
+    marginBottom: 12,
   },
   flatSectionDivider: {
     height: 1,
@@ -1359,9 +1156,102 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  // Floating Inline
-  floatingInlineContainer: {
-    marginTop: 0,
+  // Appearance — slim pill dropdowns
+  pillDropdown: {
+    paddingVertical: 4,
+  },
+  pillDropdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  pillDropdownLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  pillDropdownValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pillDropdownValueText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  pillOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingTop: 4,
+    paddingBottom: 6,
+  },
+  colorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pillDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  pillText: {
+    fontSize: 12.5,
+    fontWeight: '500',
+  },
+  buttonStyleRow: {
+    paddingVertical: 10,
+    gap: 10,
+  },
+
+  // Recommendations
+  recommendBlock: {
+    marginTop: 28,
+    marginBottom: 8,
+    padding: 18,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  recommendTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  recommendSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  recommendInput: {
+    minHeight: 90,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  recommendButton: {
+    marginTop: 12,
+    backgroundColor: Colors.obsy.silver,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recommendButtonText: {
+    color: '#000',
+    fontSize: 15,
+    fontWeight: '600',
   },
 
   // Setting Row
@@ -1413,40 +1303,7 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
 
-  // Theme Picker
-  themePickerSection: {
-    marginBottom: 12,
-  },
-  bgPickerSection: {
-    marginBottom: 16,
-  },
-  bgPickerLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-    marginLeft: 2,
-  },
-  bgSwatchRow: {
-    flexDirection: 'row',
-    gap: 18,
-  },
-  bgSwatchItem: {
-    alignItems: 'center',
-    gap: 7,
-  },
-  swatchTile: {
-    width: 60,
-    height: 40,
-    borderRadius: 12,
-    borderWidth: 2,
-    overflow: 'hidden',
-  },
-  bgSwatchLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
+  // Button style segment
   segmentRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1463,58 +1320,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  themeOptionRow: {
-    width: '100%',
-  },
-  themePackRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  themeOptionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  themePackMainButton: {
-    flex: 1,
-  },
-  themeOptionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  themeOptionCopy: {
-    flex: 1,
-  },
-  themeOptionTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  themeOptionSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  themePackDropdown: {
-    minWidth: 108,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  themePackDropdownLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
 
   // Footer
   footer: {
@@ -1525,107 +1330,5 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.3)',
-  },
-
-  // Modal
-  modalContainer: {
-    flex: 1,
-    paddingTop: 60,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-  },
-  toneList: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  themeModalList: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    gap: 12,
-  },
-  themeModalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  themeModalItemActive: {
-    backgroundColor: 'rgba(255,255,255,0.09)',
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  themeModalCopy: {
-    flex: 1,
-  },
-  themeModalLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  themeModalDescription: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 4,
-  },
-  toneItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    marginBottom: 10,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  toneItemActive: {
-    backgroundColor: 'rgba(52,211,153,0.1)',
-    borderColor: 'rgba(52,211,153,0.5)',
-  },
-  toneInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  toneLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  toneDesc: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-  },
-  toneActiveText: {
-    color: '#34D399',
-  },
-  toneIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#34D399',
-    marginLeft: 12,
   },
 });

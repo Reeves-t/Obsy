@@ -16,7 +16,7 @@ export default function LanguageScreen() {
   };
 
   return (
-    <ScreenWrapper screenName="profile" hideFloatingBackground>
+    <ScreenWrapper screenName="profile">
       <View style={styles.container}>
         <ThemedText type="title" style={[styles.title, { color: colors.text }]}>
           {t('settings.languageTitle')}

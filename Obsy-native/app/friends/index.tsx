@@ -103,7 +103,7 @@ export default function ManageFriendsScreen() {
     };
 
     return (
-        <ScreenWrapper hideFloatingBackground>
+        <ScreenWrapper>
             {/* Header - Transparent background */}
             <View style={styles.header}>
                 <View style={styles.headerContent}>

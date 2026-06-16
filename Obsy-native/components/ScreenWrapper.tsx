@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, ViewStyle, StatusBar } from 'react-native';
 import { SafeAreaView, Edge } from 'react-native-safe-area-context';
-import { FloatingBackgroundController } from '@/components/backgrounds/FloatingBackgroundController';
 import { AmbientBackground } from '@/components/ui/AmbientBackground';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 
@@ -11,7 +10,6 @@ interface ScreenWrapperProps {
     children: React.ReactNode;
     style?: ViewStyle;
     withSafeArea?: boolean;
-    hideFloatingBackground?: boolean;
     bottomInset?: number;
     edges?: Edge[];
     screenName?: 'home' | 'gallery' | 'insights' | 'topics' | 'profile' | 'archive' | 'onboarding';
@@ -21,7 +19,6 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
     children,
     style,
     withSafeArea = true,
-    hideFloatingBackground = false,
     bottomInset = 0,
     edges = ['top', 'left', 'right', 'bottom'],
     screenName
@@ -34,9 +31,6 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
         <View style={styles.wrapper}>
             {/* Ambient background with themed base + corner glow orbs - first child, sits at bottom */}
             <AmbientBackground screenName={screenName} />
-
-            {/* Floating background with captures - logic handled in controller */}
-            {!hideFloatingBackground && <FloatingBackgroundController screenName={screenName} />}
 
             {/* StatusBar: light icons on dark bg, dark icons on light bg */}
             <StatusBar barStyle={statusBarStyle} />

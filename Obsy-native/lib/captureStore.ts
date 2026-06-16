@@ -8,6 +8,7 @@ import * as Crypto from 'expo-crypto';
 import { computeDailyMoodFlow, formatDateKey, filterCapturesForDate } from "@/lib/dailyMoodFlows";
 import { upsertDailyMoodFlow } from "@/services/dailyMoodFlows";
 import { requestLinkDigest } from "@/services/linkDigestClient";
+import { getEntryImageUrls } from "@/services/storage";
 import { PRIVACY_FLAGS } from "@/lib/privacyFlags";
 import { Capture } from "@/types/capture";
 import { getMoodLabel } from "@/lib/moodUtils";
@@ -129,10 +130,17 @@ export const useCaptureStore = create<CaptureState>()(
 
                         if (error) throw error;
 
-                        const mappedCaptures: Capture[] = (data ?? []).map(entry => {
+                        // The `entries` bucket is PRIVATE (OBS-20, migration
+                        // 20260616000002_entries_private_bucket.sql). Pre-sign cloud-backed photos
+                        // in one batched request; new captures already display from the local file.
+                        const rows = data ?? [];
+                        const signedByPath = await getEntryImageUrls(
+                            rows.map((e) => e.photo_path).filter((p): p is string => !!p && p.includes('/'))
+                        );
+
+                        const mappedCaptures: Capture[] = rows.map(entry => {
                             let resolvedUrl = '';
 
-                            // 1. Try resolving as a local file first (for speed)
                             const CAPTURE_DIR = FileSystem.documentDirectory + 'captures';
                             const localPath = entry.photo_path?.includes('/')
                                 ? entry.photo_path.split('/').pop()
@@ -140,12 +148,10 @@ export const useCaptureStore = create<CaptureState>()(
 
                             const localUri = CAPTURE_DIR + '/' + localPath;
 
-                            // Note: we can't easily check file existence synchronously here in map,
-                            // but we can default to local and fallback to cloud if image fails to load in UI.
-                            // For simplicity, if it's a supabase path (has /), generate public URL.
                             if (entry.photo_path && entry.photo_path.includes('/')) {
-                                // Cloud path
-                                resolvedUrl = supabase.storage.from('entries').getPublicUrl(entry.photo_path).data.publicUrl;
+                                // Cloud path → signed URL (private bucket); fall back to the local
+                                // file if signing failed (e.g. offline).
+                                resolvedUrl = signedByPath.get(entry.photo_path) ?? localUri;
                             } else {
                                 // Local or just filename
                                 resolvedUrl = localUri;

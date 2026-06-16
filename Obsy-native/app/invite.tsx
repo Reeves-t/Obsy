@@ -84,7 +84,7 @@ export default function InviteScreen() {
 
     if (loading) {
         return (
-            <ScreenWrapper hideFloatingBackground>
+            <ScreenWrapper>
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={Colors.obsy.silver} />
                 </View>
@@ -94,7 +94,7 @@ export default function InviteScreen() {
 
     if (error) {
         return (
-            <ScreenWrapper hideFloatingBackground>
+            <ScreenWrapper>
                 <View style={styles.center}>
                     <Ionicons name="alert-circle-outline" size={64} color="rgba(255,255,255,0.3)" />
                     <ThemedText style={styles.errorText}>{error}</ThemedText>
@@ -107,7 +107,7 @@ export default function InviteScreen() {
     }
 
     return (
-        <ScreenWrapper hideFloatingBackground>
+        <ScreenWrapper>
             <BlurView intensity={60} tint="dark" style={styles.container}>
                 <GlassCard style={styles.card}>
                     {/* Avatar */}

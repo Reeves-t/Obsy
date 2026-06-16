@@ -5,12 +5,12 @@ import * as Crypto from 'expo-crypto';
 import { useCaptureStore } from './captureStore';
 import { getMoodTheme } from './moods';
 import { MoodSegment } from './dailyMoodFlows';
-import type { DiscoverPayload, EvolvePayload, TopicAiCacheEntry } from './topicAiTypes';
+import type { DiscoverPayload, EvolvePayload, TopicAiCacheEntry, TopicPulseCard, TopicPulseCacheEntry } from './topicAiTypes';
 import { inferTopicLens, defaultDepthForLens, type TopicLensId, type TopicDepth } from './topicLens';
 
 // ── Types ────────────────────────────────────────────────────
 
-export type TopicNoteKind = 'note' | 'insight' | 'missing_gaps' | 'response';
+export type TopicNoteKind = 'note' | 'insight' | 'missing_gaps' | 'response' | 'pulse';
 
 /** Metadata attached when a note is the user's response to an AI section. */
 export type TopicResponseMeta = {
@@ -253,6 +253,10 @@ type TopicState = {
     // Persisted so pages render instantly and don't re-burn AI on every swipe.
     discoverCache: Record<string, TopicAiCacheEntry<DiscoverPayload>>;
     evolveCache: Record<string, TopicAiCacheEntry<EvolvePayload>>;
+    // Cached Topic Pulse feed (page 1 "Explore this topic"), keyed by topicId.
+    // Persisted with a local day key so re-opening a topic the same day shows the
+    // feed without burning a daily DeepSeek generation.
+    topicPulseCache: Record<string, TopicPulseCacheEntry>;
     addTopic: (title: string, description: string) => string;
     removeTopic: (id: string) => void;
     updateTopicTone: (topicId: string, toneId: string) => void;
@@ -267,7 +271,17 @@ type TopicState = {
     getDiscover: (topicId: string) => TopicAiCacheEntry<DiscoverPayload> | undefined;
     setEvolve: (topicId: string, data: EvolvePayload) => void;
     getEvolve: (topicId: string) => TopicAiCacheEntry<EvolvePayload> | undefined;
+    setTopicPulse: (topicId: string, cards: TopicPulseCard[]) => void;
+    getTopicPulse: (topicId: string) => TopicPulseCacheEntry | undefined;
 };
+
+/** Local calendar day (YYYY-MM-DD) used to expire the Topic Pulse cache daily. */
+function localDayKey(d: Date = new Date()): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
 
 export const useTopicStore = create<TopicState>()(
     persist(
@@ -276,6 +290,7 @@ export const useTopicStore = create<TopicState>()(
             topicNotes: [],
             discoverCache: {},
             evolveCache: {},
+            topicPulseCache: {},
 
             addTopic: (title, description) => {
                 const id = Crypto.randomUUID();
@@ -299,12 +314,15 @@ export const useTopicStore = create<TopicState>()(
                 set(state => {
                     const discoverCache = { ...state.discoverCache };
                     const evolveCache = { ...state.evolveCache };
+                    const topicPulseCache = { ...state.topicPulseCache };
                     delete discoverCache[id];
                     delete evolveCache[id];
+                    delete topicPulseCache[id];
                     return {
                         topics: state.topics.filter(t => t.id !== id),
                         discoverCache,
                         evolveCache,
+                        topicPulseCache,
                     };
                 });
             },
@@ -413,16 +431,38 @@ export const useTopicStore = create<TopicState>()(
             getEvolve: (topicId) => {
                 return get().evolveCache[topicId];
             },
+
+            setTopicPulse: (topicId, cards) => {
+                set(state => ({
+                    topicPulseCache: {
+                        ...state.topicPulseCache,
+                        [topicId]: {
+                            cards,
+                            dateKey: localDayKey(),
+                            generatedAt: new Date().toISOString(),
+                        },
+                    },
+                }));
+            },
+
+            getTopicPulse: (topicId) => {
+                const entry = get().topicPulseCache[topicId];
+                // Treat a feed generated on an earlier day as expired.
+                if (!entry || entry.dateKey !== localDayKey()) return undefined;
+                return entry;
+            },
         }),
         {
             name: 'obsy-topics-storage',
             storage: createJSONStorage(() => AsyncStorage),
-            version: 2,
+            version: 3,
             migrate: (persistedState: any, _fromVersion: number) => {
                 // v0 → v1: baseline; toneId was always optional so no backfill needed.
                 // v1 → v2: added discoverCache / evolveCache — these default to {}
                 // from the store initializer via persist's shallow merge, so no
                 // backfill is required here.
+                // v2 → v3: added topicPulseCache — defaults to {} via the same
+                // shallow merge, so no backfill is required here either.
                 return persistedState;
             },
             partialize: (state) => ({
@@ -430,6 +470,7 @@ export const useTopicStore = create<TopicState>()(
                 topicNotes: state.topicNotes,
                 discoverCache: state.discoverCache,
                 evolveCache: state.evolveCache,
+                topicPulseCache: state.topicPulseCache,
             }),
         }
     )

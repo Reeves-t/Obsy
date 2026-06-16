@@ -99,7 +99,7 @@ export default function ArchiveDetailScreen() {
 
     if (loading) {
         return (
-            <ScreenWrapper hideFloatingBackground>
+            <ScreenWrapper>
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={Colors.obsy.silver} />
                 </View>
@@ -109,7 +109,7 @@ export default function ArchiveDetailScreen() {
 
     if (!insight) {
         return (
-            <ScreenWrapper hideFloatingBackground>
+            <ScreenWrapper>
                 <View style={styles.errorContainer}>
                     <ThemedText>Insight not found.</ThemedText>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -121,7 +121,7 @@ export default function ArchiveDetailScreen() {
     }
 
     return (
-        <ScreenWrapper hideFloatingBackground>
+        <ScreenWrapper>
             <Stack.Screen options={{ headerShown: false }} />
             {/* Transparent Header */}
             <View style={styles.header}>

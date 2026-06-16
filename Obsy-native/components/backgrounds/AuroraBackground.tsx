@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useAuroraPulseStore } from '@/lib/auroraPulseStore';
+import { useAuroraBreathStore } from '@/lib/auroraBreathStore';
 import {
   AURORA_BACKGROUNDS,
   auroraGradientCss,
@@ -38,7 +39,7 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
 <style>
   html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: transparent; }
 
-  :root { --aurora-bg: ${initialGradient}; --orb-a: ${initialOrbA}; --orb-b: ${initialOrbB}; }
+  :root { --aurora-bg: ${initialGradient}; --orb-a: ${initialOrbA}; --orb-b: ${initialOrbB}; --breath: 0; --breath-color: rgba(150,170,255,0.85); }
 
   /* Stage / base gradient (color is swappable via --aurora-bg) */
   .bg-stage {
@@ -129,6 +130,24 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
       rgba(var(--orb-b),.50), rgba(var(--orb-b),0) 70%);
     filter: blur(80px);
   }
+
+  /* Breath — a soft, mood-tinted light that rises from the bottom and gently
+     blooms when an insight is refreshing, then settles back. Lives in the same
+     screen-blend stack as the orbs so it reads as the Aurora itself breathing.
+     Driven by --breath (opacity) / --breath-color via window.auroraBreathe. */
+  .bg-stage .bg-breath {
+    position: absolute;
+    left: -10%; right: -10%; bottom: -12%;
+    height: 78%;
+    z-index: 1;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    background: radial-gradient(120% 82% at 50% 120%,
+      var(--breath-color) 0%, transparent 68%);
+    opacity: var(--breath);
+    transition: opacity 1300ms ease-in-out;
+    will-change: opacity;
+  }
 </style>
 </head>
 <body>
@@ -139,6 +158,7 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
       <div class="orb o3"><div class="shift"><div class="streak s3"></div></div></div>
       <div class="orb o4"><div class="shift"><div class="streak s4"></div></div></div>
     </div>
+    <div class="bg-breath"></div>
   </div>
   <script>
   (function(){
@@ -184,6 +204,15 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
       }
       if (rafId === null) rafId = requestAnimationFrame(frame);
     };
+
+    // Breath — fade a mood-tinted bottom glow in (on=true) while an insight is
+    // refreshing, then back out (on=false). The CSS opacity transition does the
+    // easing, so this is just a setProperty toggle. Optionally retint the glow.
+    window.auroraBreathe = function(on, color){
+      var root = document.documentElement;
+      if (color) root.style.setProperty('--breath-color', color);
+      root.style.setProperty('--breath', on ? '0.5' : '0');
+    };
   })();
   </script>
 </body>
@@ -197,6 +226,8 @@ interface AuroraBackgroundProps {
 export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ background = 'default', orbWave = 'aurora' }) => {
   const webRef = useRef<WebView>(null);
   const pulseId = useAuroraPulseStore((s) => s.pulseId);
+  const breathOn = useAuroraBreathStore((s) => s.activeCount > 0);
+  const breathColor = useAuroraBreathStore((s) => s.color);
   const palette = AURORA_BACKGROUNDS[background] ?? AURORA_BACKGROUNDS.default;
   const wave = ORB_WAVES[orbWave] ?? ORB_WAVES.aurora;
 
@@ -233,6 +264,15 @@ export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ background =
     const dir = useAuroraPulseStore.getState().lastDirection;
     webRef.current?.injectJavaScript(`window.auroraKick && window.auroraKick('${dir}'); true;`);
   }, [pulseId]);
+
+  // Insight refresh breath — bloom a mood-tinted glow from the bottom while an
+  // insight is refreshing, then settle it back. No reload; the CSS transition
+  // handles the easing.
+  useEffect(() => {
+    webRef.current?.injectJavaScript(
+      `window.auroraBreathe && window.auroraBreathe(${breathOn}, ${JSON.stringify(breathColor || '')}); true;`
+    );
+  }, [breathOn, breathColor]);
 
   return (
     <View style={[styles.container, { backgroundColor: palette.fallback }]} pointerEvents="none">

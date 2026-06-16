@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, View, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable, TextInput } from 'react-native';
+import { StyleSheet, View, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Modal, Pressable, TextInput, Switch } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -13,13 +13,14 @@ import { useDailyChallenges } from '@/lib/challengeStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { BlurView } from 'expo-blur';
 import { useObsyTheme } from '@/contexts/ThemeContext';
-import { TagInput } from '@/components/capture/TagInput';
 import { LinedJournalInput } from '@/components/capture/LinedJournalInput';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
+import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import { useCustomMoodStore } from '@/lib/customMoodStore';
 import { optimizeCapture } from '@/services/imageOptimizer';
 import { useSubscription } from '@/hooks/useSubscription';
 import { getMoodTheme } from '@/lib/moods';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 
 const SERIF_FONT = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 
@@ -44,17 +45,19 @@ export default function CaptureReviewScreen() {
     }>();
     const isTopicEntry = !!topicId;
     const router = useRouter();
-    const { createCapture, getAllTags, setPendingSaveAnimationUri, setPendingSaveMoodGradient, setPendingSaveComplete } = useCaptureStore();
+    const { createCapture, setPendingSaveAnimationUri, setPendingSaveMoodGradient, setPendingSaveComplete } = useCaptureStore();
     const { user } = useAuth();
     const { tier } = useSubscription();
     const { completeChallenge: markChallengeComplete } = useDailyChallenges(user?.id ?? null);
     const { isDark, colors } = useObsyTheme();
+    const { aiFreeMode } = useAiFreeMode();
 
     const journalInputRef = useRef<TextInput>(null);
 
     const [moodId, setMoodId] = useState<string | null>(null);
     const [note, setNote] = useState('');
-    const [tags, setTags] = useState<string[]>([]);
+    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
+    const [includeInInsights, setIncludeInInsights] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [journalModalVisible, setJournalModalVisible] = useState(false);
     const [journalPromptsVisible, setJournalPromptsVisible] = useState(false);
@@ -104,7 +107,9 @@ export default function CaptureReviewScreen() {
         // Capture all values from component scope before navigating away
         const saveMoodId = moodId;
         const saveNote = note;
-        const saveTags = isTopicEntry ? [...tags, `topic:${topicId}`] : tags;
+        const topicTag = topicTagForId(selectedTopicId);
+        const saveTags = topicTag ? [topicTag] : [];
+        const saveIncludeInInsights = includeInInsights && !aiFreeMode;
         const saveTier = tier;
         const saveUser = user;
         const saveChallengeId = challengeId;
@@ -139,7 +144,7 @@ export default function CaptureReviewScreen() {
                 saveTags,
                 saveChallengeId && saveChallengeTemplateId ? { challengeId: saveChallengeId, templateId: saveChallengeTemplateId } : undefined,
                 saveTier,
-                !isTopicEntry
+                saveIncludeInInsights
             );
 
             if (saveChallengeId && newCaptureId) {
@@ -232,13 +237,28 @@ export default function CaptureReviewScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Tag Input */}
+                    {/* Topic Picker */}
                     <View style={styles.section}>
-                        <ThemedText type="caption" style={styles.label}>TAGS</ThemedText>
-                        <TagInput
-                            existingTags={getAllTags()}
-                            selectedTags={tags}
-                            onTagsChange={setTags}
+                        <TopicSelectionField
+                            selectedTopicId={selectedTopicId}
+                            onTopicChange={setSelectedTopicId}
+                            helper="Optional"
+                        />
+                    </View>
+
+                    <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                        <View style={styles.includeCopy}>
+                            <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
+                            <ThemedText style={styles.includeHint}>
+                                Use this capture in summaries and reflections.
+                            </ThemedText>
+                        </View>
+                        <Switch
+                            value={includeInInsights && !aiFreeMode}
+                            disabled={aiFreeMode}
+                            onValueChange={setIncludeInInsights}
+                            trackColor={{ false: 'rgba(255,255,255,0.2)', true: Colors.obsy.silver }}
+                            thumbColor="#fff"
                         />
                     </View>
 
@@ -493,6 +513,35 @@ const styles = StyleSheet.create({
     },
     placeholderText: {
         color: 'rgba(255,255,255,0.4)',
+    },
+    includeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        borderWidth: 1,
+        borderRadius: 18,
+        borderColor: 'rgba(255,255,255,0.08)',
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+    },
+    includeRowDisabled: {
+        opacity: 0.45,
+    },
+    includeCopy: {
+        flex: 1,
+        gap: 4,
+    },
+    includeLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFFFFF',
+    },
+    includeHint: {
+        fontSize: 12.5,
+        lineHeight: 18,
+        color: 'rgba(255,255,255,0.52)',
     },
     saveButton: {
         backgroundColor: Colors.obsy.silver,

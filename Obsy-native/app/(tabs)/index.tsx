@@ -1,12 +1,11 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { StyleSheet, View, Dimensions, AppState, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Dimensions, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { YearInPixelsSection } from '@/components/home/YearInPixelsSection';
 import { DailyMonthlyPixelsSection } from '@/components/home/DailyMonthlyPixelsSection';
 import { HomeActionCarousel } from '@/components/home/HomeActionCarousel';
-import { ThemeDots } from '@/components/home/ThemeDots';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useTimeFormatStore, getFormattedTime } from '@/lib/timeFormatStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,16 +16,11 @@ import { isDevUser } from '@/lib/devConfig';
 import { DevPortalModal } from '@/components/dev/DevPortalModal';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AmbientMoodField } from '@/components/ambient/AmbientMoodField';
-import { useWeeklyMoodAggregation } from '@/hooks/useWeeklyMoodAggregation';
-import { useAmbientMoodFieldStore } from '@/lib/ambientMoodFieldStore';
-import { useHorizonStarsStore } from '@/lib/horizonStarsStore';
-import { useFocusEffect } from '@react-navigation/native';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-const { height, width } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 const SHOW_YEAR_IN_PIXELS_MVP = false;
 const SHOW_MONTHLY_PIXEL_VIEWER_MVP = false;
 
@@ -48,7 +42,7 @@ export default function HomeScreen() {
     setPendingSaveComplete,
   } = useCaptureStore();
   const { timeFormat } = useTimeFormatStore();
-  const { colors, usesTimeTheme, activeGradient } = useObsyTheme();
+  const { colors } = useObsyTheme();
   const pageHeight = Math.max(height - insets.top - insets.bottom, 1);
   const headerTop = Math.max(insets.top, 32) + 48;
 
@@ -59,45 +53,6 @@ export default function HomeScreen() {
 
   const onBgText = colors.text;
   const onBgTextSecondary = colors.textSecondary;
-
-  const { enabled: ambientEnabled, mode: ambientMode, loadSavedState } = useAmbientMoodFieldStore();
-  const { enabled: horizonStarsEnabled, loadSavedState: loadHorizonStarsSavedState } = useHorizonStarsStore();
-  const weeklyMoodWeights = useWeeklyMoodAggregation(captures);
-  const [isScreenFocused, setIsScreenFocused] = useState(true);
-  const [isAppActive, setIsAppActive] = useState(true);
-  const [horizonStarsReady, setHorizonStarsReady] = useState(false);
-
-  useEffect(() => {
-    loadSavedState();
-    loadHorizonStarsSavedState();
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      setIsScreenFocused(true);
-      return () => setIsScreenFocused(false);
-    }, [])
-  );
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      setIsAppActive(nextAppState === 'active');
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setHorizonStarsReady(true);
-    }, 1200);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  const isAmbientPaused = !ambientEnabled || !isScreenFocused || !isAppActive;
-  // Theme dots are part of the background, not the ambient feature — only pause when truly invisible
-  const isThemeDotsPaused = !isScreenFocused || !isAppActive;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -131,28 +86,7 @@ export default function HomeScreen() {
       edges={['top', 'left', 'right', 'bottom']}
       screenName="home"
       bottomInset={DEFAULT_TAB_BAR_HEIGHT}
-      hideFloatingBackground={false}
     >
-      {usesTimeTheme && activeGradient && horizonStarsReady && horizonStarsEnabled && (
-        <View pointerEvents="none" style={styles.horizonStarsLayer}>
-          <ThemeDots
-            panelWidth={width}
-            panelHeight={height}
-            deg={activeGradient.deg}
-            horizonPct={activeGradient.horizonPct}
-            dots={activeGradient.dots}
-            isPaused={isThemeDotsPaused}
-          />
-        </View>
-      )}
-
-      {ambientEnabled && (
-        <AmbientMoodField
-          moodWeights={weeklyMoodWeights}
-          isPaused={isAmbientPaused}
-        />
-      )}
-
       <View style={styles.staticContent}>
         <View style={[styles.heroSection, { flex: 1 }]}>
           <View style={[styles.headerContainer, { top: headerTop }]}>
@@ -250,9 +184,6 @@ const styles = StyleSheet.create({
     height,
     position: 'relative',
     paddingTop: 20,
-  },
-  horizonStarsLayer: {
-    ...StyleSheet.absoluteFillObject,
   },
   devButton: {
     position: 'absolute',

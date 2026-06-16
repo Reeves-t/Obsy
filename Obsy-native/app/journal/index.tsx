@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
 import { LinedJournalInput } from '@/components/capture/LinedJournalInput';
+import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import { ThemedText } from '@/components/ui/ThemedText';
 import Colors from '@/constants/Colors';
 import { MOODS } from '@/constants/Moods';
@@ -62,6 +63,7 @@ export default function JournalEntryScreen() {
     const [isSaving, setIsSaving] = useState(false);
     const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [includeInInsights, setIncludeInInsights] = useState(true);
+    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
     const [menuVisible, setMenuVisible] = useState(false);
     const [promptsVisible, setPromptsVisible] = useState(false);
 
@@ -112,14 +114,15 @@ export default function JournalEntryScreen() {
         setIsSaving(true);
 
         try {
-            const entryTags = isTopicEntry ? [`topic:${topicId}`] : [];
+            const topicTag = topicTagForId(selectedTopicId);
+            const entryTags = topicTag ? [topicTag] : [];
             await createJournalEntry(
                 user,
                 moodId,
                 moodName,
                 note,
                 entryTags,
-                isTopicEntry ? false : includeInInsights && !aiFreeMode
+                includeInInsights && !aiFreeMode
             );
             router.dismissAll();
             setTimeout(() => router.replace('/(tabs)'), 100);
@@ -256,7 +259,13 @@ export default function JournalEntryScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {!isTopicEntry && <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                    <TopicSelectionField
+                        selectedTopicId={selectedTopicId}
+                        onTopicChange={setSelectedTopicId}
+                        helper="Optional"
+                    />
+
+                    <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
                         <View style={styles.includeLabelBlock}>
                             <ThemedText style={[styles.includeLabel, { color: onSurfacePrimary }]}>
                                 Include in insights
@@ -275,7 +284,7 @@ export default function JournalEntryScreen() {
                             }}
                             thumbColor="#fff"
                         />
-                    </View>}
+                    </View>
 
                     <TouchableOpacity
                         onPress={handleSave}

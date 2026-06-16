@@ -83,6 +83,7 @@ export interface Database {
                     daily_insight_count: number;
                     group_insight_count: number;
                     weekly_insight_count: number;
+                    topic_pulse_count: number;
                     daily_capture_count: number;
                     capture_count_reset_at: string | null;
                     last_reset_date: string | null;
@@ -103,6 +104,7 @@ export interface Database {
                     daily_insight_count?: number;
                     group_insight_count?: number;
                     weekly_insight_count?: number;
+                    topic_pulse_count?: number;
                     daily_capture_count?: number;
                     capture_count_reset_at?: string | null;
                     last_reset_date?: string | null;
@@ -123,6 +125,7 @@ export interface Database {
                     daily_insight_count?: number;
                     group_insight_count?: number;
                     weekly_insight_count?: number;
+                    topic_pulse_count?: number;
                     daily_capture_count?: number;
                     capture_count_reset_at?: string | null;
                     last_reset_date?: string | null;

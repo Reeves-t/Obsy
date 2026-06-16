@@ -1,6 +1,7 @@
 import { logAiProviderRun } from "./logging.ts";
 import { callClaude } from "./providers/claude.ts";
 import { callGemini } from "./providers/gemini.ts";
+import { callDeepSeek } from "./providers/deepseek.ts";
 import type {
   AiAttemptSummary,
   AiErrorStage,
@@ -16,6 +17,7 @@ const DEFAULT_PROVIDER_ORDER: AiProviderName[] = ["claude", "gemini"];
 const PROVIDERS: Record<AiProviderName, (request: AiProviderRequest) => Promise<AiProviderResult>> = {
   claude: callClaude,
   gemini: callGemini,
+  deepseek: callDeepSeek,
 };
 
 export async function runAiTextTask(request: AiTaskRequest): Promise<AiRouteResult> {

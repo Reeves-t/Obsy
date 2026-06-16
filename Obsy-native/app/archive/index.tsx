@@ -158,7 +158,6 @@ export default function ArchiveScreen() {
             { title: "Daily Insights", type: "daily" },
             { title: "Weekly Insights", type: "weekly" },
             { title: "Monthly Insights", type: "monthly" },
-            { title: "Tagging Insights", type: "tagging" },
         ];
 
         sections.forEach(section => {
@@ -251,7 +250,7 @@ export default function ArchiveScreen() {
     }, [expandedSection, handleCardPress]);
 
     return (
-        <ScreenWrapper screenName="archive" hideFloatingBackground>
+        <ScreenWrapper screenName="archive">
             <Stack.Screen options={{ headerShown: false }} />
             {/* Transparent Header */}
             <View style={styles.header}>

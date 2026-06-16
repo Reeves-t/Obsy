@@ -1,4 +1,4 @@
-export type AiProviderName = "claude" | "gemini";
+export type AiProviderName = "claude" | "gemini" | "deepseek";
 export type AiInputMode = "text" | "vision" | "multimodal";
 export type AiResponseFormat = "text" | "json";
 export type AiErrorStage = "config" | "fetch" | "model" | "parse" | "validate" | "unknown";

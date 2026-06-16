@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { Topic, TopicStats } from '@/lib/topicStore';
 import { MetaPanel } from '@/components/topics/MetaPanel';
+import { AmbientBackground } from '@/components/ui/AmbientBackground';
 import { TopicBoardPage } from './TopicBoardPage';
 import { TopicDiscoverPage } from './TopicDiscoverPage';
 import { TopicEvolvePage } from './TopicEvolvePage';
@@ -90,6 +91,11 @@ export function TopicFocusPager({
                 >
                     {/* Page 0 — Observe (existing HUD, embedded) */}
                     <View style={{ width, height: size.height }}>
+                        {/* One themed aurora behind the whole Observe page (above the
+                            screen's floating-capture layer). Every MetaPanel card is
+                            transparent, so they all reveal this single background.
+                            Observe page only — Board/Discover/Evolve are untouched. */}
+                        <AmbientBackground />
                         <View style={styles.page0Inner}>
                             <MetaPanel
                                 embedded

@@ -35,6 +35,7 @@ import { archiveInsight } from '@/services/archive';
 import { ToneSelector } from '@/components/insights/ToneSelector';
 import { MoodBreakGame } from '@/components/insights/MoodBreakGame';
 import { MoodFlow } from '@/components/insights/MoodFlow';
+import { WeekdayMoodShape } from '@/components/insights/WeekdayMoodShape';
 import { PatternKeywords } from '@/components/insights/patterns/PatternKeywords';
 import { MoodConnectionDial } from '@/components/insights/MoodConnectionDial';
 import { MoodByTimeStack } from '@/components/insights/MoodByTimeStack';
@@ -215,6 +216,25 @@ export default function InsightsScreen() {
     useEffect(() => {
         fetchCaptures(user);
     }, [user]);
+
+    // Hydrate the last-used tone on open so the selector reflects it immediately
+    // (the tone is persisted to the profile; refreshes used to be the only thing
+    // that loaded it into local state).
+    useEffect(() => {
+        if (!user) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const profile = await getProfile();
+                if (!cancelled && profile) {
+                    setCurrentTone(profile.selected_custom_tone_id ?? profile.ai_tone ?? DEFAULT_AI_TONE_ID);
+                }
+            } catch (error) {
+                console.error("Error hydrating tone:", error);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [user?.id]);
 
     useEffect(() => {
         if (!aiFreeMode) return;
@@ -616,7 +636,9 @@ export default function InsightsScreen() {
 
             setCurrentTone(toneId);
             setToneSelectorVisible(false);
-            loadInsight(true);
+            // Note: do NOT refresh the daily insight here. The tone is persisted to
+            // the profile and picked up on the next manual refresh. Insights only
+            // regenerate when the user presses the refresh button.
         } catch (error) {
             console.error("Error updating tone:", error);
         }
@@ -634,22 +656,13 @@ export default function InsightsScreen() {
 
 
     return (
-        <ScreenWrapper screenName="insights" hideFloatingBackground bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
+        <ScreenWrapper screenName="insights" bottomInset={DEFAULT_TAB_BAR_HEIGHT}>
             {/* Header - Transparent, no background */}
             <View style={styles.header}>
                 <View style={styles.headerContent}>
                     <ThemedText type="title" style={[styles.headerTitle, { color: onBgText }]}>Insights</ThemedText>
 
                     <View style={styles.headerActions}>
-                        {/* Tone Picker */}
-                        <ToneTriggerButton
-                            activeToneName={getCurrentToneName()}
-                            onPress={() => {
-                                if (aiFreeMode) return;
-                                setToneSelectorVisible(true);
-                            }}
-                        />
-
                         {/* Timeframe Toggle */}
                         <View style={[
                             styles.toggleContainer,
@@ -683,6 +696,18 @@ export default function InsightsScreen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
+
+                {/* Tone Picker — sits below the header so a long tone name has room
+                    to grow without pushing the Day/Week/Month toggle off-screen. */}
+                <View style={styles.toneRow}>
+                    <ToneTriggerButton
+                        activeToneName={getCurrentToneName()}
+                        onPress={() => {
+                            if (aiFreeMode) return;
+                            setToneSelectorVisible(true);
+                        }}
+                    />
+                </View>
 
                 {selectedTimeframe === 'month' ? (
                     isReady && (
@@ -731,7 +756,7 @@ export default function InsightsScreen() {
                             {/* MOOD SIGNAL - Weekly pattern analytics */}
                             <SoftFadeDivider />
                             <SectionHeader title="MOOD SIGNAL" />
-                            <MoodSignal captures={captures} flat />
+                            <MoodSignal captures={captures} toneId={currentTone} flat />
 
                             {/* HABITS & GOALS - Floating weekly awareness orbs */}
                             <HabitGoalOrbSection frequency="weekly" />
@@ -739,7 +764,7 @@ export default function InsightsScreen() {
                             {/* MOOD CONNECTIONS - How moods lead into one another */}
                             <SoftFadeDivider />
                             <SectionHeader title="MOOD CONNECTIONS" />
-                            <MoodConnectionDial captures={captures} flat />
+                            <MoodConnectionDial captures={captures} toneId={currentTone} flat />
 
                             {/* MOOD BREAK - Mood breakdown game, anchored at the bottom */}
                             <SoftFadeDivider />
@@ -775,6 +800,11 @@ export default function InsightsScreen() {
                                 <SoftFadeDivider />
                                 <SectionHeader title="DAILY FLOW" />
                                 <MoodFlow moodFlow={aiFreeMode ? null : todayMoodFlow} loading={!aiFreeMode && dailyStatus === 'loading'} flat />
+
+                                {/* WEEKDAY SHAPE - All-time mood distribution for each weekday */}
+                                <SoftFadeDivider />
+                                <SectionHeader title="WEEKDAY MOOD SHAPE" />
+                                <WeekdayMoodShape captures={captures} toneId={currentTone} flat />
 
                                 {/* STATS - Key metrics in 2x2 grid */}
                                 <SectionHeader title="STATS" />
@@ -951,6 +981,12 @@ const styles = StyleSheet.create({
         padding: 20,
         paddingBottom: 100,
         gap: 24,
+    },
+    toneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        // Tone pill sizes to its content and stays left-aligned, so a long tone
+        // name simply takes more width here instead of crowding the header toggle.
     },
     cardPadding: {
         padding: 20,

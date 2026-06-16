@@ -10,7 +10,7 @@ type UserSettings = Database['public']['Tables']['user_settings']['Row'];
 // value (including 'guest') is normalized to 'free' by normalizeTier() below.
 type SubscriptionTier = 'free' | 'plus';
 
-export type FeatureName = 'daily_insight' | 'group_insight' | 'weekly_insight' | 'premium_tones' | 'topic_chat';
+export type FeatureName = 'daily_insight' | 'group_insight' | 'weekly_insight' | 'premium_tones' | 'topic_chat' | 'topic_pulse';
 
 interface SubscriptionState {
     tier: SubscriptionTier;
@@ -18,6 +18,7 @@ interface SubscriptionState {
         daily_insight: number;
         group_insight: number;
         weekly_insight: number;
+        topic_pulse: number;
     };
     loading: boolean;
     refresh: () => Promise<void>;
@@ -30,6 +31,12 @@ export interface TierLimits {
     daily_insight: number;
     group_insight: number;
     weekly_insight: number;
+    // Topic Pulse is a DELIBERATE exception: Plus is a FINITE limit here (10/day),
+    // not unlimited like every other feature. The first/auto generation per topic
+    // each day is FREE (uncounted); only manual Refresh + action buttons count.
+    // Enforced server-side in the topic-pulse edge function; this client value
+    // drives the UI ("N left").
+    topic_pulse: number;
     captures_per_day: number;
     max_local_captures: number;
     archive_slots: number;
@@ -41,6 +48,7 @@ const LIMITS: Record<SubscriptionTier, TierLimits> = {
         daily_insight: 3,
         group_insight: 3,
         weekly_insight: 3,
+        topic_pulse: 5,
         captures_per_day: 10,
         max_local_captures: 200,
         archive_slots: 30,
@@ -50,6 +58,7 @@ const LIMITS: Record<SubscriptionTier, TierLimits> = {
         daily_insight: Infinity,
         group_insight: Infinity,
         weekly_insight: Infinity,
+        topic_pulse: 10,
         captures_per_day: Infinity,
         max_local_captures: Infinity,
         archive_slots: 150,
@@ -151,6 +160,12 @@ export function useSubscription(): SubscriptionState {
             // This prevents blocking Plus members while settings are being fetched
             if (loading && user) return true;
 
+            // Topic Pulse is finite for BOTH tiers (free 1 / plus 5), so it must
+            // be evaluated before the unlimited-for-plus short-circuit below.
+            if (feature === 'topic_pulse') {
+                return (settings?.topic_pulse_count || 0) < LIMITS[tier].topic_pulse;
+            }
+
             if (tier === 'plus') return true;
             // Remaining tier is 'free': Plus-only features are blocked.
             if (feature === 'premium_tones') return false;
@@ -210,6 +225,7 @@ export function useSubscription(): SubscriptionState {
             daily_insight: settings?.daily_insight_count || 0,
             group_insight: settings?.group_insight_count || 0,
             weekly_insight: settings?.weekly_insight_count || 0,
+            topic_pulse: settings?.topic_pulse_count || 0,
         },
         loading,
         refresh: fetchSettings,

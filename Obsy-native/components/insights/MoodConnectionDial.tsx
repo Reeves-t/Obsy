@@ -1,36 +1,35 @@
-import React, { memo, useMemo, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import React, { memo, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, LayoutChangeEvent, PanResponder, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ThemedText } from '@/components/ui/ThemedText';
 import Colors from '@/constants/Colors';
 import { useObsyTheme } from '@/contexts/ThemeContext';
-import { resolveMoodColorById, getMoodLabel } from '@/lib/moodUtils';
 import { Capture } from '@/types/capture';
+import { useAiFreeMode } from '@/hooks/useAiFreeMode';
+import { supabase } from '@/lib/supabase';
+import {
+    buildMoodConnectionInterpretationData,
+    buildMoodConnectionModel,
+    sortMoodConnectionCounts,
+} from '@/lib/moodConnections';
+import {
+    callMoodSignalInterpretation,
+    resolveMoodSignalTonePayload,
+    type MoodSignalTonePayload,
+} from '@/services/moodSignalClient';
+import {
+    buildMoodSignalInterpretationKey,
+    loadMoodSignalInterpretation,
+    saveMoodSignalInterpretation,
+} from '@/lib/moodSignalInterpretationStore';
 
 interface MoodConnectionDialProps {
     captures: Capture[];
     flat?: boolean;
+    toneId?: string;
 }
-
-type MoodNode = {
-    moodId: string;
-    moodLabel: string;
-    color: string;
-    firstSeenAt: string;
-};
-
-type RelationshipCount = Record<string, number>;
-
-type DialModel = {
-    orderedEntries: Capture[];
-    moodNodes: MoodNode[];
-    moodIndexById: Map<string, number>;
-    beforeByMood: Record<string, RelationshipCount>;
-    afterByMood: Record<string, RelationshipCount>;
-    latestMoodIndex: number;
-};
 
 const SIZE = 220;
 const CENTER = SIZE / 2;
@@ -69,80 +68,19 @@ function buildRingSegmentPath(startDeg: number, endDeg: number) {
     ].join(' ');
 }
 
-function buildModel(captures: Capture[]): DialModel {
-    const orderedEntries = [...captures]
-        .filter((entry) => entry.includeInInsights !== false && !!entry.mood_id)
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    const moodNodes: MoodNode[] = [];
-    const moodIndexById = new Map<string, number>();
-
-    orderedEntries.forEach((entry) => {
-        if (moodIndexById.has(entry.mood_id)) return;
-        moodIndexById.set(entry.mood_id, moodNodes.length);
-        moodNodes.push({
-            moodId: entry.mood_id,
-            moodLabel: getMoodLabel(entry.mood_id, entry.mood_name_snapshot),
-            color: resolveMoodColorById(entry.mood_id, entry.mood_name_snapshot),
-            firstSeenAt: entry.created_at,
-        });
-    });
-
-    const beforeByMood: Record<string, RelationshipCount> = {};
-    const afterByMood: Record<string, RelationshipCount> = {};
-
-    for (let i = 0; i < orderedEntries.length; i += 1) {
-        const currentMood = orderedEntries[i].mood_id;
-        const prevMood = i > 0 ? orderedEntries[i - 1].mood_id : null;
-        const nextMood = i < orderedEntries.length - 1 ? orderedEntries[i + 1].mood_id : null;
-
-        if (!beforeByMood[currentMood]) beforeByMood[currentMood] = {};
-        if (!afterByMood[currentMood]) afterByMood[currentMood] = {};
-
-        if (prevMood) {
-            beforeByMood[currentMood][prevMood] = (beforeByMood[currentMood][prevMood] || 0) + 1;
-        }
-
-        if (nextMood) {
-            afterByMood[currentMood][nextMood] = (afterByMood[currentMood][nextMood] || 0) + 1;
-        }
-    }
-
-    const latestMoodId = orderedEntries[orderedEntries.length - 1]?.mood_id;
-    const latestMoodIndex = latestMoodId ? (moodIndexById.get(latestMoodId) ?? 0) : 0;
-
-    return {
-        orderedEntries,
-        moodNodes,
-        moodIndexById,
-        beforeByMood,
-        afterByMood,
-        latestMoodIndex,
-    };
-}
-
-function sortRelationshipCounts(data: RelationshipCount | undefined, nodes: MoodNode[]) {
-    if (!data) return [] as Array<{ moodId: string; label: string; color: string; count: number }>;
-
-    return Object.entries(data)
-        .map(([moodId, count]) => {
-            const node = nodes.find((n) => n.moodId === moodId);
-            return {
-                moodId,
-                count,
-                label: node?.moodLabel ?? getMoodLabel(moodId),
-                color: node?.color ?? resolveMoodColorById(moodId),
-            };
-        })
-        .sort((a, b) => b.count - a.count);
-}
-
-export const MoodConnectionDial = memo(function MoodConnectionDial({ captures, flat = false }: MoodConnectionDialProps) {
+export const MoodConnectionDial = memo(function MoodConnectionDial({ captures, flat = false, toneId }: MoodConnectionDialProps) {
     const { colors, isLight } = useObsyTheme();
+    const { aiFreeMode } = useAiFreeMode();
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [dialSize, setDialSize] = useState(SIZE);
+    const [aiText, setAiText] = useState<string | null>(null);
+    const [aiError, setAiError] = useState<string | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
+    const [savedContextLabel, setSavedContextLabel] = useState<string | null>(null);
+    const [tonePayload, setTonePayload] = useState<MoodSignalTonePayload | null>(null);
 
-    const model = useMemo(() => buildModel(captures), [captures]);
+    const model = useMemo(() => buildMoodConnectionModel(captures), [captures]);
 
     const safeSelectedIndex = model.moodNodes.length === 0
         ? 0
@@ -152,7 +90,7 @@ export const MoodConnectionDial = memo(function MoodConnectionDial({ captures, f
 
     const effectiveSelection = selectedMood ? safeSelectedIndex : model.latestMoodIndex;
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (model.moodNodes.length === 0) {
             if (selectedIndex !== 0) setSelectedIndex(0);
             return;
@@ -186,8 +124,109 @@ export const MoodConnectionDial = memo(function MoodConnectionDial({ captures, f
     const selectedMidDeg = segmentGeometry[effectiveSelection]?.midDeg ?? -90;
     const pointerPoint = pointOnCircle(selectedMidDeg, POINTER_RADIUS);
 
-    const beforeCounts = selectedMood ? sortRelationshipCounts(model.beforeByMood[selectedMood.moodId], model.moodNodes) : [];
-    const afterCounts = selectedMood ? sortRelationshipCounts(model.afterByMood[selectedMood.moodId], model.moodNodes) : [];
+    const beforeCounts = selectedMood ? sortMoodConnectionCounts(model.beforeByMood[selectedMood.moodId], model.moodNodes) : [];
+    const afterCounts = selectedMood ? sortMoodConnectionCounts(model.afterByMood[selectedMood.moodId], model.moodNodes) : [];
+    const connectionData = useMemo(
+        () => buildMoodConnectionInterpretationData(model, selectedMood?.moodId),
+        [model, selectedMood?.moodId]
+    );
+    const canUseAiInterpretation = !aiFreeMode && !!connectionData?.hasEnoughData;
+    const interpretationStorageKey = useMemo(() => {
+        if (!userId || !tonePayload || !selectedMood) return null;
+        return buildMoodSignalInterpretationKey(userId, 'mood_connection', `${selectedMood.moodId}:all_time:${tonePayload.toneKey}`);
+    }, [selectedMood, tonePayload, userId]);
+
+    useEffect(() => {
+        let mounted = true;
+        supabase.auth.getUser().then(({ data }) => {
+            if (mounted) setUserId(data.user?.id ?? null);
+        });
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        resolveMoodSignalTonePayload(toneId).then((payload) => {
+            if (!cancelled) setTonePayload(payload);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [toneId]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        setAiText(null);
+        setAiError(null);
+        setSavedContextLabel(null);
+
+        if (!canUseAiInterpretation || !interpretationStorageKey) return;
+
+        loadMoodSignalInterpretation(interpretationStorageKey).then((saved) => {
+            if (cancelled || !saved) return;
+            setAiText(saved.text);
+            setSavedContextLabel(saved.contextLabel);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [canUseAiInterpretation, interpretationStorageKey]);
+
+    const handleInterpretConnection = async () => {
+        if (!canUseAiInterpretation || aiLoading || !tonePayload || !connectionData) return;
+
+        setAiLoading(true);
+        setAiError(null);
+        try {
+            const response = await callMoodSignalInterpretation({
+                kind: 'mood_connection',
+                range: 'all_time',
+                rangeLabel: `${connectionData.selectedMood} connections`,
+                selectedMood: connectionData.selectedMood,
+                tone: tonePayload.tone,
+                customTonePrompt: tonePayload.customTonePrompt,
+                summary: connectionData.summary,
+                moodWeights: [],
+                days: [],
+                connections: {
+                    before: connectionData.before.slice(0, 6).map((item) => ({
+                        mood: item.label,
+                        count: item.count,
+                    })),
+                    after: connectionData.after.slice(0, 6).map((item) => ({
+                        mood: item.label,
+                        count: item.count,
+                    })),
+                },
+            });
+
+            if (!response.ok) {
+                setAiError(response.error.message);
+                return;
+            }
+
+            const contextLabel = `${connectionData.selectedMood} connections`;
+            setAiText(response.text);
+            setSavedContextLabel(contextLabel);
+            if (interpretationStorageKey) {
+                await saveMoodSignalInterpretation(interpretationStorageKey, {
+                    kind: 'mood_connection',
+                    key: `${connectionData.selectedMoodId}:all_time:${tonePayload.toneKey}`,
+                    text: response.text,
+                    generatedAt: new Date().toISOString(),
+                    contextLabel,
+                });
+            }
+        } catch (error: any) {
+            setAiError(error?.message ?? 'Unable to interpret these connections right now.');
+        } finally {
+            setAiLoading(false);
+        }
+    };
 
     const maxRelationshipCount = Math.max(
         1,
@@ -216,7 +255,7 @@ export const MoodConnectionDial = memo(function MoodConnectionDial({ captures, f
 
             const width = 0.7 + (count / maxRelationshipCount) * 2.8;
             const opacity = 0.22 + (count / maxRelationshipCount) * 0.56;
-            const color = resolveMoodColorById(targetMoodId);
+            const color = model.moodNodes[targetIndex]?.color ?? selectedMood.color;
 
             return {
                 d: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`,
@@ -373,6 +412,50 @@ export const MoodConnectionDial = memo(function MoodConnectionDial({ captures, f
                             </View>
                         </View>
                     </View>
+
+                    {canUseAiInterpretation ? (
+                        <View style={[styles.aiPanel, { borderColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' }]}>
+                            <View style={styles.aiPanelHeader}>
+                                <View style={styles.aiTitleRow}>
+                                    <Ionicons name="sparkles-outline" size={14} color={colors.textTertiary} />
+                                    <ThemedText style={[styles.aiTitle, { color: colors.textTertiary }]}>
+                                        Connection interpretation
+                                    </ThemedText>
+                                </View>
+                                <TouchableOpacity
+                                    onPress={handleInterpretConnection}
+                                    disabled={aiLoading || !tonePayload}
+                                    activeOpacity={0.82}
+                                    style={[styles.aiButton, (aiLoading || !tonePayload) && styles.aiButtonDisabled]}
+                                >
+                                    {aiLoading ? (
+                                        <ActivityIndicator size="small" color="#0A0A0A" />
+                                    ) : (
+                                        <ThemedText style={styles.aiButtonText}>
+                                            {aiText ? 'Refresh' : 'Interpret'}
+                                        </ThemedText>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+
+                            {aiText ? (
+                                <View style={styles.aiTextBlock}>
+                                    <ThemedText style={[styles.aiText, { color: colors.text }]}>
+                                        {aiText}
+                                    </ThemedText>
+                                    <ThemedText style={[styles.aiContext, { color: colors.textTertiary }]}>
+                                        Generated for {savedContextLabel ?? `${selectedMood.moodLabel} connections`}
+                                    </ThemedText>
+                                </View>
+                            ) : aiError ? (
+                                <ThemedText style={styles.aiError}>{aiError}</ThemedText>
+                            ) : (
+                                <ThemedText style={[styles.aiHint, { color: colors.textTertiary }]}>
+                                    Generate a short read on this mood's before and after pattern.
+                                </ThemedText>
+                            )}
+                        </View>
+                    ) : null}
                 </>
             )}
         </View>
@@ -506,5 +589,66 @@ const styles = StyleSheet.create({
     },
     metaEmpty: {
         fontSize: 11,
+    },
+    aiPanel: {
+        gap: 10,
+        borderRadius: 14,
+        padding: 12,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+    },
+    aiPanelHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    aiTitleRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    aiTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 0.4,
+    },
+    aiButton: {
+        minHeight: 34,
+        minWidth: 92,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        backgroundColor: Colors.obsy.silver,
+    },
+    aiButtonDisabled: {
+        opacity: 0.7,
+    },
+    aiButtonText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#0A0A0A',
+    },
+    aiTextBlock: {
+        gap: 6,
+    },
+    aiText: {
+        fontSize: 13,
+        lineHeight: 19,
+    },
+    aiContext: {
+        fontSize: 11,
+        lineHeight: 15,
+    },
+    aiHint: {
+        fontSize: 12.5,
+        lineHeight: 18,
+    },
+    aiError: {
+        fontSize: 12.5,
+        lineHeight: 18,
+        color: '#FF8A8A',
     },
 });

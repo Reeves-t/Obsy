@@ -63,6 +63,31 @@ export interface GoalHabitSuggestion {
     note?: string;
 }
 
+// ── Topic Pulse (page 1 — "Explore this topic", DeepSeek engager) ─────────
+
+export type TopicPulseCardType =
+    | 'topic_pulse'
+    | 'quick_tip'
+    | 'question_drift'
+    | 'tiny_challenge'
+    | 'useful_angle'
+    | 'common_trap'
+    | 'small_next_step';
+
+export interface TopicPulseCard {
+    type: TopicPulseCardType;
+    title: string;
+    body: string;
+}
+
+/** Daily-cached Topic Pulse feed, keyed by a local YYYY-MM-DD day. */
+export interface TopicPulseCacheEntry {
+    cards: TopicPulseCard[];
+    /** Local calendar day (YYYY-MM-DD) the feed was generated; stale next day. */
+    dateKey: string;
+    generatedAt: string;
+}
+
 // ── Persisted cache entry ─────────────────────────────────────────────────
 
 export interface TopicAiCacheEntry<T> {

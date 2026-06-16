@@ -28,6 +28,7 @@ import { decode } from 'base64-arraybuffer';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
+import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import Colors from '@/constants/Colors';
 import { MOODS } from '@/constants/Moods';
 import { useAuth } from '@/contexts/AuthContext';
@@ -279,6 +280,7 @@ export default function VoiceNoteScreen() {
     const [moodId, setMoodId] = useState<string | null>(null);
     const [moodName, setMoodName] = useState('');
     const [moodModalVisible, setMoodModalVisible] = useState(false);
+    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
 
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
@@ -614,8 +616,9 @@ export default function VoiceNoteScreen() {
 
         setIsSaving(true);
         try {
-            const tags = isTopicEntry ? [`topic:${topicId}`] : [];
-            const insights = isTopicEntry ? false : includeInInsights && !aiFreeMode;
+            const topicTag = topicTagForId(selectedTopicId);
+            const tags = topicTag ? [topicTag] : [];
+            const insights = includeInInsights && !aiFreeMode;
             await createVoiceEntry(
                 user,
                 moodId,
@@ -868,23 +871,27 @@ export default function VoiceNoteScreen() {
 
                             <MoodTrigger />
 
-                            {!isTopicEntry && (
-                                <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
-                                    <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
-                                        Include in insights
-                                    </ThemedText>
-                                    <Switch
-                                        value={includeInInsights && !aiFreeMode}
-                                        disabled={aiFreeMode}
-                                        onValueChange={setIncludeInInsights}
-                                        trackColor={{
-                                            false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
-                                            true: Colors.obsy.silver,
-                                        }}
-                                        thumbColor="#fff"
-                                    />
-                                </View>
-                            )}
+                            <TopicSelectionField
+                                selectedTopicId={selectedTopicId}
+                                onTopicChange={setSelectedTopicId}
+                                helper="Optional"
+                            />
+
+                            <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                                <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
+                                    Include in insights
+                                </ThemedText>
+                                <Switch
+                                    value={includeInInsights && !aiFreeMode}
+                                    disabled={aiFreeMode}
+                                    onValueChange={setIncludeInInsights}
+                                    trackColor={{
+                                        false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
+                                        true: Colors.obsy.silver,
+                                    }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
                         </ScrollView>
 
                         <View pointerEvents="box-none" style={styles.publishDockWrap}>

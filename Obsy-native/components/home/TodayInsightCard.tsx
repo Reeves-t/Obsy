@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, View, Alert } from 'react-native';
+import { Animated, StyleSheet, View, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { format } from 'date-fns';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -17,8 +17,7 @@ import { useTranslatedInsight } from '@/hooks/useTranslatedInsight';
 import { getLocalDayKey } from '@/lib/utils';
 import { InsightMoodOrbField } from '@/components/insights/InsightMoodOrbField';
 import { InsightSectionHeader } from '@/components/insights/InsightSectionHeader';
-import { MoodRefreshLight, type MoodLight } from '@/components/insights/MoodRefreshLight';
-import { useInsightLightGate } from '@/hooks/useInsightLightGate';
+import { useInsightLightGate, type MoodLight } from '@/hooks/useInsightLightGate';
 import { getMoodTheme } from '@/lib/moods/theme';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 
@@ -127,10 +126,6 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
             .filter(Boolean);
     }, [captures]);
 
-    // Light gate: holds new text behind the mood-light retraction animation
-    const isLoading = status === 'loading';
-    const { displayText, lightLoading, onRetractComplete } = useInsightLightGate(isLoading, text);
-
     // Derive mood lights from today's captures (top 4 most frequent moods)
     const moodLights = React.useMemo((): MoodLight[] => {
         const freq = new Map<string, number>();
@@ -150,13 +145,16 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
             });
     }, [todayMoodIds]);
 
+    // Refresh gate: breathes the Aurora light (tinted by the dominant mood) and
+    // fades the old text out / new text in around the refresh.
+    const isLoading = status === 'loading';
+    const { displayText, textOpacity } = useInsightLightGate(isLoading, text, moodLights[0]?.primary ?? null);
+
     const translatedText = useTranslatedInsight({ insightId: 'daily-current', sourceText: displayText, sourceLanguage: 'en' });
     const isEmpty = !translatedText;
 
     return (
         <View style={styles.wrapper}>
-            <MoodRefreshLight loading={lightLoading} moods={moodLights} onRetractComplete={onRetractComplete} />
-
             <InsightSectionHeader
                 icon="sunny-outline"
                 title={flat ? t('insight.dailyTitleFlat') : t('insight.dailyTitle')}
@@ -185,7 +183,7 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
                         <InsightMoodOrbField moodIds={todayMoodIds} variant="focus" maxOrbs={10} />
                     </View>
                 ) : (
-                    <View>
+                    <Animated.View style={{ opacity: textOpacity }}>
                         <InsightText
                             fallbackText={translatedText || ''}
                             collapsedSentences={4}
@@ -205,7 +203,7 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
                                 disabled={saving}
                             />
                         </View>
-                    </View>
+                    </Animated.View>
                 )}
             </View>
         </View>

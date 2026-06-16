@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
+import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomMoodStore } from '@/lib/customMoodStore';
@@ -28,6 +29,7 @@ export default function QuickMoodScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [moodModalVisible, setMoodModalVisible] = useState(false);
   const [includeInInsights, setIncludeInInsights] = useState(true);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
 
   useEffect(() => {
     const timer = setTimeout(() => setMoodModalVisible(true), 120);
@@ -45,8 +47,9 @@ export default function QuickMoodScreen() {
 
     setIsSaving(true);
     try {
-      const tags = isTopicEntry ? [`topic:${topicId}`] : [];
-      const insights = isTopicEntry ? false : includeInInsights && !aiFreeMode;
+      const topicTag = topicTagForId(selectedTopicId);
+      const tags = topicTag ? [topicTag] : [];
+      const insights = includeInInsights && !aiFreeMode;
       await createJournalEntry(user, moodId, moodName, '', tags, insights);
       router.dismissAll();
       setTimeout(() => router.replace('/(tabs)'), 100);
@@ -100,7 +103,13 @@ export default function QuickMoodScreen() {
           </TouchableOpacity>
         </View>
 
-        {!isTopicEntry && (
+        <View style={styles.entryOptions}>
+          <TopicSelectionField
+            selectedTopicId={selectedTopicId}
+            onTopicChange={setSelectedTopicId}
+            helper="Optional"
+          />
+
           <View style={[styles.includeRow, { borderColor: colors.cardBorder }, aiFreeMode && styles.includeRowDisabled]}>
             <View style={styles.includeCopy}>
               <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
@@ -116,7 +125,7 @@ export default function QuickMoodScreen() {
               thumbColor="#fff"
             />
           </View>
-        )}
+        </View>
       </View>
 
       <MoodSelectionModal
@@ -181,6 +190,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  entryOptions: {
+    gap: 14,
   },
   moodTrigger: {
     flexDirection: 'row',

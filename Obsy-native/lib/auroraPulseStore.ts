@@ -2,8 +2,7 @@ import { create } from 'zustand';
 
 // Tiny cross-tree signal so the home action carousel can nudge the Aurora
 // background's orbs. The carousel lives deep in the home screen while the
-// background sits up in ScreenWrapper, so a store is the simplest bridge
-// (mirrors the horizonStarsStore / ambientMoodFieldStore pattern).
+// background sits up in ScreenWrapper, so a store is the simplest bridge.
 //
 // `pulseId` is a monotonically increasing counter — AuroraBackground subscribes
 // to it and, on each change, displaces the orbs to new accumulated positions.

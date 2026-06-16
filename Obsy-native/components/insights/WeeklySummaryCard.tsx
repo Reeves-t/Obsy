@@ -1,11 +1,10 @@
 import React, { memo, useEffect } from "react";
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View, Alert } from "react-native";
+import { ActivityIndicator, Animated, StyleSheet, TouchableOpacity, View, Alert } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from "@/components/ui/ThemedText";
 import { InsightText } from "@/components/insights/InsightText";
 import { InsightSectionHeader } from "@/components/insights/InsightSectionHeader";
-import { MoodRefreshLight, type MoodLight } from "@/components/insights/MoodRefreshLight";
-import { useInsightLightGate } from "@/hooks/useInsightLightGate";
+import { useInsightLightGate, type MoodLight } from "@/hooks/useInsightLightGate";
 import { getMoodTheme } from "@/lib/moods/theme";
 import { WeeklyStats } from "@/lib/insightsAnalytics";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
@@ -59,9 +58,6 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
             .filter(Boolean);
     }, [captures, currentWeekStart.getTime(), currentWeekEnd.getTime()]);
 
-    // Light gate: holds new text behind the mood-light retraction animation
-    const { displayText, lightLoading, onRetractComplete } = useInsightLightGate(isGenerating, text);
-
     // Derive mood lights from this week's captures (top 4 most frequent moods)
     const moodLights = React.useMemo((): MoodLight[] => {
         const freq = new Map<string, number>();
@@ -80,6 +76,10 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
                 };
             });
     }, [weekMoodIds]);
+
+    // Refresh gate: breathes the Aurora light (tinted by the dominant mood) and
+    // fades the old text out / new text in around the refresh.
+    const { displayText, textOpacity } = useInsightLightGate(isGenerating, text, moodLights[0]?.primary ?? null);
 
     const translatedText = useTranslatedInsight({ insightId: `weekly-${weekKey}`, sourceText: displayText, sourceLanguage: 'en' });
     const hasInsight = !!translatedText;
@@ -180,14 +180,14 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
 
             <View style={styles.insightBody}>
                 {hasInsight ? (
-                    <>
+                    <Animated.View style={{ opacity: textOpacity }}>
                     <InsightText
                         fallbackText={translatedText || ''}
                         collapsedSentences={4}
                         expandable={true}
                     />
                     <InsightMoodOrbField moodIds={weekMoodIds} variant="subtle" maxOrbs={8} />
-                    </>
+                    </Animated.View>
                 ) : (
                     <View style={styles.emptyState}>
                         <ThemedText style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -256,7 +256,6 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
 
     return (
         <View style={styles.wrapper}>
-            <MoodRefreshLight loading={lightLoading} moods={moodLights} onRetractComplete={onRetractComplete} />
             {content}
         </View>
     );

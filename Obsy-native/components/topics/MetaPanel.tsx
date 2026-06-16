@@ -21,6 +21,7 @@ import { TopicInsightModal } from '@/components/topics/TopicInsightModal';
 import { MissingGapsModal } from '@/components/topics/MissingGapsModal';
 import { TopicOrb } from '@/components/topics/TopicOrb';
 import { LensSelector } from '@/components/topics/focus/LensSelector';
+import { TopicPulse } from '@/components/topics/focus/TopicPulse';
 import { getLensDef, inferTopicLens, defaultDepthForLens, TOPIC_DEPTHS, DEPTH_LABELS } from '@/lib/topicLens';
 import * as Haptics from 'expo-haptics';
 
@@ -274,7 +275,9 @@ function NoteItem({ note, onRemove }: { note: TopicNote; onRemove: (id: string) 
     const kind = note.kind ?? 'note';
     const isInsight = kind === 'insight';
     const isGaps = kind === 'missing_gaps';
+    const isPulse = kind === 'pulse';
     const isCollapsible = isInsight || isGaps;
+    const isRemovable = isInsight || isGaps || isPulse;
     const [expanded, setExpanded] = useState(false);
     const date = new Date(note.createdAt).toLocaleDateString('en-US', {
         month: 'short',
@@ -303,6 +306,11 @@ function NoteItem({ note, onRemove }: { note: TopicNote; onRemove: (id: string) 
                             <Text style={styles.gapsBadgeText}>GAPS</Text>
                         </View>
                     )}
+                    {isPulse && (
+                        <View style={styles.pulseBadge}>
+                            <Text style={styles.pulseBadgeText}>PULSE</Text>
+                        </View>
+                    )}
                     <Text style={styles.noteDate}>{date}</Text>
                 </View>
                 <Text
@@ -317,12 +325,12 @@ function NoteItem({ note, onRemove }: { note: TopicNote; onRemove: (id: string) 
                     </Text>
                 )}
             </Pressable>
-            {isCollapsible && (
+            {isRemovable && (
                 <Pressable
                     onPress={handleRemove}
                     style={styles.noteRemoveBtn}
                     hitSlop={8}
-                    accessibilityLabel={`Remove ${isGaps ? 'gap analysis' : 'insight'} from feed`}
+                    accessibilityLabel={`Remove ${isGaps ? 'gap analysis' : isPulse ? 'pulse card' : 'insight'} from feed`}
                 >
                     <Text style={styles.noteRemoveGlyph}>✕</Text>
                 </Pressable>
@@ -479,6 +487,17 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
                     </View>
                 </View>
 
+                {/* ── Add entry (directly under Response Energy) ── */}
+                <Pressable style={styles.ctaSecondary} onPress={onAddEntry}>
+                    <View style={styles.ctaLeft}>
+                        <View style={styles.ctaPlusChip}>
+                            <Text style={styles.ctaPlusGlyph}>+</Text>
+                        </View>
+                        <Text style={styles.ctaSecondaryLabel}>Add entry</Text>
+                    </View>
+                    <Text style={styles.ctaCaption}>voice {'·'} journal {'·'} mood {'·'} capture</Text>
+                </Pressable>
+
                 {/* ── Stat row 1: Mood avg · Streak · Active ── */}
                 <View style={styles.statsRow}>
                     <StatTile
@@ -533,6 +552,9 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
                     <TopicMoodFlowBar segments={stats.moodSegments} />
                 </View>
 
+                {/* ── Explore this topic (DeepSeek Topic Pulse) ── */}
+                <TopicPulse topic={topic} />
+
                 {/* ── Notes section ── */}
                 {savedNotes.length > 0 && (
                     <View style={styles.sectionCard}>
@@ -547,17 +569,6 @@ export function MetaPanel({ topic, stats, onClose, onAddEntry, onAskObsy, onBrow
 
                 {/* ── CTAs ── */}
                 <View style={styles.ctaStack}>
-                    {/* Add entry */}
-                    <Pressable style={styles.ctaSecondary} onPress={onAddEntry}>
-                        <View style={styles.ctaLeft}>
-                            <View style={styles.ctaPlusChip}>
-                                <Text style={styles.ctaPlusGlyph}>+</Text>
-                            </View>
-                            <Text style={styles.ctaSecondaryLabel}>Add entry</Text>
-                        </View>
-                        <Text style={styles.ctaCaption}>voice {'·'} journal {'·'} mood {'·'} capture</Text>
-                    </Pressable>
-
                     {/* Browse entries */}
                     {onBrowseEntries && (
                         <Pressable style={styles.ctaBrowse} onPress={onBrowseEntries}>
@@ -754,7 +765,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 14,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.05)',
     },
@@ -816,7 +827,7 @@ const styles = StyleSheet.create({
         padding: 11,
         paddingBottom: 10,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.06)',
     },
@@ -856,7 +867,7 @@ const styles = StyleSheet.create({
     metaCardRow: {
         flexDirection: 'row',
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.05)',
         overflow: 'hidden',
@@ -891,7 +902,7 @@ const styles = StyleSheet.create({
         padding: 12,
         paddingHorizontal: 14,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.05)',
         gap: 10,
@@ -920,7 +931,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 10,
         borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.06)',
         gap: 6,
@@ -958,6 +969,20 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         letterSpacing: 0.6,
         color: 'rgba(200,220,255,0.95)',
+    },
+    pulseBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 4,
+        backgroundColor: 'rgba(139,111,206,0.28)',
+        borderWidth: 1,
+        borderColor: 'rgba(139,111,206,0.52)',
+    },
+    pulseBadgeText: {
+        fontSize: 8.5,
+        fontWeight: '700',
+        letterSpacing: 0.6,
+        color: 'rgba(224,214,255,0.95)',
     },
     noteText: {
         fontSize: 13,
@@ -1048,7 +1073,7 @@ const styles = StyleSheet.create({
         padding: 14,
         paddingHorizontal: 16,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.07)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.10)',
     },
@@ -1123,7 +1148,7 @@ const styles = StyleSheet.create({
         padding: 14,
         paddingHorizontal: 16,
         borderRadius: 16,
-        backgroundColor: 'rgba(139,34,82,0.10)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(139,34,82,0.28)',
     },
@@ -1153,7 +1178,7 @@ const styles = StyleSheet.create({
         padding: 14,
         paddingHorizontal: 16,
         borderRadius: 16,
-        backgroundColor: 'rgba(70,90,140,0.10)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(120,150,210,0.30)',
     },
@@ -1184,7 +1209,7 @@ const styles = StyleSheet.create({
         padding: 14,
         paddingHorizontal: 16,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.07)',
     },
