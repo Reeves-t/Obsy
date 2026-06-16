@@ -37,7 +37,7 @@ Status of each OBS-19 scope item. ✅ done · 🟡 ready-but-needs-board-input �
 Structure is in place; the two placeholders need the board's Apple Developer account details.
 Android submit block is present but **deferred** (no `play-store-service-account.json` yet).
 
-## 3. 🟡 RevenueCat config — verified correct; prod key blocked
+## 3. 🟡 RevenueCat config — verified correct; prod key is now a board-config action (no code edit)
 `constants/revenuecat.ts` — all identifiers match the board-locked config:
 | Field | Value | OK |
 |---|---|---|
@@ -45,14 +45,18 @@ Android submit block is present but **deferred** (no `play-store-service-account
 | Offering | `default` | ✅ |
 | Monthly product | `obsy.plus.monthly` ($5.99) | ✅ |
 | Yearly product | `obsy.plus.yearly` ($49.99) | ✅ |
-| SDK key (iOS) | **TEST key** (`test_…`) | ⛔ replace with `appl_…` prod key |
+| SDK key (iOS) | env-injected; TEST-key fallback | 🟡 set EAS secret to go live |
 
 - SDK: `react-native-purchases` ^10.2.2; real `purchasePackage()` + Restore wired (OBS-16).
 - Server entitlement: `revenucat-webhook` edge fn writes `plus`/`free`, ignores non-Plus
   entitlements and non-UUID `app_user_id` (OBS-17). Tier writes are server-only (RLS guard).
-- **To do once board provides the prod key:** replace `RC_TEST_KEY` with the iOS `appl_…`
-  public key, then in the RevenueCat dashboard confirm offering `default` exposes both products
-  and the `plus` entitlement attaches to each.
+- **Prod-key wiring (OBS-19, done):** the iOS prod key is now read from the EAS secret
+  `EXPO_PUBLIC_REVENUECAT_IOS_KEY` (test key is the dev fallback). This follows the same
+  `EXPO_PUBLIC_*` pattern as the Supabase keys, so **no code change is needed to go live.**
+- **To do (board, no code):** `eas secret:create --scope project --name EXPO_PUBLIC_REVENUECAT_IOS_KEY
+  --value appl_…` (the iOS public key from RevenueCat → Project → API keys). Then in the
+  RevenueCat dashboard confirm offering `default` exposes both products and the `plus`
+  entitlement attaches to each. `IS_PRODUCTION_REVENUECAT_KEY` flips true once the secret is set.
 
 ## 4. ⛔ Device QA — blocked on Apple account + testers
 Run on a **real iOS device** (StoreKit sandbox), both products, after prod key + TestFlight exist:
