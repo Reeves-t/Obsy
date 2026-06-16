@@ -27,9 +27,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "REPLACE_WITH_APPLE_ID_EMAIL",
+        "appleId": "reeves@commongroundhq.com",
         "ascAppId": "6758523822",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+        "appleTeamId": "ZFPQ2B7DKN"
       },
       "android": {
         "serviceAccountKeyPath": "./play-store-service-account.json",
