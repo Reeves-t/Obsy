@@ -1,6 +1,6 @@
 # Obsy Privacy Policy
 
-**Last Updated:** June 2026
+**Last Updated:** June 16, 2026
 
 ---
 
@@ -59,11 +59,14 @@
 - Sync your mood tags, journal entries, voice transcripts, and insights across your devices
 
 ### AI-Powered Insights
-Obsy generates reflective insights and digests from your captures. AI requests are made **server-side** through a secure Supabase Edge Function so that provider API keys are never exposed in the app.
+Obsy generates reflective insights and digests from your captures. AI requests are made **server-side** through secure Supabase Edge Functions so that provider API keys are never exposed in the app.
 
-- **Text-based insights** (mood tags, journal snippets) are processed to generate daily, weekly, and monthly summaries. These are generated using third-party large-language-model providers — currently **DeepSeek** and **Anthropic (Claude)**.
-- **Photo-based insights** are **Plus-only and opt-in per capture.** You must explicitly enable "use this photo for insight" on a given capture. If you don't, the AI never receives your photo.
-- **Voice notes** you record are sent to **OpenAI's Whisper** speech-to-text service to produce a transcript. The transcript is then treated like any other journal text.
+- **Text-based insights** (your mood tags and journal notes) — daily, weekly, and monthly summaries, the Moodverse companion, and mood-color generation — are processed by **Anthropic (Claude)**, with **Google (Gemini)** as a fallback.
+- **Shared links** you save are sent to **Google (Gemini)**, which reads the linked page, video, or track to generate a short content digest.
+- **Topic attachments** (PDFs, images, or text you upload to a Topic) are processed by **Anthropic (Claude)** to extract their contents.
+- **Photo-based insights** are **Plus-only and opt-in per capture.** You must explicitly enable "use this photo for insight" on a given capture; otherwise the AI never receives your photo.
+- **Topic Pulse and Mood Signal / Mood Connection interpretation** use **DeepSeek**. These receive only *non-identifying metadata* — a Topic's title and theme settings, and aggregated mood statistics (counts, weights, day buckets). They are **never** sent your raw journal entries, notes, voice transcripts, photos, shared-link content, full Topic entries, or any account identifiers.
+- **Voice notes** you record are sent to **OpenAI's Whisper** speech-to-text service to produce a transcript, which is then treated like any other journal text.
 
 ### What We Never Do
 - ❌ Sell your data to advertisers or third parties
@@ -118,8 +121,9 @@ We share the minimum data necessary with the following sub-processors:
 | Service | Purpose | Data Shared | Region |
 |---------|---------|-------------|--------|
 | **Supabase** | Authentication, database, storage, server functions | Account info and your synced content | United States |
-| **DeepSeek** | AI text-insight generation | Mood tags and journal snippets (no account identifiers) | China |
-| **Anthropic (Claude)** | AI text-insight generation | Mood tags and journal snippets (no account identifiers) | United States |
+| **Anthropic (Claude)** | AI text insights, Moodverse, topic-attachment extraction | Mood tags, journal notes, opted-in photos, uploaded topic attachments (no account identifiers) | United States |
+| **Google (Gemini)** | AI insight fallback + shared-link content digestion | Mood tags & journal notes; content of links you save (no account identifiers) | United States |
+| **DeepSeek** | Topic Pulse + Mood Signal/Connection interpretation | Non-identifying topic metadata + aggregated mood statistics only — never journal text, voice, photos, or identifiers | China |
 | **OpenAI** | Voice-note transcription (Whisper) | Voice-note audio you record | United States |
 | **RevenueCat** | Subscription management | App Store transaction + pseudonymous user id | United States |
 | **Apple App Store** | Payment processing & subscriptions | Payment handled entirely by Apple | Per Apple |
@@ -133,12 +137,12 @@ We do not share your data with any other third parties.
 ## International Data Transfers
 
 Obsy is operated from the United States and works with providers located in the
-United States, the European Union, and — for AI text-insight generation via
-DeepSeek — **China**. Where your data is processed outside your country, it may be
-subject to the laws of those jurisdictions. We only send providers the minimum
-data needed to deliver the relevant feature, and never your account identifiers
-with AI-insight text. If you prefer not to have journal text processed by an
-overseas AI provider, you can avoid generating AI insights.
+United States, the European Union, and — for Topic Pulse and Mood Signal
+interpretation via DeepSeek — **China**. Where your data is processed outside your
+country, it may be subject to the laws of those jurisdictions. We only ever send a
+provider the minimum data needed for the relevant feature; the data sent to
+DeepSeek is limited to non-identifying topic and aggregated mood metadata — never
+your journal text, media, or identifiers.
 
 ---
 
@@ -189,7 +193,7 @@ Questions about your privacy? Concerns about your data?
 |----------|--------|
 | Do you store my photos? | **No** — local only, unless you opt into Plus cloud backup. |
 | Does AI see my photos? | **Only if you enable it** per capture (Plus). |
-| Who processes my journal text for insights? | DeepSeek and Anthropic (Claude), server-side, without your account id. |
+| Who processes my journal text for insights? | Anthropic (Claude) and Google (Gemini), server-side, without your account id. DeepSeek only receives non-identifying topic/mood metadata — never your journal text. |
 | Who transcribes my voice notes? | OpenAI (Whisper). |
 | Who handles payments? | Apple (App Store); RevenueCat manages your subscription. We never see your card. |
 | Do you sell my data or run ads? | **Never.** |

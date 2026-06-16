@@ -4,6 +4,7 @@ import Purchases, {
     PACKAGE_TYPE,
     PurchasesPackage,
 } from 'react-native-purchases';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import {
     ENTITLEMENT_ID,
     OFFERING_ID,
@@ -20,13 +21,31 @@ import {
 
 let configured = false;
 
+// react-native-purchases needs a native module that is NOT present in Expo Go, so
+// calling Purchases.configure() there throws ("native store not available... invalid
+// api key"). Detect Expo Go and skip configuration — purchases require a dev/native
+// build. With `configured` left false, every other call below no-ops via its guard.
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
 export function configureRevenueCat(): void {
     if (configured || !REVENUECAT_API_KEY) return;
-    if (__DEV__) {
-        Purchases.setLogLevel(LOG_LEVEL.WARN);
+    if (isExpoGo) {
+        console.log(
+            '[RevenueCat] Skipping configure in Expo Go (native store unavailable). ' +
+            'Use a development/native build to test purchases.',
+        );
+        return;
     }
-    Purchases.configure({ apiKey: REVENUECAT_API_KEY });
-    configured = true;
+    try {
+        if (__DEV__) {
+            Purchases.setLogLevel(LOG_LEVEL.WARN);
+        }
+        Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+        configured = true;
+    } catch (err) {
+        // Never let a config failure crash app startup.
+        console.warn('[RevenueCat] configure failed:', err);
+    }
 }
 
 export function isRevenueCatConfigured(): boolean {
