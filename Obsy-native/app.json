@@ -22,7 +22,8 @@
         "NSMicrophoneUsageDescription": "Obsy uses your microphone to record voice mood notes.",
         "NSCameraUsageDescription": "Obsy uses your camera to capture photos for your entries and topics.",
         "NSPhotoLibraryUsageDescription": "Obsy accesses your photo library so you can attach images to your entries and topics.",
-        "NSPhotoLibraryAddUsageDescription": "Obsy saves images to your photo library when you export them."
+        "NSPhotoLibraryAddUsageDescription": "Obsy saves images to your photo library when you export them.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -36,6 +37,15 @@
       "package": "com.innostudio.obsy",
       "versionCode": 1,
       "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.CAMERA",
@@ -91,6 +101,12 @@
         "projectId": "9efb121f-4bf7-483a-89ae-4019992d0501"
       }
     },
-    "owner": "reeves-t"
+    "owner": "reeves-t",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9efb121f-4bf7-483a-89ae-4019992d0501"
+    }
   }
 }
