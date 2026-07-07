@@ -15,7 +15,6 @@ import { BlurView } from 'expo-blur';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { LinedJournalInput } from '@/components/capture/LinedJournalInput';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
-import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import { useCustomMoodStore } from '@/lib/customMoodStore';
 import { optimizeCapture } from '@/services/imageOptimizer';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -33,17 +32,12 @@ const GENTLE_PROMPTS = [
 ];
 
 export default function CaptureReviewScreen() {
-    const { imageUri, challengeId, challengeTemplateId, challengeTitle,
-        topicId, topicTitle,
-    } = useLocalSearchParams<{
+    const { imageUri, challengeId, challengeTemplateId, challengeTitle } = useLocalSearchParams<{
         imageUri: string,
         challengeId?: string,
         challengeTemplateId?: string,
         challengeTitle?: string,
-        topicId?: string,
-        topicTitle?: string,
     }>();
-    const isTopicEntry = !!topicId;
     const router = useRouter();
     const { createCapture, setPendingSaveAnimationUri, setPendingSaveMoodGradient, setPendingSaveComplete } = useCaptureStore();
     const { user } = useAuth();
@@ -56,7 +50,6 @@ export default function CaptureReviewScreen() {
 
     const [moodId, setMoodId] = useState<string | null>(null);
     const [note, setNote] = useState('');
-    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
     const [includeInInsights, setIncludeInInsights] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [journalModalVisible, setJournalModalVisible] = useState(false);
@@ -107,8 +100,7 @@ export default function CaptureReviewScreen() {
         // Capture all values from component scope before navigating away
         const saveMoodId = moodId;
         const saveNote = note;
-        const topicTag = topicTagForId(selectedTopicId);
-        const saveTags = topicTag ? [topicTag] : [];
+        const saveTags: string[] = [];
         const saveIncludeInInsights = includeInInsights && !aiFreeMode;
         const saveTier = tier;
         const saveUser = user;
@@ -181,13 +173,6 @@ export default function CaptureReviewScreen() {
                         </TouchableOpacity>
                         <View style={styles.headerCenter}>
                             <ThemedText type="subtitle">Details</ThemedText>
-                            {isTopicEntry && (
-                                <View style={styles.topicBadge}>
-                                    <ThemedText style={styles.topicBadgeText} numberOfLines={1}>
-                                        {topicTitle}
-                                    </ThemedText>
-                                </View>
-                            )}
                         </View>
                         <View style={{ width: 28 }} />
                     </View>
@@ -235,15 +220,6 @@ export default function CaptureReviewScreen() {
                                 </>
                             )}
                         </TouchableOpacity>
-                    </View>
-
-                    {/* Topic Picker */}
-                    <View style={styles.section}>
-                        <TopicSelectionField
-                            selectedTopicId={selectedTopicId}
-                            onTopicChange={setSelectedTopicId}
-                            helper="Optional"
-                        />
                     </View>
 
                     <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
@@ -433,20 +409,6 @@ const styles = StyleSheet.create({
     },
     headerCenter: {
         alignItems: 'center',
-    },
-    topicBadge: {
-        marginTop: 3,
-        paddingHorizontal: 10,
-        paddingVertical: 2,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        maxWidth: 200,
-    },
-    topicBadgeText: {
-        fontSize: 11,
-        fontWeight: '500',
-        color: 'rgba(255,255,255,0.55)',
-        letterSpacing: 0.2,
     },
     backButton: {
         padding: 4,

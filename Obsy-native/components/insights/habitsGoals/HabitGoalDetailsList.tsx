@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, View, Text, Pressable } from 'react-native';
-import { useTopicStore } from '@/lib/topicStore';
 import type { HabitGoal } from '@/lib/habitGoalStore';
 
 interface HabitGoalDetailsListProps {
@@ -22,8 +21,6 @@ function relativeLastCompleted(iso: string | null): string {
 }
 
 export function HabitGoalDetailsList({ items, isLight, onPressItem }: HabitGoalDetailsListProps) {
-    const topics = useTopicStore((s) => s.topics);
-
     const primary = isLight ? '#1a1a1a' : '#fff';
     const secondary = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
     const tertiary = isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)';
@@ -34,7 +31,6 @@ export function HabitGoalDetailsList({ items, isLight, onPressItem }: HabitGoalD
         <View style={styles.list}>
             {items.map((item) => {
                 const unit = item.frequency === 'weekly' ? 'week' : 'day';
-                const topic = item.linkedTopicId ? topics.find((t) => t.id === item.linkedTopicId) : undefined;
                 const statusColor = item.isCompletedForCurrentPeriod ? COMPLETE_GREEN : tertiary;
 
                 return (
@@ -67,12 +63,7 @@ export function HabitGoalDetailsList({ items, isLight, onPressItem }: HabitGoalD
                             </Text>
                             <Text style={[styles.stats, { color: tertiary }]}>{relativeLastCompleted(item.lastCompletedAt)}</Text>
 
-                            {/* Linked topic + note */}
-                            {topic && (
-                                <Text style={[styles.meta, { color: secondary }]} numberOfLines={1}>
-                                    Topic: {topic.title}
-                                </Text>
-                            )}
+                            {/* Note */}
                             {item.note ? (
                                 <Text style={[styles.note, { color: tertiary }]} numberOfLines={2}>
                                     “{item.note}”
@@ -130,10 +121,6 @@ const styles = StyleSheet.create({
     },
     stats: {
         fontSize: 12,
-    },
-    meta: {
-        fontSize: 12,
-        marginTop: 2,
     },
     note: {
         fontSize: 12,

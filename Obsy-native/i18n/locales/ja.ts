@@ -5,7 +5,6 @@ export const ja: TranslationDictionary = {
     home: 'ホーム',
     gallery: 'エントリー',
     insights: 'インサイト',
-    topics: 'トピック',
     settings: '設定',
   },
   common: {

@@ -18,7 +18,6 @@ import { ThemedText } from '@/components/ui/ThemedText';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCaptureStore } from '@/lib/captureStore';
-import { useTopicStore } from '@/lib/topicStore';
 import { moodCache } from '@/lib/moodCache';
 import {
     parseSharedLinkMetadata,
@@ -40,8 +39,6 @@ interface SaveSharedLinkModalProps {
     onSaved?: () => void;
 }
 
-type DestinationType = 'today' | 'topic';
-
 export function SaveSharedLinkModal({
     visible,
     initialUrl = '',
@@ -51,15 +48,12 @@ export function SaveSharedLinkModal({
     const { colors, isLight } = useObsyTheme();
     const { user } = useAuth();
     const { createSharedLinkEntry } = useCaptureStore();
-    const { topics } = useTopicStore();
     const { getMoodById } = useCustomMoodStore();
 
     const [selectedMoodId, setSelectedMoodId] = useState<string | null>(null);
     const [moodName, setMoodName] = useState('');
     const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [note, setNote] = useState('');
-    const [destination, setDestination] = useState<DestinationType>('today');
-    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
     const [useForInsights, setUseForInsights] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -89,10 +83,6 @@ export function SaveSharedLinkModal({
         setSaving(true);
         setError(null);
         try {
-            const topicTag = destination === 'topic' && selectedTopicId
-                ? `topic:${selectedTopicId}`
-                : null;
-
             await createSharedLinkEntry(
                 user,
                 selectedMoodId,
@@ -102,7 +92,6 @@ export function SaveSharedLinkModal({
                 meta.title,
                 null,
                 note.trim() || null,
-                topicTag,
                 useForInsights,
             );
             onSaved?.();
@@ -113,14 +102,12 @@ export function SaveSharedLinkModal({
         } finally {
             setSaving(false);
         }
-    }, [canSave, selectedMoodId, moodName, meta, note, destination, selectedTopicId, useForInsights, user]);
+    }, [canSave, selectedMoodId, moodName, meta, note, useForInsights, user]);
 
     const resetForm = useCallback(() => {
         setSelectedMoodId(null);
         setMoodName('');
         setNote('');
-        setDestination('today');
-        setSelectedTopicId(null);
         setUseForInsights(true);
         setError(null);
     }, []);
@@ -254,111 +241,6 @@ export function SaveSharedLinkModal({
                                     </>
                                 )}
                             </TouchableOpacity>
-                        </View>
-
-                        {/* ── Save As ── */}
-                        <View style={styles.section}>
-                            <ThemedText style={[styles.sectionLabel, { color: colors.textTertiary }]}>
-                                SAVE AS
-                            </ThemedText>
-                            <View style={styles.destinationRow}>
-                                <TouchableOpacity
-                                    onPress={() => setDestination('today')}
-                                    style={[
-                                        styles.destButton,
-                                        {
-                                            backgroundColor: destination === 'today'
-                                                ? 'rgba(255,255,255,0.12)'
-                                                : inputBg,
-                                            borderColor: destination === 'today'
-                                                ? 'rgba(255,255,255,0.25)'
-                                                : inputBorder,
-                                        },
-                                    ]}
-                                >
-                                    <Ionicons
-                                        name="today-outline"
-                                        size={14}
-                                        color={destination === 'today' ? colors.text : colors.textTertiary}
-                                    />
-                                    <ThemedText style={[
-                                        styles.destButtonText,
-                                        { color: destination === 'today' ? colors.text : colors.textTertiary },
-                                    ]}>
-                                        Today
-                                    </ThemedText>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => setDestination('topic')}
-                                    style={[
-                                        styles.destButton,
-                                        {
-                                            backgroundColor: destination === 'topic'
-                                                ? 'rgba(255,255,255,0.12)'
-                                                : inputBg,
-                                            borderColor: destination === 'topic'
-                                                ? 'rgba(255,255,255,0.25)'
-                                                : inputBorder,
-                                        },
-                                    ]}
-                                >
-                                    <Ionicons
-                                        name="bookmark-outline"
-                                        size={14}
-                                        color={destination === 'topic' ? colors.text : colors.textTertiary}
-                                    />
-                                    <ThemedText style={[
-                                        styles.destButtonText,
-                                        { color: destination === 'topic' ? colors.text : colors.textTertiary },
-                                    ]}>
-                                        Topic
-                                    </ThemedText>
-                                </TouchableOpacity>
-                            </View>
-
-                            {destination === 'topic' && (
-                                <View style={styles.topicPicker}>
-                                    {topics.length === 0 ? (
-                                        <ThemedText style={[styles.noTopics, { color: colors.textTertiary }]}>
-                                            No topics yet. Create one in the Topics tab.
-                                        </ThemedText>
-                                    ) : (
-                                        <ScrollView
-                                            horizontal
-                                            showsHorizontalScrollIndicator={false}
-                                            contentContainerStyle={styles.topicRow}
-                                        >
-                                            {topics.map(topic => {
-                                                const isSelected = selectedTopicId === topic.id;
-                                                return (
-                                                    <TouchableOpacity
-                                                        key={topic.id}
-                                                        onPress={() => setSelectedTopicId(isSelected ? null : topic.id)}
-                                                        style={[
-                                                            styles.topicChip,
-                                                            {
-                                                                backgroundColor: isSelected
-                                                                    ? `hsla(${topic.hue},60%,55%,0.25)`
-                                                                    : inputBg,
-                                                                borderColor: isSelected
-                                                                    ? `hsla(${topic.hue},60%,55%,0.6)`
-                                                                    : inputBorder,
-                                                            },
-                                                        ]}
-                                                    >
-                                                        <ThemedText style={[
-                                                            styles.topicChipText,
-                                                            { color: isSelected ? colors.text : colors.textSecondary },
-                                                        ]}>
-                                                            {topic.title}
-                                                        </ThemedText>
-                                                    </TouchableOpacity>
-                                                );
-                                            })}
-                                        </ScrollView>
-                                    )}
-                                </View>
-                            )}
                         </View>
 
                         {/* ── Note ── */}
@@ -566,46 +448,6 @@ const styles = StyleSheet.create({
         width: 7,
         height: 7,
         borderRadius: 3.5,
-    },
-    // Destination
-    destinationRow: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    destButton: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingVertical: 10,
-        borderRadius: 12,
-        borderWidth: 1,
-    },
-    destButtonText: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    topicPicker: {
-        marginTop: 4,
-    },
-    topicRow: {
-        flexDirection: 'row',
-        gap: 8,
-        paddingRight: 20,
-    },
-    topicChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        borderRadius: 20,
-        borderWidth: 1,
-    },
-    topicChipText: {
-        fontSize: 13,
-    },
-    noTopics: {
-        fontSize: 13,
-        fontStyle: 'italic',
     },
     // Note input
     noteInput: {

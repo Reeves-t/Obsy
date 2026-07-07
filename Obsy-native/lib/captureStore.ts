@@ -77,7 +77,6 @@ type CaptureState = {
         title: string | null,
         thumbnailUrl: string | null,
         note?: string | null,
-        topicTag?: string | null,
         includeInInsights?: boolean
     ) => Promise<string | null>;
     /** Patch a shared-link capture in local state once its background digest resolves. */
@@ -606,11 +605,11 @@ export const useCaptureStore = create<CaptureState>()(
                 });
             },
 
-            createSharedLinkEntry: async (user, moodId, moodName, url, platform, title, thumbnailUrl, note = null, topicTag = null, includeInInsights = true) => {
+            createSharedLinkEntry: async (user, moodId, moodName, url, platform, title, thumbnailUrl, note = null, includeInInsights = true) => {
                 if (!moodCache.isInitialized() || moodCache.isStale()) {
                     await moodCache.fetchAllMoods(user?.id ?? null);
                 }
-                const tags = topicTag ? [topicTag] : [];
+                const tags: string[] = [];
                 const newId = await get().addCapture(user, {
                     mood_id: moodId,
                     mood_name_snapshot: moodName,

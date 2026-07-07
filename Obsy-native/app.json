@@ -20,8 +20,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Obsy uses your microphone to record voice mood notes.",
-        "NSCameraUsageDescription": "Obsy uses your camera to capture photos for your entries and topics.",
-        "NSPhotoLibraryUsageDescription": "Obsy accesses your photo library so you can attach images to your entries and topics.",
+        "NSCameraUsageDescription": "Obsy uses your camera to capture photos for your entries.",
+        "NSPhotoLibraryUsageDescription": "Obsy accesses your photo library so you can attach images to your entries.",
         "NSPhotoLibraryAddUsageDescription": "Obsy saves images to your photo library when you export them.",
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -70,7 +70,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Obsy uses your camera to capture photos for your entries and topics.",
+          "cameraPermission": "Obsy uses your camera to capture photos for your entries.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -78,13 +78,13 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Obsy accesses your photo library so you can attach images to your entries and topics."
+          "photosPermission": "Obsy accesses your photo library so you can attach images to your entries."
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Obsy accesses your photo library so you can attach images to your entries and topics.",
+          "photosPermission": "Obsy accesses your photo library so you can attach images to your entries.",
           "savePhotosPermission": "Obsy saves images to your photo library when you export them."
         }
       ],

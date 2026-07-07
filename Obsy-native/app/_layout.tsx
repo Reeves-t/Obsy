@@ -216,7 +216,6 @@ function ThemedNavigator() {
         <Stack.Screen name="journal" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="voice" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="quick-mood" options={{ presentation: 'modal', headerShown: false }} />
-        <Stack.Screen name="topics" options={{ headerShown: false }} />
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

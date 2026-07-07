@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
-import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import { useCaptureStore } from '@/lib/captureStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomMoodStore } from '@/lib/customMoodStore';
@@ -16,8 +15,6 @@ import { useObsyTheme } from '@/contexts/ThemeContext';
 
 export default function QuickMoodScreen() {
   const router = useRouter();
-  const { topicId, topicTitle } = useLocalSearchParams<{ topicId?: string; topicTitle?: string }>();
-  const isTopicEntry = !!topicId;
   const { createJournalEntry } = useCaptureStore();
   const { user } = useAuth();
   const { getMoodById } = useCustomMoodStore();
@@ -29,7 +26,6 @@ export default function QuickMoodScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [moodModalVisible, setMoodModalVisible] = useState(false);
   const [includeInInsights, setIncludeInInsights] = useState(true);
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
 
   useEffect(() => {
     const timer = setTimeout(() => setMoodModalVisible(true), 120);
@@ -47,8 +43,7 @@ export default function QuickMoodScreen() {
 
     setIsSaving(true);
     try {
-      const topicTag = topicTagForId(selectedTopicId);
-      const tags = topicTag ? [topicTag] : [];
+      const tags: string[] = [];
       const insights = includeInInsights && !aiFreeMode;
       await createJournalEntry(user, moodId, moodName, '', tags, insights);
       router.dismissAll();
@@ -69,11 +64,6 @@ export default function QuickMoodScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <ThemedText style={styles.headerTitle}>Quick Mood</ThemedText>
-          {isTopicEntry && (
-            <View style={styles.topicBadge}>
-              <ThemedText style={styles.topicBadgeText} numberOfLines={1}>{topicTitle}</ThemedText>
-            </View>
-          )}
         </View>
         <TouchableOpacity onPress={handleSave} disabled={!canSave} style={styles.headerButton}>
           <ThemedText style={[styles.doneText, !canSave && styles.doneTextDisabled]}>
@@ -104,12 +94,6 @@ export default function QuickMoodScreen() {
         </View>
 
         <View style={styles.entryOptions}>
-          <TopicSelectionField
-            selectedTopicId={selectedTopicId}
-            onTopicChange={setSelectedTopicId}
-            helper="Optional"
-          />
-
           <View style={[styles.includeRow, { borderColor: colors.cardBorder }, aiFreeMode && styles.includeRowDisabled]}>
             <View style={styles.includeCopy}>
               <ThemedText style={styles.includeLabel}>Include in insights</ThemedText>
@@ -157,20 +141,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: 'white',
-  },
-  topicBadge: {
-    marginTop: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    maxWidth: 200,
-  },
-  topicBadgeText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 0.2,
   },
   doneText: {
     color: Colors.obsy.silver,

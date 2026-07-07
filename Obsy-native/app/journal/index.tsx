@@ -19,12 +19,11 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
 import { LinedJournalInput } from '@/components/capture/LinedJournalInput';
-import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import { ThemedText } from '@/components/ui/ThemedText';
 import Colors from '@/constants/Colors';
 import { MOODS } from '@/constants/Moods';
@@ -46,8 +45,6 @@ const GENTLE_PROMPTS = [
 
 export default function JournalEntryScreen() {
     const router = useRouter();
-    const { topicId, topicTitle } = useLocalSearchParams<{ topicId?: string; topicTitle?: string }>();
-    const isTopicEntry = !!topicId;
 
     const { createJournalEntry } = useCaptureStore();
     const { user } = useAuth();
@@ -63,7 +60,6 @@ export default function JournalEntryScreen() {
     const [isSaving, setIsSaving] = useState(false);
     const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [includeInInsights, setIncludeInInsights] = useState(true);
-    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
     const [menuVisible, setMenuVisible] = useState(false);
     const [promptsVisible, setPromptsVisible] = useState(false);
 
@@ -114,8 +110,7 @@ export default function JournalEntryScreen() {
         setIsSaving(true);
 
         try {
-            const topicTag = topicTagForId(selectedTopicId);
-            const entryTags = topicTag ? [topicTag] : [];
+            const entryTags: string[] = [];
             await createJournalEntry(
                 user,
                 moodId,
@@ -183,17 +178,9 @@ export default function JournalEntryScreen() {
                         <ThemedText style={[styles.headerDay, { color: onSurfacePrimary }]}>
                             {dayName}
                         </ThemedText>
-                        {isTopicEntry && topicTitle ? (
-                            <View style={[styles.topicBadge, { backgroundColor: chipBackground, borderColor: chipBorder }]}>
-                                <ThemedText style={[styles.topicBadgeText, { color: onSurfaceSecondary }]}>
-                                    {topicTitle}
-                                </ThemedText>
-                            </View>
-                        ) : (
-                            <ThemedText style={[styles.headerDate, { color: onSurfaceSecondary }]}>
-                                {dateLine}
-                            </ThemedText>
-                        )}
+                        <ThemedText style={[styles.headerDate, { color: onSurfaceSecondary }]}>
+                            {dateLine}
+                        </ThemedText>
                     </View>
 
                     <TouchableOpacity
@@ -258,12 +245,6 @@ export default function JournalEntryScreen() {
                             </ThemedText>
                         </TouchableOpacity>
                     </View>
-
-                    <TopicSelectionField
-                        selectedTopicId={selectedTopicId}
-                        onTopicChange={setSelectedTopicId}
-                        helper="Optional"
-                    />
 
                     <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
                         <View style={styles.includeLabelBlock}>
@@ -413,18 +394,6 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         paddingTop: 4,
-    },
-    topicBadge: {
-        marginTop: 5,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 999,
-        borderWidth: StyleSheet.hairlineWidth,
-    },
-    topicBadgeText: {
-        fontSize: 12,
-        fontWeight: '500',
-        letterSpacing: 0.1,
     },
     headerDay: {
         fontFamily: SERIF_FONT,

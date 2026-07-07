@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, View, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Dimensions, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ThemedText } from '@/components/ui/ThemedText';
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useCaptureStore } from '@/lib/captureStore';
-import { useTopicStore } from '@/lib/topicStore';
 import { format } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -28,18 +27,9 @@ export default function CaptureDetailScreen() {
     const router = useRouter();
     const { captures, deleteCapture } = useCaptureStore();
     const { getMoodDisplay } = useMoodResolver();
-    const topics = useTopicStore(s => s.topics);
     const [isDeleting, setIsDeleting] = useState(false);
 
     const capture = captures.find(c => c.id === id);
-
-    // Resolve linked topic via tag convention `topic:${id}` — must run before any early return
-    const linkedTopic = useMemo(() => {
-        const topicTag = capture?.tags?.find(t => t.startsWith('topic:'));
-        if (!topicTag) return null;
-        const topicId = topicTag.slice('topic:'.length);
-        return topics.find(t => t.id === topicId) ?? null;
-    }, [capture?.tags, topics]);
 
     if (!capture) {
         return (
@@ -134,17 +124,6 @@ export default function CaptureDetailScreen() {
 
                 {/* ── Details section: shared across types ────────────────── */}
                 <View style={styles.detailsSection}>
-                    {/* Topic chip if linked */}
-                    {linkedTopic && (
-                        <View style={styles.topicChipRow}>
-                            <View style={[styles.topicChip, { borderColor: `hsla(${linkedTopic.hue}, 60%, 60%, 0.5)` }]}>
-                                <Ionicons name="flower-outline" size={13} color={`hsl(${linkedTopic.hue}, 70%, 70%)`} />
-                                <ThemedText style={[styles.topicChipText, { color: `hsl(${linkedTopic.hue}, 70%, 80%)` }]}>
-                                    {linkedTopic.title}
-                                </ThemedText>
-                            </View>
-                        </View>
-                    )}
 
                     {/* Journal / transcription section:
                         - photo: always shown ("No journal entry for this moment..." fallback)
@@ -970,23 +949,6 @@ const styles = StyleSheet.create({
     detailsSection: {
         padding: 24,
         gap: 24,
-    },
-    topicChipRow: {
-        flexDirection: 'row',
-    },
-    topicChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 100,
-        borderWidth: 1,
-        backgroundColor: 'rgba(255,255,255,0.04)',
-    },
-    topicChipText: {
-        fontSize: 12,
-        fontWeight: '600',
     },
     captionSection: {
         gap: 8,

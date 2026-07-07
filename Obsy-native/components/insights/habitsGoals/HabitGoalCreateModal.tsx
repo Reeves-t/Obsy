@@ -11,7 +11,6 @@ import {
     Platform,
 } from 'react-native';
 import { HabitGoalOrb } from './HabitGoalOrb';
-import { useTopicStore } from '@/lib/topicStore';
 import type { HabitGoalFrequency, HabitGoalType, NewHabitGoal } from '@/lib/habitGoalStore';
 
 interface HabitGoalCreateModalProps {
@@ -19,12 +18,11 @@ interface HabitGoalCreateModalProps {
     defaultFrequency: HabitGoalFrequency;
     onClose: () => void;
     onSave: (input: NewHabitGoal) => void;
-    // Optional prefill — used when opening from an AI suggestion (e.g. the Topics
-    // Evolve page). When omitted, the modal opens blank as before.
+    // Optional prefill — used when opening from an AI suggestion.
+    // When omitted, the modal opens blank as before.
     initialType?: HabitGoalType;
     initialTitle?: string;
     initialNote?: string;
-    initialLinkedTopicId?: string;
 }
 
 // ── Small inline segmented control ───────────────────────────
@@ -63,14 +61,10 @@ export function HabitGoalCreateModal({
     initialType,
     initialTitle,
     initialNote,
-    initialLinkedTopicId,
 }: HabitGoalCreateModalProps) {
-    const topics = useTopicStore((s) => s.topics);
-
     const [type, setType] = useState<HabitGoalType>('habit');
     const [title, setTitle] = useState('');
     const [frequency, setFrequency] = useState<HabitGoalFrequency>(defaultFrequency);
-    const [linkedTopicId, setLinkedTopicId] = useState<string | undefined>(undefined);
     const [note, setNote] = useState('');
 
     // Reset fields whenever the sheet opens, seeding from any prefill props.
@@ -79,10 +73,9 @@ export function HabitGoalCreateModal({
             setType(initialType ?? 'habit');
             setTitle(initialTitle ?? '');
             setFrequency(defaultFrequency);
-            setLinkedTopicId(initialLinkedTopicId);
             setNote(initialNote ?? '');
         }
-    }, [visible, defaultFrequency, initialType, initialTitle, initialNote, initialLinkedTopicId]);
+    }, [visible, defaultFrequency, initialType, initialTitle, initialNote]);
 
     const canSave = title.trim().length > 0;
 
@@ -92,7 +85,6 @@ export function HabitGoalCreateModal({
             type,
             title: title.trim(),
             frequency,
-            linkedTopicId,
             note: note.trim() || undefined,
         });
     };
@@ -164,39 +156,6 @@ export function HabitGoalCreateModal({
                             value={frequency}
                             onChange={setFrequency}
                         />
-
-                        {/* Linked topic (optional) */}
-                        {topics.length > 0 && (
-                            <>
-                                <Text style={styles.fieldLabel}>LINKED TOPIC (OPTIONAL)</Text>
-                                <ScrollView
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={styles.chipRow}
-                                >
-                                    <Pressable
-                                        style={[styles.chip, linkedTopicId === undefined && styles.chipActive]}
-                                        onPress={() => setLinkedTopicId(undefined)}
-                                    >
-                                        <Text style={[styles.chipText, linkedTopicId === undefined && styles.chipTextActive]}>None</Text>
-                                    </Pressable>
-                                    {topics.map((t) => {
-                                        const active = linkedTopicId === t.id;
-                                        return (
-                                            <Pressable
-                                                key={t.id}
-                                                style={[styles.chip, active && styles.chipActive]}
-                                                onPress={() => setLinkedTopicId(active ? undefined : t.id)}
-                                            >
-                                                <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-                                                    {t.title}
-                                                </Text>
-                                            </Pressable>
-                                        );
-                                    })}
-                                </ScrollView>
-                            </>
-                        )}
 
                         {/* Note (optional) */}
                         <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
@@ -333,33 +292,6 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.5)',
     },
     segmentTextActive: {
-        color: '#fff',
-        fontWeight: '600',
-    },
-    // Chips
-    chipRow: {
-        gap: 8,
-        paddingVertical: 2,
-        paddingRight: 8,
-    },
-    chip: {
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        maxWidth: 160,
-    },
-    chipActive: {
-        backgroundColor: 'rgba(255,255,255,0.16)',
-        borderColor: 'rgba(255,255,255,0.28)',
-    },
-    chipText: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.6)',
-    },
-    chipTextActive: {
         color: '#fff',
         fontWeight: '600',
     },

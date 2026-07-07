@@ -3,7 +3,6 @@ export interface TranslationDictionary {
     home: string;
     gallery: string;
     insights: string;
-    topics: string;
     settings: string;
   };
   common: {
@@ -41,7 +40,6 @@ export const en: TranslationDictionary = {
     home: 'Home',
     gallery: 'Entries',
     insights: 'Insights',
-    topics: 'Topics',
     settings: 'Settings',
   },
   common: {
@@ -78,7 +76,6 @@ export type TranslationKey =
   | 'navigation.home'
   | 'navigation.gallery'
   | 'navigation.insights'
-  | 'navigation.topics'
   | 'navigation.settings'
   | 'common.refresh'
   | 'common.cancel'

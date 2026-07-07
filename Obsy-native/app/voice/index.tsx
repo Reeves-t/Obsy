@@ -11,7 +11,7 @@ import {
     useWindowDimensions,
     View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,7 +28,6 @@ import { decode } from 'base64-arraybuffer';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ThemedText } from '@/components/ui/ThemedText';
 import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
-import { TopicSelectionField, topicTagForId } from '@/components/capture/TopicSelectionField';
 import Colors from '@/constants/Colors';
 import { MOODS } from '@/constants/Moods';
 import { useAuth } from '@/contexts/AuthContext';
@@ -267,8 +266,6 @@ function PlaybackStrip({
 
 export default function VoiceNoteScreen() {
     const router = useRouter();
-    const { topicId, topicTitle } = useLocalSearchParams<{ topicId?: string; topicTitle?: string }>();
-    const isTopicEntry = !!topicId;
     const { createVoiceEntry } = useCaptureStore();
     const { user } = useAuth();
     const { getMoodById } = useCustomMoodStore();
@@ -280,7 +277,6 @@ export default function VoiceNoteScreen() {
     const [moodId, setMoodId] = useState<string | null>(null);
     const [moodName, setMoodName] = useState('');
     const [moodModalVisible, setMoodModalVisible] = useState(false);
-    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(topicId ?? null);
 
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
@@ -616,8 +612,7 @@ export default function VoiceNoteScreen() {
 
         setIsSaving(true);
         try {
-            const topicTag = topicTagForId(selectedTopicId);
-            const tags = topicTag ? [topicTag] : [];
+            const tags: string[] = [];
             const insights = includeInInsights && !aiFreeMode;
             await createVoiceEntry(
                 user,
@@ -683,13 +678,6 @@ export default function VoiceNoteScreen() {
                         <ThemedText style={[styles.headerTitle, { color: onBackgroundPrimary }]}>
                             Voice Note
                         </ThemedText>
-                        {isTopicEntry && (
-                            <View style={styles.topicBadge}>
-                                <ThemedText style={styles.topicBadgeText} numberOfLines={1}>
-                                    {topicTitle}
-                                </ThemedText>
-                            </View>
-                        )}
                     </View>
 
                     {step === 'review' ? (
@@ -794,23 +782,21 @@ export default function VoiceNoteScreen() {
 
                         <View style={[styles.recordingBottomDock, { borderTopColor: surfaceBorder }]}>
                             <MoodTrigger />
-                            {!isTopicEntry && (
-                                <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
-                                    <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
-                                        Include in insights
-                                    </ThemedText>
-                                    <Switch
-                                        value={includeInInsights && !aiFreeMode}
-                                        disabled={aiFreeMode}
-                                        onValueChange={setIncludeInInsights}
-                                        trackColor={{
-                                            false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
-                                            true: Colors.obsy.silver,
-                                        }}
-                                        thumbColor="#fff"
-                                    />
-                                </View>
-                            )}
+                            <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
+                                <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
+                                    Include in insights
+                                </ThemedText>
+                                <Switch
+                                    value={includeInInsights && !aiFreeMode}
+                                    disabled={aiFreeMode}
+                                    onValueChange={setIncludeInInsights}
+                                    trackColor={{
+                                        false: isLight ? 'rgba(20,20,22,0.18)' : 'rgba(255,255,255,0.2)',
+                                        true: Colors.obsy.silver,
+                                    }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
                         </View>
                     </View>
                 ) : (
@@ -870,12 +856,6 @@ export default function VoiceNoteScreen() {
                             </View>
 
                             <MoodTrigger />
-
-                            <TopicSelectionField
-                                selectedTopicId={selectedTopicId}
-                                onTopicChange={setSelectedTopicId}
-                                helper="Optional"
-                            />
 
                             <View style={[styles.includeRow, aiFreeMode && styles.includeRowDisabled]}>
                                 <ThemedText style={[styles.includeLabel, { color: onBackgroundSecondary }]}>
@@ -962,20 +942,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontSize: 17,
         fontWeight: '600',
-    },
-    topicBadge: {
-        marginTop: 2,
-        paddingHorizontal: 10,
-        paddingVertical: 2,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        maxWidth: 200,
-    },
-    topicBadgeText: {
-        fontSize: 11,
-        fontWeight: '500',
-        color: 'rgba(255,255,255,0.55)',
-        letterSpacing: 0.2,
     },
     reRecordHeaderText: {
         fontSize: 14,

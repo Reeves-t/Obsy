@@ -8,7 +8,6 @@ import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useI18n } from '@/i18n/config';
-import { TopicsTabIcon } from '@/components/topics/TopicsTabIcon';
 
 function ActiveHalo() {
   return (
@@ -114,18 +113,6 @@ export default function TabLayout() {
           title: t('navigation.insights'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? 'stats-chart' : 'stats-chart-outline'} color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="topics"
-        options={{
-          title: t('navigation.topics'),
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconFrame}>
-              {focused && <ActiveHalo />}
-              <TopicsTabIcon color={color} focused={focused} />
-            </View>
           ),
         }}
       />
