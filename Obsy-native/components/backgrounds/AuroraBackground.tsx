@@ -39,7 +39,7 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
 <style>
   html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: transparent; }
 
-  :root { --aurora-bg: ${initialGradient}; --orb-a: ${initialOrbA}; --orb-b: ${initialOrbB}; --breath: 0; --breath-color: rgba(150,170,255,0.85); }
+  :root { --aurora-bg: ${initialGradient}; --orb-a: ${initialOrbA}; --orb-b: ${initialOrbB}; --breath: 0; --breath-scale: 1; --breath-color: rgba(150,170,255,0.85); }
 
   /* Stage / base gradient (color is swappable via --aurora-bg) */
   .bg-stage {
@@ -131,23 +131,32 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
     filter: blur(80px);
   }
 
-  /* Breath — a soft, mood-tinted light that rises from the bottom and gently
-     blooms when an insight is refreshing, then settles back. Lives in the same
-     screen-blend stack as the orbs so it reads as the Aurora itself breathing.
-     Driven by --breath (opacity) / --breath-color via window.auroraBreathe. */
-  .bg-stage .bg-breath {
-    position: absolute;
-    left: -10%; right: -10%; bottom: -12%;
-    height: 78%;
+  /* Breath — mood-tinted echoes of the four aurora orbs. They mirror the orb
+     geometry/blur exactly, so when an insight refreshes the Aurora's own clouds
+     light up in the mood color and gently swell (breathe out), then fade + settle
+     back (breathe in). Driven by --breath (opacity), --breath-scale (swell) and
+     --breath-color via window.auroraBreathe — no reload, orbs keep momentum. */
+  .bg-stage .bg-breath-orbs {
+    position: absolute; inset: 0;
     z-index: 1;
     pointer-events: none;
-    mix-blend-mode: screen;
-    background: radial-gradient(120% 82% at 50% 120%,
-      var(--breath-color) 0%, transparent 68%);
     opacity: var(--breath);
-    transition: opacity 1300ms ease-in-out;
-    will-change: opacity;
+    transform: scale(var(--breath-scale));
+    transform-origin: 50% 64%;
+    transition: opacity 1300ms ease-in-out, transform 1500ms ease-in-out;
+    will-change: opacity, transform;
   }
+  .bg-breath-orbs .morb {
+    position: absolute;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+    background: radial-gradient(closest-side, var(--breath-color), transparent 70%);
+  }
+  /* Geometry/blur mirror o1–o4; bottom orbs weighted a touch brighter. */
+  .bg-breath-orbs .m1 { top: -10%; left: -10%; width: 80%; height: 80%; filter: blur(90px); opacity: .85; }
+  .bg-breath-orbs .m2 { top: 20%; right: -20%; width: 90%; height: 90%; filter: blur(110px); opacity: .80; }
+  .bg-breath-orbs .m3 { bottom: -25%; left: 10%; width: 70%; height: 70%; filter: blur(100px); opacity: .95; }
+  .bg-breath-orbs .m4 { bottom: 0%; right: 10%; width: 55%; height: 55%; filter: blur(80px); opacity: .90; }
 </style>
 </head>
 <body>
@@ -158,7 +167,12 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
       <div class="orb o3"><div class="shift"><div class="streak s3"></div></div></div>
       <div class="orb o4"><div class="shift"><div class="streak s4"></div></div></div>
     </div>
-    <div class="bg-breath"></div>
+    <div class="bg-breath-orbs">
+      <div class="morb m1"></div>
+      <div class="morb m2"></div>
+      <div class="morb m3"></div>
+      <div class="morb m4"></div>
+    </div>
   </div>
   <script>
   (function(){
@@ -205,13 +219,15 @@ const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOr
       if (rafId === null) rafId = requestAnimationFrame(frame);
     };
 
-    // Breath — fade a mood-tinted bottom glow in (on=true) while an insight is
-    // refreshing, then back out (on=false). The CSS opacity transition does the
-    // easing, so this is just a setProperty toggle. Optionally retint the glow.
+    // Breath — light the mood-tinted orb echoes up and swell them (on=true) while
+    // an insight is refreshing, then fade + settle back (on=false). The CSS
+    // opacity/transform transitions do the easing, so this is just a setProperty
+    // toggle. Optionally retint the glow with the dominant mood color.
     window.auroraBreathe = function(on, color){
       var root = document.documentElement;
       if (color) root.style.setProperty('--breath-color', color);
-      root.style.setProperty('--breath', on ? '0.5' : '0');
+      root.style.setProperty('--breath', on ? '0.6' : '0');
+      root.style.setProperty('--breath-scale', on ? '1.07' : '1');
     };
   })();
   </script>
