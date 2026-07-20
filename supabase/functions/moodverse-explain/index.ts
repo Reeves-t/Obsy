@@ -103,7 +103,7 @@ OPENING MESSAGE (when user taps "Talk About It"):
 - Do NOT try to cover everything you see in the data. Save it. You'll have the full conversation to bring up other patterns.
 - Do NOT restate the mood and date as your opener. The user can see that on screen.
 - Think of it like walking up to a friend and saying one interesting thing, not reading them a research paper.
-- GOOD opener (~40-60 words): "You've only logged Inspired twice this whole month, and both times were in the evening after a stretch of calmer moods. It's not your default — Calm and Relaxed are. What was different about tonight that flipped the switch?"
+- GOOD opener (~40-60 words): "You've only logged Inspired twice this whole month, and both times were in the evening after a stretch of calmer moods. It's not your default, Calm and Relaxed are. What was different about tonight that flipped the switch?"
 - BAD opener (~150+ words): multiple paragraphs analyzing every detail before the user even responds. Don't do this.
 
 FOLLOW-UP CONVERSATION:
@@ -116,6 +116,7 @@ FOLLOW-UP CONVERSATION:
 HARD RULES:
 - No emojis.
 - No markdown formatting (no bold, no bullets, no headers).
+- Never use dashes of any kind (em dash, en dash, or hyphens as punctuation). Use commas or periods instead.
 - No therapy language ("I hear you," "That must be hard," "It's okay to feel...").
 - No generic motivational statements.
 - Never invent data. If you don't have info about something, say so.
@@ -257,7 +258,11 @@ function extractHighlights(raw: string): { text: string; highlightedMoods: strin
     }
   }
 
-  const text = raw.replace(/\n?HIGHLIGHTS:\s*\[.*?\]/i, "").trim();
+  const text = raw
+    .replace(/\n?HIGHLIGHTS:\s*\[.*?\]/i, "")
+    .replace(/[–—]/g, ",")   // En dash / em dash → comma
+    .replace(/---?/g, ",")             // ASCII double/triple hyphens used as dashes → comma
+    .trim();
   return { text, highlightedMoods };
 }
 

@@ -11,6 +11,7 @@ import { requestLinkDigest } from "@/services/linkDigestClient";
 import { getEntryImageUrls } from "@/services/storage";
 import { PRIVACY_FLAGS } from "@/lib/privacyFlags";
 import { Capture } from "@/types/capture";
+import type { UnpackPayload } from "@/lib/unpack/types";
 import { getMoodLabel } from "@/lib/moodUtils";
 import { moodCache } from "@/lib/moodCache";
 import type { MoodGradient } from "@/lib/moods";
@@ -25,6 +26,52 @@ import { track } from "@/lib/analytics";
 import type { CaptureType } from "@/lib/analytics/events";
 
 type SubscriptionTier = 'free' | 'plus'; // OBS-19: free|plus only
+
+/**
+ * Copy a local image into the app's captures dir and, for cloud-backup tiers,
+ * upload it to the private `entries` bucket. Returns the local uri to display
+ * and the storage path to persist. Mirrors the persistence half of
+ * createCapture; used by Unpack photo entries which bypass the capture flow.
+ */
+async function persistLocalCaptureImage(
+    imageUri: string,
+    tier: SubscriptionTier,
+    user: User | null
+): Promise<{ localUri: string; storagePath: string }> {
+    const limits = getTierLimits(tier);
+    const CAPTURE_DIR = FileSystem.documentDirectory + 'captures';
+    await FileSystem.makeDirectoryAsync(CAPTURE_DIR, { intermediates: true }).catch((error: any) => {
+        if (error?.code !== 'ERR_FILESYSTEM_PATH_ALREADY_EXISTS') throw error;
+    });
+
+    const id = Crypto.randomUUID();
+    const uriFilename = imageUri.split('/').pop() || '';
+    const sanitizedFilename = uriFilename.split('?')[0].split('#')[0];
+    const rawExt = sanitizedFilename.includes('.') ? sanitizedFilename.split('.').pop() : null;
+    const fileExt = rawExt ? rawExt.toLowerCase() : 'jpg';
+    const filename = `${id}.${fileExt}`;
+    const destUri = CAPTURE_DIR + '/' + filename;
+
+    await FileSystem.copyAsync({ from: imageUri, to: destUri });
+
+    let finalStoragePath = filename;
+    const canCloudBackup = limits.cloud_backup && user && PRIVACY_FLAGS.ALLOW_CLOUD_PHOTO_UPLOAD;
+    if (canCloudBackup) {
+        try {
+            const base64 = await FileSystem.readAsStringAsync(destUri, { encoding: FileSystem.EncodingType.Base64 });
+            const storagePath = `${user.id}/${filename}`;
+            const { error: uploadError } = await supabase.storage
+                .from('entries')
+                .upload(storagePath, decode(base64), { contentType: `image/${fileExt}`, upsert: true });
+            if (uploadError) throw uploadError;
+            finalStoragePath = storagePath;
+        } catch (err) {
+            console.warn('[captureStore] Unpack photo cloud upload failed, using local-only:', err);
+        }
+    }
+
+    return { localUri: destUri, storagePath: finalStoragePath };
+}
 
 type CaptureState = {
     captures: Capture[];
@@ -41,7 +88,7 @@ type CaptureState = {
             challengeId?: string,
             challengeTemplateId?: string,
             obsy_note?: string | null,
-            source_type?: 'capture' | 'journal' | 'voice' | 'shared_link',
+            source_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'unpack',
             audio_url?: string | null,
             shared_link_url?: string | null,
             shared_link_platform?: string | null,
@@ -49,6 +96,7 @@ type CaptureState = {
             shared_link_thumbnail_url?: string | null,
             shared_link_digest?: string | null,
             shared_link_media_type?: string | null,
+            unpack_payload?: UnpackPayload | null,
         }
     ) => Promise<string | null>;
     createJournalEntry: (
@@ -77,6 +125,33 @@ type CaptureState = {
         title: string | null,
         thumbnailUrl: string | null,
         note?: string | null,
+        includeInInsights?: boolean
+    ) => Promise<string | null>;
+    /**
+     * Persist a confirmed Unpack reflection as a new entry. The polished
+     * reflection text is written to both `note` and `ai_summary` so insights read
+     * it with no changes; the full trail (questions, answers, themes, signals)
+     * lives in `unpack_payload`. Original media columns are mirrored so the entry
+     * renders richly in the grid/detail views.
+     */
+    createUnpackEntry: (
+        user: User | null,
+        moodId: string,
+        moodName: string,
+        reflectionText: string,
+        payload: UnpackPayload,
+        media?: {
+            /** Local URI of the source photo; persisted (copied + optional cloud) on save. */
+            imageLocalUri?: string | null;
+            tier?: SubscriptionTier;
+            audioUrl?: string | null;
+            sharedLinkUrl?: string | null;
+            sharedLinkPlatform?: string | null;
+            sharedLinkTitle?: string | null;
+            sharedLinkThumbnailUrl?: string | null;
+            sharedLinkDigest?: string | null;
+            sharedLinkMediaType?: string | null;
+        },
         includeInInsights?: boolean
     ) => Promise<string | null>;
     /** Patch a shared-link capture in local state once its background digest resolves. */
@@ -185,7 +260,7 @@ export const useCaptureStore = create<CaptureState>()(
                                 includeInInsights: entry.include_in_insights ?? true,
                                 obsy_note: entry.ai_summary || null,
                                 usePhotoForInsight: entry.use_photo_for_insight ?? false,
-                                source_type: (entry.source_type as 'capture' | 'journal' | 'voice' | 'shared_link') || 'capture',
+                                source_type: (entry.source_type as Capture['source_type']) || 'capture',
                                 audio_url: entry.audio_url || null,
                                 orb_effect: (entry.orb_effect as Capture['orb_effect']) || null,
                                 shared_link_url: entry.shared_link_url || null,
@@ -194,6 +269,7 @@ export const useCaptureStore = create<CaptureState>()(
                                 shared_link_thumbnail_url: entry.shared_link_thumbnail_url || null,
                                 shared_link_digest: entry.shared_link_digest || null,
                                 shared_link_media_type: entry.shared_link_media_type || null,
+                                unpack_payload: (entry.unpack_payload as Capture['unpack_payload']) || null,
                             };
                         });
                         set({ captures: mappedCaptures });
@@ -310,6 +386,7 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_thumbnail_url: data.shared_link_thumbnail_url || null,
                         shared_link_digest: data.shared_link_digest || null,
                         shared_link_media_type: data.shared_link_media_type || null,
+                        unpack_payload: data.unpack_payload ?? null,
                     };
 
                     const { data: inserted, error } = await supabase
@@ -335,7 +412,7 @@ export const useCaptureStore = create<CaptureState>()(
                         challengeTemplateId: data.challengeTemplateId,
                         obsy_note: inserted.ai_summary || null,
                         usePhotoForInsight: inserted.use_photo_for_insight ?? false,
-                        source_type: (inserted.source_type as 'capture' | 'journal' | 'voice' | 'shared_link') || 'capture',
+                        source_type: (inserted.source_type as Capture['source_type']) || 'capture',
                         audio_url: inserted.audio_url || null,
                         orb_effect: (inserted.orb_effect as Capture['orb_effect']) || orbEffect,
                         shared_link_url: inserted.shared_link_url || null,
@@ -344,6 +421,7 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_thumbnail_url: inserted.shared_link_thumbnail_url || null,
                         shared_link_digest: inserted.shared_link_digest || null,
                         shared_link_media_type: inserted.shared_link_media_type || null,
+                        unpack_payload: (inserted.unpack_payload as Capture['unpack_payload']) ?? data.unpack_payload ?? null,
                     };
 
                     set((state) => ({ captures: [newCapture, ...state.captures] }));
@@ -386,10 +464,11 @@ export const useCaptureStore = create<CaptureState>()(
                 // Launch-funnel analytics (no PII — type + first-capture flag only).
                 if (newCaptureId) {
                     const captureType: CaptureType =
-                        data.source_type === 'voice' ? 'voice'
-                            : data.source_type === 'journal' ? 'text'
-                                : data.source_type === 'shared_link' ? 'link'
-                                    : 'photo';
+                        data.source_type === 'unpack' ? 'unpack'
+                            : data.source_type === 'voice' ? 'voice'
+                                : data.source_type === 'journal' ? 'text'
+                                    : data.source_type === 'shared_link' ? 'link'
+                                        : 'photo';
                     track('capture_created', { type: captureType, is_first: isFirstCapture });
                     track('mood_logged');
                 }
@@ -645,6 +724,52 @@ export const useCaptureStore = create<CaptureState>()(
                 }
 
                 return newId;
+            },
+
+            createUnpackEntry: async (user, moodId, moodName, reflectionText, payload, media = {}, includeInInsights = true) => {
+                if (!moodCache.isInitialized() || moodCache.isStale()) {
+                    await moodCache.fetchAllMoods(user?.id ?? null);
+                }
+
+                // Persist the source photo (copy + optional cloud) so it renders after reload.
+                let imageUrl = '';
+                let imagePath: string | null = null;
+                if (media.imageLocalUri) {
+                    try {
+                        const persisted = await persistLocalCaptureImage(
+                            media.imageLocalUri,
+                            media.tier ?? 'free',
+                            user
+                        );
+                        imageUrl = persisted.localUri;
+                        imagePath = persisted.storagePath;
+                    } catch (err) {
+                        console.warn('[captureStore] Failed to persist Unpack photo:', err);
+                    }
+                }
+
+                return get().addCapture(user, {
+                    mood_id: moodId,
+                    mood_name_snapshot: moodName,
+                    // Reflection text lives in `note` (journal read path) and `ai_summary`
+                    // (obsy_note / insights read path) so Unpack entries feed insights for free.
+                    note: reflectionText,
+                    obsy_note: reflectionText,
+                    image_url: imageUrl || media.sharedLinkThumbnailUrl || '',
+                    image_path: imagePath,
+                    tags: payload.themes ?? [],
+                    source_type: 'unpack',
+                    audio_url: media.audioUrl ?? null,
+                    usePhotoForInsight: false,
+                    includeInInsights,
+                    unpack_payload: payload,
+                    shared_link_url: media.sharedLinkUrl ?? null,
+                    shared_link_platform: media.sharedLinkPlatform ?? null,
+                    shared_link_title: media.sharedLinkTitle ?? null,
+                    shared_link_thumbnail_url: media.sharedLinkThumbnailUrl ?? null,
+                    shared_link_digest: media.sharedLinkDigest ?? null,
+                    shared_link_media_type: media.sharedLinkMediaType ?? null,
+                });
             },
 
             applySharedLinkDigest: (id, fields) => {

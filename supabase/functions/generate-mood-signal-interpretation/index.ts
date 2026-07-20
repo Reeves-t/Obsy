@@ -201,7 +201,8 @@ Rules:
 - Do not imply access to notes, photos, journal text, locations, private context, or causes.
 - Do not diagnose, advise clinically, or make health claims.
 - Keep it to 2 short sentences, under 70 words total.
-- Plain text only. No markdown, bullets, emojis, or headings.`;
+- Plain text only. No markdown, bullets, emojis, or headings.
+- Never use dashes of any kind (em dash, en dash, or hyphens as punctuation). Use commas or periods instead.`;
 
 const TONE_STYLES: Record<string, string> = {
   neutral: "Use a plain, observant, and balanced tone. Avoid emotional push or strong interpretations. Keep sentences straightforward and descriptive.",
@@ -396,7 +397,12 @@ serve(async (req) => {
     });
   }
 
-  const text = ai.text.replace(/\s+/g, " ").trim().slice(0, 500);
+  const text = ai.text
+    .replace(/[–—]/g, ",")   // En dash / em dash → comma
+    .replace(/---?/g, ",")             // ASCII double/triple hyphens used as dashes → comma
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
   try {
     await supabase.rpc("increment_usage", { feature_name: featureName });
   } catch (_e) {

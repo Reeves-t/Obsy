@@ -13,6 +13,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS, useDerivedValue } from 'react-native-reanimated';
 import { useMoodResolver } from '@/hooks/useMoodResolver';
 import { classifyEntry } from '@/components/entries/EntryGridTile';
+import { UnpackTrail } from '@/components/unpack/UnpackTrail';
 import { StaticLinkPreview } from '@/components/entries/StaticLinkPreview';
 import { PlatformEmbed, isEmbeddablePlatform } from '@/components/entries/PlatformEmbed';
 import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
@@ -125,6 +126,14 @@ export default function CaptureDetailScreen() {
                 {/* ── Details section: shared across types ────────────────── */}
                 <View style={styles.detailsSection}>
 
+                    {/* Guided reflection badge for Unpack entries */}
+                    {capture.source_type === 'unpack' && (
+                        <View style={styles.guidedBadge}>
+                            <Ionicons name="sparkles-outline" size={13} color={Colors.obsy.silver} />
+                            <ThemedText style={styles.guidedBadgeText}>Guided reflection</ThemedText>
+                        </View>
+                    )}
+
                     {/* Journal / transcription section:
                         - photo: always shown ("No journal entry for this moment..." fallback)
                         - voice: shown as TRANSCRIPTION when note exists
@@ -156,6 +165,11 @@ export default function CaptureDetailScreen() {
                                 <ThemedText style={styles.journalText}>{capture.note}</ThemedText>
                             </View>
                         </View>
+                    )}
+
+                    {/* Unpack trail (original input, questions, answers, source) */}
+                    {capture.source_type === 'unpack' && capture.unpack_payload && (
+                        <UnpackTrail payload={capture.unpack_payload} />
                     )}
 
                     {/* Footer date */}
@@ -254,9 +268,11 @@ function JournalHero({ capture, moodDisplay, onBack, onDelete, isDeleting }: {
 }) {
     const tint = moodDisplay?.color ?? '#444';
     const note = (capture.note ?? '').trim();
+    // Long reflections (e.g. unpack) read better at body size than display size
+    const long = note.length > 400;
 
     return (
-        <View style={[styles.heroSection, { backgroundColor: '#0A0A0A' }]}>
+        <View style={[styles.heroSection, styles.journalHeroSection, { backgroundColor: '#0A0A0A' }]}>
             <LinearGradient
                 colors={[`${tint}55`, '#0A0A0A']}
                 start={{ x: 1, y: 0 }}
@@ -265,7 +281,9 @@ function JournalHero({ capture, moodDisplay, onBack, onDelete, isDeleting }: {
             />
             <View style={styles.journalHeroContent}>
                 <ThemedText style={[styles.journalHeroQuote, { color: `${tint}` }]}>"</ThemedText>
-                <ThemedText style={styles.journalHeroText}>{note}</ThemedText>
+                <ThemedText style={[styles.journalHeroText, long && { fontSize: 17, lineHeight: 26 }]}>
+                    {note}
+                </ThemedText>
             </View>
             <HeaderButtons onBack={onBack} onDelete={onDelete} isDeleting={isDeleting} />
             <HeroOverlayInfo capture={capture} moodDisplay={moodDisplay} />
@@ -781,6 +799,12 @@ const styles = StyleSheet.create({
     },
 
     // ── Journal hero ──
+    // Grows with long notes (unpack reflections) instead of clipping; the
+    // minHeight floor matches the old 3/4 aspect so short notes look the same.
+    journalHeroSection: {
+        aspectRatio: undefined,
+        minHeight: Math.round(width * 4 / 3),
+    },
     journalHeroContent: {
         flex: 1,
         paddingHorizontal: 32,
@@ -949,6 +973,23 @@ const styles = StyleSheet.create({
     detailsSection: {
         padding: 24,
         gap: 24,
+    },
+    guidedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderColor: 'rgba(65,202,236,0.4)',
+        backgroundColor: 'rgba(65,202,236,0.1)',
+        borderRadius: 100,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    guidedBadgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: Colors.obsy.silver,
     },
     captionSection: {
         gap: 8,

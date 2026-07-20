@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, LayoutAnimation, Platform, UIManager, InteractionManager, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
@@ -33,7 +33,7 @@ import { getProfile, updateProfile } from '@/services/profile';
 import { useAiFreeMode } from '@/hooks/useAiFreeMode';
 import { archiveInsight } from '@/services/archive';
 import { ToneSelector } from '@/components/insights/ToneSelector';
-import { MoodBreakGame } from '@/components/insights/MoodBreakGame';
+import { MoodBreakGame } from '@/components/insights/moodbreak/MoodBreakGame';
 import { MoodFlow } from '@/components/insights/MoodFlow';
 import { WeekdayMoodShape } from '@/components/insights/WeekdayMoodShape';
 import { PatternKeywords } from '@/components/insights/patterns/PatternKeywords';
@@ -71,12 +71,17 @@ import { generateMonthPhrase } from '@/lib/monthPhraseGenerator';
 
 // 1. Section Header Divider (Primary) - "New chapter" feel
 // Thin line ABOVE the section title with vertical breathing room
-const SectionHeader: React.FC<{ title: string }> = ({ title }) => {
+const SectionHeader: React.FC<{ title: string; description?: string }> = ({ title, description }) => {
     const { colors, isLight } = useObsyTheme();
     return (
         <View style={styles.sectionHeaderContainer}>
             <View style={[styles.sectionDividerLine, { backgroundColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' }]} />
             <ThemedText style={[styles.sectionTitle, { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.75)' }]}>{title}</ThemedText>
+            {description ? (
+                <ThemedText style={[styles.sectionDescription, { marginTop: 10, marginBottom: 0, color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)' }]}>
+                    {description}
+                </ThemedText>
+            ) : null}
         </View>
     );
 };
@@ -172,6 +177,27 @@ export default function InsightsScreen() {
     const [isArchiveFullModalVisible, setIsArchiveFullModalVisible] = useState(false);
     const [isExportModalVisible, setIsExportModalVisible] = useState(false);
     const ARCHIVE_LIMIT = 150;
+
+    // MoodBreak visibility — the game auto-pauses when it scrolls out of the
+    // viewport. All tracking lives in refs; state flips only when visibility
+    // actually changes, so scrolling causes zero extra re-renders.
+    const scrollYRef = useRef(0);
+    const viewportHRef = useRef(0);
+    const gameFrameRef = useRef({ y: 0, h: 0 });
+    const gameVisibleRef = useRef(false);
+    const [gameVisible, setGameVisible] = useState(false);
+
+    const recomputeGameVisibility = useCallback(() => {
+        const { y, h } = gameFrameRef.current;
+        const top = scrollYRef.current;
+        const bottom = top + viewportHRef.current;
+        // Visible when at least ~40px of the game intersects the viewport
+        const visible = h > 0 && y + 40 < bottom && y + h - 40 > top;
+        if (visible !== gameVisibleRef.current) {
+            gameVisibleRef.current = visible;
+            setGameVisible(visible);
+        }
+    }, []);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => {
@@ -327,6 +353,7 @@ export default function InsightsScreen() {
             settings: {
                 tone: resolvedTone,
                 customTonePrompt: profile.selected_custom_tone_id ? resolvedPrompt : undefined,
+                profileContext: profile.profile_context?.trim() || undefined,
                 autoDailyInsights: profile.ai_auto_daily_insights,
                 useJournalInInsights: profile.ai_use_journal_in_insights,
             }
@@ -345,6 +372,7 @@ export default function InsightsScreen() {
                 config.profile.id,
                 config.settings.tone,
                 config.settings.customTonePrompt,
+                config.settings.profileContext,
                 captures
             );
         } catch (error) {
@@ -362,6 +390,7 @@ export default function InsightsScreen() {
                 config.profile.id,
                 config.settings.tone,
                 config.settings.customTonePrompt,
+                config.settings.profileContext,
                 captures,
                 undefined
             );
@@ -384,6 +413,7 @@ export default function InsightsScreen() {
                 config.profile.id,
                 config.settings.tone,
                 config.settings.customTonePrompt,
+                config.settings.profileContext,
                 captures,
                 currentMonth,
                 force
@@ -695,7 +725,18 @@ export default function InsightsScreen() {
                 </View>
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                scrollEventThrottle={32}
+                onScroll={e => {
+                    scrollYRef.current = e.nativeEvent.contentOffset.y;
+                    recomputeGameVisibility();
+                }}
+                onLayout={e => {
+                    viewportHRef.current = e.nativeEvent.layout.height;
+                    recomputeGameVisibility();
+                }}
+            >
 
                 {/* Tone Picker — sits below the header so a long tone name has room
                     to grow without pushing the Day/Week/Month toggle off-screen. */}
@@ -755,7 +796,7 @@ export default function InsightsScreen() {
 
                             {/* MOOD SIGNAL - Weekly pattern analytics */}
                             <SoftFadeDivider />
-                            <SectionHeader title="MOOD SIGNAL" />
+                            <SectionHeader title="MOOD SIGNAL" description="Your strongest moods this week and how often each one appeared." />
                             <MoodSignal captures={captures} toneId={currentTone} flat />
 
                             {/* HABITS & GOALS - Floating weekly awareness orbs */}
@@ -763,16 +804,29 @@ export default function InsightsScreen() {
 
                             {/* MOOD CONNECTIONS - How moods lead into one another */}
                             <SoftFadeDivider />
-                            <SectionHeader title="MOOD CONNECTIONS" />
+                            <SectionHeader title="MOOD CONNECTIONS" description="How one mood tends to lead into another across your week." />
                             <MoodConnectionDial captures={captures} toneId={currentTone} flat />
 
                             {/* MOOD BREAK - Mood breakdown game, anchored at the bottom */}
                             <SoftFadeDivider />
-                            <SectionHeader title="MOOD BREAK" />
-                            <ThemedText style={{ fontSize: 13, color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.35)', marginBottom: 10, marginTop: -4 }}>
-                                Your week in moods.
-                            </ThemedText>
-                            <MoodBreakGame captures={captures} tone={currentTone} isLight={isLight} onRefresh={() => fetchCaptures(user)} />
+                            <SectionHeader title="MOOD BREAK" description="Your week in moods." />
+                            <View
+                                onLayout={e => {
+                                    gameFrameRef.current = {
+                                        y: e.nativeEvent.layout.y,
+                                        h: e.nativeEvent.layout.height,
+                                    };
+                                    recomputeGameVisibility();
+                                }}
+                            >
+                                <MoodBreakGame
+                                    captures={captures}
+                                    tone={currentTone}
+                                    isLight={isLight}
+                                    onRefresh={() => fetchCaptures(user)}
+                                    isVisible={gameVisible}
+                                />
+                            </View>
                         </>
                     )
                 ) : (
@@ -798,16 +852,16 @@ export default function InsightsScreen() {
                             <>
                                 {/* DAILY FLOW - Mood Flow as a timeline trace */}
                                 <SoftFadeDivider />
-                                <SectionHeader title="DAILY FLOW" />
+                                <SectionHeader title="DAILY FLOW" description="How your mood moved through today, traced from your captures." />
                                 <MoodFlow moodFlow={aiFreeMode ? null : todayMoodFlow} loading={!aiFreeMode && dailyStatus === 'loading'} flat />
 
                                 {/* WEEKDAY SHAPE - All-time mood distribution for each weekday */}
                                 <SoftFadeDivider />
-                                <SectionHeader title="WEEKDAY MOOD SHAPE" />
+                                <SectionHeader title="WEEKDAY MOOD SHAPE" description="How each weekday tends to feel for you, across everything you've captured." />
                                 <WeekdayMoodShape captures={captures} toneId={currentTone} flat />
 
                                 {/* STATS - Key metrics in 2x2 grid */}
-                                <SectionHeader title="STATS" />
+                                <SectionHeader title="STATS" description="Your streaks and capture totals at a glance." />
                                 <View style={styles.statsGrid}>
                                     {/* Best Streak */}
                                     <View style={[styles.statGridItem, { backgroundColor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', borderColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]}>
@@ -881,15 +935,12 @@ export default function InsightsScreen() {
                                 <HabitGoalOrbSection frequency="daily" />
 
                                 {/* MOOD BY TIME - Time-of-day mood patterns */}
-                                <SectionHeader title="MOOD BY TIME" />
-                                <ThemedText style={[styles.sectionDescription, { color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)' }]}>
-                                    Your go-to mood for each part of the day, drawn from everything you've captured. Swipe through the cards to see how your mood shifts from sunrise to night.
-                                </ThemedText>
+                                <SectionHeader title="MOOD BY TIME" description="Your go-to mood for each part of the day, drawn from everything you've captured. Swipe through the cards to see how your mood shifts from sunrise to night." />
                                 <MoodByTimeStack timeBuckets={timeBuckets} isLight={isLight} />
 
                                 {/* PATTERN KEYWORDS - AI-driven emotional themes */}
                                 <SoftFadeDivider />
-                                <SectionHeader title="PATTERN KEYWORDS" />
+                                <SectionHeader title="PATTERN KEYWORDS" description="Recurring themes the AI notices across your captures, grouped by category." />
                                 <PatternKeywords />
                             </>
                         )}

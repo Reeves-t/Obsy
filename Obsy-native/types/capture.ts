@@ -1,4 +1,5 @@
 import type { OrbEffect } from '@/lib/moods/orbEffects';
+import type { UnpackPayload } from '@/lib/unpack/types';
 
 /**
  * Represents a captured moment/entry in the app.
@@ -60,8 +61,8 @@ export type Capture = {
     /** Whether to use the photo for AI insight generation */
     usePhotoForInsight: boolean;
 
-    /** How the entry was created: photo capture, journal-only, voice note, or shared link */
-    source_type?: 'capture' | 'journal' | 'voice' | 'shared_link';
+    /** How the entry was created: photo capture, journal-only, voice note, shared link, or guided Unpack reflection */
+    source_type?: 'capture' | 'journal' | 'voice' | 'shared_link' | 'unpack';
 
     /** Supabase Storage URL of the voice recording (voice entries only) */
     audio_url?: string | null;
@@ -86,6 +87,12 @@ export type Capture = {
 
     /** Persisted randomized orb surface effect parameters */
     orb_effect?: OrbEffect | null;
+
+    /**
+     * Guided-reflection (Unpack) trail: original input, clarifying questions +
+     * answers, themes and insight signals. Present only for source_type 'unpack'.
+     */
+    unpack_payload?: UnpackPayload | null;
 };
 
 /**

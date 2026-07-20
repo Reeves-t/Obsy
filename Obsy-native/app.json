@@ -9,8 +9,6 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/obsy.cobalt.still.png",
-      "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
     "ios": {

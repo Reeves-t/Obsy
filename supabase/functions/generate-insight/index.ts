@@ -11,6 +11,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { runAiTextTask } from "../_shared/ai/router.ts";
 import type { AiPostProcessResult } from "../_shared/ai/types.ts";
+import { buildProfileContextSection } from "../_shared/ai/profileContext.ts";
 
 // CORS headers for mobile app
 const corsHeaders = {
@@ -42,6 +43,7 @@ interface InsightRequest {
     };
     tone: string;
     customTonePrompt?: string;
+    profileContext?: string;
 }
 
 interface CaptureData {
@@ -360,7 +362,8 @@ function buildDailyPrompt(
     data: InsightRequest["data"],
     tone: string,
     customTonePrompt?: string,
-    nowLocal?: NowLocalContext
+    nowLocal?: NowLocalContext,
+    profileContext?: string
 ): string {
     const rawCaptures = data.captures || [];
     const toneStyle = customTonePrompt
@@ -433,6 +436,7 @@ ${nowContext}
 
 USER'S DAY (chronological order):
 ${captureDescriptions || "No specific moments recorded."}
+${buildProfileContextSection(profileContext).join("\n")}
 
 STRUCTURE GUIDE:
 1. Baseline: How the day started (reference the first moment)
@@ -497,7 +501,8 @@ function buildWeeklyPrompt(
     data: InsightRequest["data"],
     tone: string,
     customTonePrompt?: string,
-    nowLocal?: NowLocalContext
+    nowLocal?: NowLocalContext,
+    profileContext?: string
 ): string {
     const toneStyle = customTonePrompt
         ? wrapCustomTone(customTonePrompt)
@@ -584,6 +589,7 @@ ${nowContext}
 ↑ THE FIRST LINE BELOW IS THE START OF THE WEEK (Sunday)
 WEEK DATA (${daysCount} day${daysCount === 1 ? "" : "s"} so far, in chronological order):
 ${daySummaries || "No days recorded yet."}
+${buildProfileContextSection(profileContext).join("\n")}
 
 WEEKLY INSIGHT RULES:
 - This insight may be generated after just 1 day — write meaningfully even with limited data
@@ -615,7 +621,7 @@ Respond with PURE JSON (NO markdown fences, NO \`\`\`json wrapper):
 CRITICAL: Return ONLY the JSON object. Do NOT wrap it in \`\`\`json fences or any markdown.`;
 }
 
-function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
+function buildMonthlyPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string, profileContext?: string): string {
     const toneStyle = customTonePrompt
         ? wrapCustomTone(customTonePrompt)
         : (TONE_STYLES[tone] || TONE_STYLES.neutral);
@@ -710,6 +716,7 @@ ${signals?.runnerUpMood ? `- With undertones of: ${signals.runnerUpMood}` : ""}
 - The emotional texture was: ${volatilityFeeling}
 - Engagement level: ${engagementLevel}
 - Recent direction: ${signals?.last7DaysShift || "holding steady"}
+${buildProfileContextSection(profileContext).join("\n")}
 
 MONTHLY INSIGHT RULES:
 - This insight may be generated after just 1 week — write meaningfully even with partial data
@@ -726,7 +733,7 @@ MONTHLY INSIGHT RULES:
 Return plain text (no JSON).`;
 }
 
-function buildCapturePrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
+function buildCapturePrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string, profileContext?: string): string {
     const toneStyle = customTonePrompt
         ? wrapCustomTone(customTonePrompt)
         : (TONE_STYLES[tone] || TONE_STYLES.neutral);
@@ -742,11 +749,12 @@ MOMENT:
 - Feeling: ${capture?.mood || "neutral"}
 - Note: ${capture?.note || "(none)"}
 - Time: ${capture?.timeBucket || "sometime"}
+${buildProfileContextSection(profileContext).join("\n")}
 
 Write 1-2 sentences. Be observational, not prescriptive. EMBODY THE TONE.`;
 }
 
-function buildAlbumPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string): string {
+function buildAlbumPrompt(data: InsightRequest["data"], tone: string, customTonePrompt?: string, profileContext?: string): string {
     const toneStyle = customTonePrompt
         ? wrapCustomTone(customTonePrompt)
         : (TONE_STYLES[tone] || TONE_STYLES.neutral);
@@ -788,6 +796,7 @@ Participants: ${participants.join(", ")}
 
 ENTRIES (chronological order):
 ${entriesText || "No entries found."}
+${buildProfileContextSection(profileContext).join("\n")}
 
 NARRATIVE STRUCTURE (REQUIRED):
 1. OPENING: Set the scene for the day across the group. Who started, what the opening mood was.
@@ -808,7 +817,7 @@ RULES:
 Return plain text (no JSON).`;
 }
 
-function buildTagPrompt(data: InsightRequest["data"], tone: string): string {
+function buildTagPrompt(data: InsightRequest["data"], tone: string, profileContext?: string): string {
     const toneStyle = TONE_STYLES[tone] || TONE_STYLES.neutral;
 
     return `Generate a micro-insight for the tag: #${data.tag}
@@ -817,6 +826,7 @@ TONE: ${toneStyle}
 
 RELATED MOMENTS:
 ${JSON.stringify(data.captures?.slice(0, 10) || [], null, 2)}
+${buildProfileContextSection(profileContext).join("\n")}
 
 ${LANGUAGE_CONSTRAINTS}
 
@@ -1114,7 +1124,7 @@ serve(async (req: Request) => {
             console.error(`[generate-insight] [${requestId}] Request parse error:`, parseError);
             return createErrorResponse('parse', 'Invalid request body', 400, requestId);
         }
-        const { type, data, tone, customTonePrompt } = body;
+        const { type, data, tone, customTonePrompt, profileContext } = body;
 
         // 4. Build prompt based on type
         let prompt: string;
@@ -1128,7 +1138,7 @@ serve(async (req: Request) => {
                     dayPart: getDayPartFromHour(now.getHours()),
                     weekday: now.toLocaleDateString('en-US', { weekday: 'long' })
                 };
-                prompt = buildDailyPrompt(data, tone, customTonePrompt, nowLocal);
+                prompt = buildDailyPrompt(data, tone, customTonePrompt, nowLocal, profileContext);
                 break;
             }
             case "weekly": {
@@ -1140,20 +1150,20 @@ serve(async (req: Request) => {
                     dayPart: getDayPartFromHour(now.getHours()),
                     weekday: now.toLocaleDateString('en-US', { weekday: 'long' })
                 };
-                prompt = buildWeeklyPrompt(data, tone, customTonePrompt, nowLocal);
+                prompt = buildWeeklyPrompt(data, tone, customTonePrompt, nowLocal, profileContext);
                 break;
             }
             case "month":
-                prompt = buildMonthlyPrompt(data, tone, customTonePrompt);
+                prompt = buildMonthlyPrompt(data, tone, customTonePrompt, profileContext);
                 break;
             case "capture":
-                prompt = buildCapturePrompt(data, tone, customTonePrompt);
+                prompt = buildCapturePrompt(data, tone, customTonePrompt, profileContext);
                 break;
             case "album":
-                prompt = buildAlbumPrompt(data, tone, customTonePrompt);
+                prompt = buildAlbumPrompt(data, tone, customTonePrompt, profileContext);
                 break;
             case "tag":
-                prompt = buildTagPrompt(data, tone);
+                prompt = buildTagPrompt(data, tone, profileContext);
                 break;
             default:
                 return createErrorResponse('validate', `Unknown insight type: ${type}`, 400, requestId);
@@ -1174,6 +1184,7 @@ serve(async (req: Request) => {
             requestPayload: {
                 tone,
                 has_custom_tone: Boolean(customTonePrompt),
+                has_profile_context: Boolean(profileContext),
                 capture_count: data.captures?.length ?? 0,
                 album_entry_count: data.albumContext?.length ?? 0,
                 has_month_signals: Boolean(data.signals),

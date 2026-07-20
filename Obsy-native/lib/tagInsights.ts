@@ -25,7 +25,7 @@ export async function generateTagInsight(
     }));
 
     try {
-        return await generateTagInsightSecure(tag, insightInputs, settings.tone);
+        return await generateTagInsightSecure(tag, insightInputs, settings.tone, settings.profileContext);
     } catch (error: any) {
         console.error("Error generating tag insight:", error);
 

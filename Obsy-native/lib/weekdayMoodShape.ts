@@ -2,6 +2,26 @@ import { addMonths, format, parseISO, startOfMonth } from 'date-fns';
 import type { Capture } from '@/types/capture';
 import { getMoodLabel, resolveMoodThemeById } from '@/lib/moodUtils';
 import type { MoodSignalSummary } from '@/lib/moodSignals';
+import { MOODS } from '@/constants/Moods';
+
+type MoodTone = 'low' | 'medium' | 'high';
+
+// Energy tones only exist on the static system catalog; custom moods fall back
+// to a label match (e.g. a custom "Happy") or count as unknown.
+const TONE_BY_ID = new Map<string, MoodTone>(MOODS.map((mood) => [mood.id, mood.tone]));
+const TONE_BY_LABEL = new Map<string, MoodTone>(MOODS.map((mood) => [mood.label.toLowerCase(), mood.tone]));
+
+export interface EnergyBreakdown {
+    low: number;
+    medium: number;
+    high: number;
+    unknown: number;
+}
+
+export interface WeekdayShapeSummary extends MoodSignalSummary {
+    energyBreakdown: EnergyBreakdown;
+    energyLabel: string;
+}
 
 export type WeekdayMoodKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
@@ -38,7 +58,7 @@ export interface WeekdayMoodShapeData {
     weekdayLabel: string;
     buckets: WeekdayMoodBucket[];
     layers: WeekdayMoodLayer[];
-    summary: MoodSignalSummary;
+    summary: WeekdayShapeSummary;
     hasEnoughData: boolean;
 }
 
@@ -80,6 +100,7 @@ export function getWeekdayMoodShape(captures: Capture[], weekday: WeekdayMoodKey
     }
 
     const moodMeta: Record<string, MoodMeta> = {};
+    const energy: EnergyBreakdown = { low: 0, medium: 0, high: 0, unknown: 0 };
 
     eligible.forEach((capture) => {
         const date = parseISO(capture.created_at);
@@ -89,6 +110,8 @@ export function getWeekdayMoodShape(captures: Capture[], weekday: WeekdayMoodKey
 
         const moodId = capture.mood_id || 'neutral';
         const label = getMoodLabel(moodId, capture.mood_name_snapshot);
+        const tone = TONE_BY_ID.get(moodId) ?? TONE_BY_LABEL.get(label.toLowerCase());
+        energy[tone ?? 'unknown'] += 1;
 
         bucket.totalCaptures += 1;
         bucket.moodCounts[moodId] = (bucket.moodCounts[moodId] || 0) + 1;
@@ -138,7 +161,7 @@ export function getWeekdayMoodShape(captures: Capture[], weekday: WeekdayMoodKey
         weekdayLabel: option.label,
         buckets,
         layers,
-        summary: buildSummary(buckets, layers, eligible.length, activeDateCount),
+        summary: buildSummary(buckets, layers, eligible.length, activeDateCount, energy),
         hasEnoughData: eligible.length >= 3,
     };
 }
@@ -147,11 +170,16 @@ function buildSummary(
     buckets: WeekdayMoodBucket[],
     layers: WeekdayMoodLayer[],
     totalEntries: number,
-    activeDateCount: number
-): MoodSignalSummary {
+    activeDateCount: number,
+    energy: EnergyBreakdown
+): WeekdayShapeSummary {
     const activeBuckets = buckets.filter((bucket) => bucket.totalCaptures > 0);
-    const mixedBuckets = activeBuckets.filter((bucket) => Object.keys(bucket.moodCounts).length > 1);
-    const mixScore = activeBuckets.length > 0 ? mixedBuckets.length / activeBuckets.length : 0;
+    // Capture-weighted average of each month's proportional mix, so one stray
+    // second mood in a heavy month no longer counts the month as fully mixed.
+    const totalActiveCaptures = activeBuckets.reduce((sum, bucket) => sum + bucket.totalCaptures, 0);
+    const mixScore = totalActiveCaptures > 0
+        ? activeBuckets.reduce((sum, bucket) => sum + bucketMixScore(bucket) * bucket.totalCaptures, 0) / totalActiveCaptures
+        : 0;
 
     const peak = activeBuckets
         .slice()
@@ -176,10 +204,12 @@ function buildSummary(
         mixLabel: describeMixScore(mixScore, activeBuckets.length),
         strongestDay: peak?.label ?? null,
         mostBlendedDay: mostMixed && bucketMixScore(mostMixed) > 0 ? mostMixed.label : null,
+        energyBreakdown: energy,
+        energyLabel: describeEnergy(energy),
     };
 }
 
-function emptySummary(): MoodSignalSummary {
+function emptySummary(): WeekdayShapeSummary {
     return {
         totalEntries: 0,
         activeDays: 0,
@@ -190,7 +220,22 @@ function emptySummary(): MoodSignalSummary {
         mixLabel: 'No signal yet',
         strongestDay: null,
         mostBlendedDay: null,
+        energyBreakdown: { low: 0, medium: 0, high: 0, unknown: 0 },
+        energyLabel: '—',
     };
+}
+
+function describeEnergy(energy: EnergyBreakdown): string {
+    const known = energy.low + energy.medium + energy.high;
+    if (known === 0) return '—';
+    const lowShare = energy.low / known;
+    const mediumShare = energy.medium / known;
+    const highShare = energy.high / known;
+    if (highShare >= 0.55) return 'High-leaning';
+    if (lowShare >= 0.55) return 'Low-leaning';
+    if (mediumShare >= 0.55) return 'Steady';
+    if (lowShare >= 0.35 && highShare >= 0.35) return 'Polarized';
+    return 'Balanced';
 }
 
 function bucketMixScore(bucket: WeekdayMoodBucket): number {
@@ -199,10 +244,12 @@ function bucketMixScore(bucket: WeekdayMoodBucket): number {
     return Math.max(0, Math.min(1, 1 - (top / bucket.totalCaptures)));
 }
 
+// Thresholds are calibrated for the proportional metric, which tops out near
+// 0.67 when three moods are evenly mixed (1 - top/total).
 function describeMixScore(score: number, activeBuckets: number): string {
     if (activeBuckets === 0) return 'No signal yet';
     if (score === 0) return 'Focused';
-    if (score < 0.35) return 'Mostly focused';
-    if (score < 0.65) return 'Blended';
+    if (score < 0.18) return 'Mostly focused';
+    if (score < 0.4) return 'Blended';
     return 'Highly mixed';
 }

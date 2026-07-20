@@ -62,6 +62,9 @@ export default function TabLayout() {
         tabBarActiveTintColor,
         tabBarInactiveTintColor,
         headerShown: useClientOnlyValue(false, false),
+        // The tab bar is absolutely positioned, so Android's adjustResize would
+        // otherwise float it above the keyboard while typing in the composer.
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: 'transparent',
           borderTopColor: 'rgba(255,255,255,0.04)',

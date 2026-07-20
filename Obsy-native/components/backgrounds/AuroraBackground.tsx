@@ -1,324 +1,205 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { useAuroraPulseStore } from '@/lib/auroraPulseStore';
+import React, { useEffect, useMemo } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Canvas, Fill, Shader, Skia, useClock } from '@shopify/react-native-skia';
+import {
+  Easing,
+  useDerivedValue,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { auroraFlow } from '@/lib/auroraFlow';
 import { useAuroraBreathStore } from '@/lib/auroraBreathStore';
 import {
   AURORA_BACKGROUNDS,
-  auroraGradientCss,
   type AuroraBackgroundKey,
 } from '@/constants/auroraBackgrounds';
 import { ORB_WAVES, type OrbWaveKey } from '@/constants/auroraOrbs';
 
-// Aurora background — 1:1 of the web spec, now a fluid lava-lamp with a
-// swappable base color. We embed the spec's HTML/CSS verbatim inside a
-// transparent WebView so the browser's actual blur(), mix-blend-mode: screen,
-// and radial-gradient stack renders pixel-faithfully on iOS / Android.
+// Aurora background — a single Skia fragment shader (SkSL) instead of the old
+// HTML/CSS-in-a-WebView build. Four soft orbs (two per color family) drift over
+// the theme's dark base gradient, with organic noise, vignette and micro-grain
+// computed in the shader.
 //
-// Base color: the .bg-stage gradient is driven by a CSS variable (--aurora-bg)
-// so switching color is a live setProperty injection — no WebView reload, so the
-// orbs keep their momentum. The orbs/blur/blend are never touched by the color.
-//
-// Motion — a momentum/flick model running inside the WebView (three nested
-// layers per orb so transforms compose by nesting):
-//   • .orb    — position/size only (static).
-//   • .shift  — moved every frame by a requestAnimationFrame loop. Each carousel
-//               swipe injects VELOCITY (top orbs down, bottom orbs up, sideways
-//               by swipe direction, + randomness); the loop integrates position
-//               with damping so the orbs glide fluidly over a wide range, coast
-//               well past the button animation, then settle to rest. The loop
-//               runs only while there's motion energy and cancels itself once
-//               everything settles (no perpetual CPU use).
-//   • .streak — the gradient + blur, promoted to its own GPU layer (translateZ)
-//               so the blur is rasterized once and only composited/moved.
-const buildAuroraHtml = (initialGradient: string, initialOrbA: string, initialOrbB: string) => `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<style>
-  html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: transparent; }
+// Live inputs, all GPU-uniform driven (no reloads, no bridge messages):
+//   • theme palette + orb wave colors — swap instantly, motion uninterrupted
+//   • `auroraFlow.theta/energy` — the home carousel's rotation, written every
+//     frame by its physics loop, so the orbs swirl continuously with the dial
+//     (slow drag = slow drift, hard fling/turbo = visible whip)
+//   • breath — the insight-refresh mood bloom rising from the bottom
+const SHADER_SRC = `
+uniform float2 u_res;
+uniform float  u_time;
+uniform float  u_flow;
+uniform float  u_energy;
+uniform float3 u_bg0;
+uniform float3 u_bg1;
+uniform float3 u_bg2;
+uniform float3 u_orbA;
+uniform float3 u_orbB;
+uniform float  u_breath;
+uniform float3 u_breathCol;
 
-  :root { --aurora-bg: ${initialGradient}; --orb-a: ${initialOrbA}; --orb-b: ${initialOrbB}; --breath: 0; --breath-scale: 1; --breath-color: rgba(150,170,255,0.85); }
+float hash(float2 p) {
+  return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453123);
+}
 
-  /* Stage / base gradient (color is swappable via --aurora-bg) */
-  .bg-stage {
-    position: fixed;
-    inset: 0;
-    min-height: 100vh;
-    overflow: hidden;
-    isolation: isolate;
-    color: #eaeef7;
-    background: var(--aurora-bg);
-  }
+float vnoise(float2 p) {
+  float2 i = floor(p);
+  float2 f = fract(p);
+  float2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + float2(1.0, 0.0));
+  float c = hash(i + float2(0.0, 1.0));
+  float d = hash(i + float2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
 
-  /* Vignette */
-  .bg-stage::before {
-    content: "";
-    position: absolute; inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    background: radial-gradient(120% 80% at 50% 50%,
-      transparent 55%, rgba(0,0,0,.55) 100%);
-  }
+float fbm2(float2 p) {
+  return 0.65 * vnoise(p) + 0.35 * vnoise(p * 2.13 + float2(11.7, 5.3));
+}
 
-  /* Grain */
-  .bg-stage::after {
-    content: "";
-    position: absolute; inset: -2px;
-    z-index: 3;
-    pointer-events: none;
-    opacity: .45;
-    mix-blend-mode: overlay;
-    background-image: radial-gradient(rgba(255,255,255,.025) 1px, transparent 1px);
-    background-size: 3px 3px;
-  }
+float orbGlow(float2 uv, float2 base, float orbit, float ang, float radius, float aspect) {
+  float2 pos = base + float2(cos(ang), sin(ang)) * orbit;
+  float2 d = (uv - pos) * float2(aspect, 1.0);
+  float q = dot(d, d) / (radius * radius);
+  return exp(-q * 3.0);
+}
 
-  /* Streaks layer */
-  .bg-streaks {
-    position: absolute; inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    opacity: 0.8;
-  }
+half4 main(float2 xy) {
+  float2 uv = xy / u_res;
+  float aspect = u_res.x / u_res.y;
 
-  /* Outer orb — position/size only */
-  .bg-streaks .orb {
-    position: absolute;
-  }
+  // Base gradient — radial glow rising from below (same shape as the old stage).
+  float rd = length((uv - float2(0.5, 1.1)) * float2(aspect, 1.0)) / 1.25;
+  float3 col = mix(u_bg0, u_bg1, smoothstep(0.0, 0.5, rd));
+  col = mix(col, u_bg2, smoothstep(0.5, 1.0, rd));
 
-  /* Shift — moved every frame by the rAF momentum loop */
-  .bg-streaks .shift {
-    position: absolute;
-    inset: 0;
-    will-change: transform;
-    transform: translate(0%, 0%);
-  }
+  float t = u_time;
+  float fl = u_flow;
+  float energy = clamp(u_energy, 0.0, 1.0);
 
-  /* Inner streak — the actual blurred blob, promoted to its own GPU layer */
-  .bg-streaks .streak {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    mix-blend-mode: screen;
-    will-change: transform;
-    transform: translateZ(0);
-  }
+  // Organic texture that also swirls with the dial.
+  float tex = fbm2(uv * float2(2.6 * aspect, 2.6) + float2(t * 0.05 + fl * 0.12, -t * 0.03));
+  float shape = 0.72 + 0.5 * tex;
 
-  /* Aurora — 4 soft blobs (colors are swappable via --orb-a / --orb-b) */
-  .bg-streaks .o1 { top: -10%; left: -10%; width: 80%; height: 80%; }
-  .bg-streaks .s1 {
-    background: radial-gradient(closest-side,
-      rgba(var(--orb-a),.70), rgba(var(--orb-a),0) 70%);
-    filter: blur(90px);
-  }
-  .bg-streaks .o2 { top: 20%; right: -20%; width: 90%; height: 90%; }
-  .bg-streaks .s2 {
-    background: radial-gradient(closest-side,
-      rgba(var(--orb-b),.75), rgba(var(--orb-b),0) 70%);
-    filter: blur(110px);
-  }
-  .bg-streaks .o3 { bottom: -25%; left: 10%; width: 70%; height: 70%; }
-  .bg-streaks .s3 {
-    background: radial-gradient(closest-side,
-      rgba(var(--orb-a),.55), rgba(var(--orb-a),0) 70%);
-    filter: blur(100px);
-  }
-  .bg-streaks .o4 { bottom: 0%; right: 10%; width: 55%; height: 55%; }
-  .bg-streaks .s4 {
-    background: radial-gradient(closest-side,
-      rgba(var(--orb-b),.50), rgba(var(--orb-b),0) 70%);
-    filter: blur(80px);
-  }
+  // Four drifting orbs; the carousel rotation swings each around its anchor.
+  float g1 = orbGlow(uv, float2(0.24, 0.30), 0.11, t * 0.11 + fl * 0.55 + 1.7, 0.46, aspect);
+  float g2 = orbGlow(uv, float2(0.80, 0.24), 0.13, -t * 0.09 - fl * 0.45 + 0.4, 0.42, aspect);
+  float g3 = orbGlow(uv, float2(0.30, 0.76), 0.14, t * 0.07 + fl * 0.50 + 3.9, 0.50, aspect);
+  float g4 = orbGlow(uv, float2(0.76, 0.80), 0.12, -t * 0.13 - fl * 0.60 + 2.6, 0.44, aspect);
 
-  /* Breath — mood-tinted echoes of the four aurora orbs. They mirror the orb
-     geometry/blur exactly, so when an insight refreshes the Aurora's own clouds
-     light up in the mood color and gently swell (breathe out), then fade + settle
-     back (breathe in). Driven by --breath (opacity), --breath-scale (swell) and
-     --breath-color via window.auroraBreathe — no reload, orbs keep momentum. */
-  .bg-stage .bg-breath-orbs {
-    position: absolute; inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    opacity: var(--breath);
-    transform: scale(var(--breath-scale));
-    transform-origin: 50% 64%;
-    transition: opacity 1300ms ease-in-out, transform 1500ms ease-in-out;
-    will-change: opacity, transform;
-  }
-  .bg-breath-orbs .morb {
-    position: absolute;
-    border-radius: 50%;
-    mix-blend-mode: screen;
-    background: radial-gradient(closest-side, var(--breath-color), transparent 70%);
-  }
-  /* Geometry/blur mirror o1–o4; bottom orbs weighted a touch brighter. */
-  .bg-breath-orbs .m1 { top: -10%; left: -10%; width: 80%; height: 80%; filter: blur(90px); opacity: .85; }
-  .bg-breath-orbs .m2 { top: 20%; right: -20%; width: 90%; height: 90%; filter: blur(110px); opacity: .80; }
-  .bg-breath-orbs .m3 { bottom: -25%; left: 10%; width: 70%; height: 70%; filter: blur(100px); opacity: .95; }
-  .bg-breath-orbs .m4 { bottom: 0%; right: 10%; width: 55%; height: 55%; filter: blur(80px); opacity: .90; }
-</style>
-</head>
-<body>
-  <div class="bg-stage">
-    <div class="bg-streaks">
-      <div class="orb o1"><div class="shift"><div class="streak s1"></div></div></div>
-      <div class="orb o2"><div class="shift"><div class="streak s2"></div></div></div>
-      <div class="orb o3"><div class="shift"><div class="streak s3"></div></div></div>
-      <div class="orb o4"><div class="shift"><div class="streak s4"></div></div></div>
-    </div>
-    <div class="bg-breath-orbs">
-      <div class="morb m1"></div>
-      <div class="morb m2"></div>
-      <div class="morb m3"></div>
-      <div class="morb m4"></div>
-    </div>
-  </div>
-  <script>
-  (function(){
-    var BX = 38, BY = 40;      // soft bounds (% of orb box) — wide roam
-    var DAMP = 0.97;           // coast/deceleration per frame (higher = slower, longer glide)
-    var STOP = 0.015;          // velocity threshold to settle
-    var shifts = null, rafId = null;
-    var orbs = [
-      { x:0, y:0, vx:0, vy:0, biasY:+1 }, // o1 top    -> down first
-      { x:0, y:0, vx:0, vy:0, biasY:+1 }, // o2 top    -> down first
-      { x:0, y:0, vx:0, vy:0, biasY:-1 }, // o3 bottom -> up first
-      { x:0, y:0, vx:0, vy:0, biasY:-1 }  // o4 bottom -> up first
-    ];
+  float boost = 0.75 + 0.65 * energy;
+  float3 glow = u_orbA * (g1 * 0.34 + g3 * 0.26) + u_orbB * (g2 * 0.30 + g4 * 0.24);
+  glow *= shape * boost;
 
-    function frame(){
-      var moving = false;
-      for (var i=0;i<orbs.length;i++){
-        var o = orbs[i];
-        o.x += o.vx; o.y += o.vy;
-        // soft clamp (glide to edge, don't bounce); flip vertical bias at extremes
-        if (o.x >  BX){ o.x =  BX; if(o.vx>0) o.vx=0; }
-        if (o.x < -BX){ o.x = -BX; if(o.vx<0) o.vx=0; }
-        if (o.y >  BY){ o.y =  BY; if(o.vy>0) o.vy=0; o.biasY=-1; }
-        if (o.y < -BY){ o.y = -BY; if(o.vy<0) o.vy=0; o.biasY=+1; }
-        o.vx *= DAMP; o.vy *= DAMP;
-        if (Math.abs(o.vx) > STOP || Math.abs(o.vy) > STOP) moving = true;
-        if (shifts && shifts[i]) shifts[i].style.transform =
-          'translate(' + o.x.toFixed(2) + '%,' + o.y.toFixed(2) + '%)';
-      }
-      rafId = moving ? requestAnimationFrame(frame) : null;
-    }
+  // Screen blend keeps the glow luminous without clipping to white.
+  col = col + glow - col * glow;
 
-    window.auroraKick = function(dir){
-      if (!shifts) shifts = document.querySelectorAll('.bg-streaks .shift');
-      var ds = (dir === 'left') ? -1 : 1;
-      for (var i=0;i<orbs.length;i++){
-        var o = orbs[i];
-        var mag = 0.9 + Math.random()*0.7;              // glide speed (lower = gentler start)
-        o.vy += o.biasY * mag * (0.7 + Math.random()*0.6);
-        o.vx += ds * (0.5 + Math.random()*0.7);
-        o.vx += (Math.random()-0.5) * 0.8;              // scatter for random placement
-        o.vy += (Math.random()-0.5) * 0.8;
-      }
-      if (rafId === null) rafId = requestAnimationFrame(frame);
-    };
+  // Insight-refresh breath: mood-tinted light rising from the bottom.
+  float breathBand = smoothstep(0.45, 1.05, uv.y);
+  float3 bcol = u_breathCol * (u_breath * 0.30 * breathBand);
+  col = col + bcol - col * bcol;
 
-    // Breath — light the mood-tinted orb echoes up and swell them (on=true) while
-    // an insight is refreshing, then fade + settle back (on=false). The CSS
-    // opacity/transform transitions do the easing, so this is just a setProperty
-    // toggle. Optionally retint the glow with the dominant mood color.
-    window.auroraBreathe = function(on, color){
-      var root = document.documentElement;
-      if (color) root.style.setProperty('--breath-color', color);
-      root.style.setProperty('--breath', on ? '0.6' : '0');
-      root.style.setProperty('--breath-scale', on ? '1.07' : '1');
-    };
-  })();
-  </script>
-</body>
-</html>`;
+  // Vignette (wide ellipse, like the old stage).
+  float vd = length((uv - 0.5) / float2(1.2, 0.8));
+  col *= 1.0 - 0.5 * smoothstep(0.55, 1.05, vd);
+
+  // Static micro-grain so the gradients don't band.
+  col += (hash(xy) - 0.5) * 0.018;
+
+  return half4(half3(clamp(col, 0.0, 1.0)), 1.0);
+}
+`;
+
+const AURORA_EFFECT = Skia.RuntimeEffect.Make(SHADER_SRC);
+
+type Vec3 = [number, number, number];
+
+const hexToVec3 = (hex: string): Vec3 => {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+};
+
+const tripletToVec3 = (rgb: string): Vec3 => {
+  const p = rgb.split(',').map((s) => parseInt(s.trim(), 10) || 0);
+  return [(p[0] ?? 0) / 255, (p[1] ?? 0) / 255, (p[2] ?? 0) / 255];
+};
+
+const DEFAULT_BREATH_COLOR = '#96aaff';
 
 interface AuroraBackgroundProps {
   background?: AuroraBackgroundKey;
   orbWave?: OrbWaveKey;
 }
 
-export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({ background = 'default', orbWave = 'aurora' }) => {
-  const webRef = useRef<WebView>(null);
-  const pulseId = useAuroraPulseStore((s) => s.pulseId);
+export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({
+  background = 'default',
+  orbWave = 'aurora',
+}) => {
+  const { width, height } = useWindowDimensions();
+  const clock = useClock();
+
+  const palette = useMemo(() => {
+    const bg = AURORA_BACKGROUNDS[background] ?? AURORA_BACKGROUNDS.default;
+    const wave = ORB_WAVES[orbWave] ?? ORB_WAVES.aurora;
+    return {
+      bg0: hexToVec3(bg.radial[0]),
+      bg1: hexToVec3(bg.radial[1]),
+      bg2: hexToVec3(bg.radial[2]),
+      orbA: tripletToVec3(wave.a),
+      orbB: tripletToVec3(wave.b),
+      fallback: bg.fallback,
+    };
+  }, [background, orbWave]);
+
+  // Insight-refresh breath (refcounted store; eased here, read as a uniform).
   const breathOn = useAuroraBreathStore((s) => s.activeCount > 0);
   const breathColor = useAuroraBreathStore((s) => s.color);
-  const palette = AURORA_BACKGROUNDS[background] ?? AURORA_BACKGROUNDS.default;
-  const wave = ORB_WAVES[orbWave] ?? ORB_WAVES.aurora;
+  const breath = useSharedValue(0);
 
-  // Build the HTML once with the initial colors baked in, so source never changes
-  // and the WebView never reloads on a color switch.
-  const initialBackgroundRef = useRef(background);
-  const initialWaveRef = useRef(wave);
-  const html = useMemo(
-    () => buildAuroraHtml(
-      auroraGradientCss(initialBackgroundRef.current),
-      initialWaveRef.current.a,
-      initialWaveRef.current.b,
-    ),
-    [],
+  useEffect(() => {
+    breath.value = withTiming(breathOn ? 1 : 0, {
+      duration: breathOn ? 900 : 1400,
+      easing: Easing.inOut(Easing.ease),
+    });
+  }, [breathOn, breath]);
+
+  const breathVec = useMemo(
+    () => hexToVec3(breathColor || DEFAULT_BREATH_COLOR),
+    [breathColor]
   );
 
-  // Live base-color swap — no reload, orbs keep their momentum.
-  useEffect(() => {
-    webRef.current?.injectJavaScript(
-      `document.documentElement.style.setProperty('--aurora-bg', '${auroraGradientCss(background)}'); true;`
-    );
-  }, [background]);
+  const uniforms = useDerivedValue(() => ({
+    u_res: [width, height],
+    u_time: clock.value / 1000,
+    u_flow: auroraFlow.theta.value,
+    u_energy: Math.min(1, auroraFlow.energy.value / 8),
+    u_bg0: palette.bg0,
+    u_bg1: palette.bg1,
+    u_bg2: palette.bg2,
+    u_orbA: palette.orbA,
+    u_orbB: palette.orbB,
+    u_breath: breath.value,
+    u_breathCol: breathVec,
+  }));
 
-  // Live orb-color swap — no reload, orbs keep their momentum.
-  useEffect(() => {
-    webRef.current?.injectJavaScript(
-      `document.documentElement.style.setProperty('--orb-a', '${wave.a}'); document.documentElement.style.setProperty('--orb-b', '${wave.b}'); true;`
+  if (!AURORA_EFFECT) {
+    // Shader compilation should never fail in practice; keep the screen usable.
+    return (
+      <View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: palette.fallback }]}
+      />
     );
-  }, [wave.a, wave.b]);
-
-  // Carousel kick — inject a velocity impulse into the momentum loop.
-  useEffect(() => {
-    if (pulseId === 0) return; // skip initial mount
-    const dir = useAuroraPulseStore.getState().lastDirection;
-    webRef.current?.injectJavaScript(`window.auroraKick && window.auroraKick('${dir}'); true;`);
-  }, [pulseId]);
-
-  // Insight refresh breath — bloom a mood-tinted glow from the bottom while an
-  // insight is refreshing, then settle it back. No reload; the CSS transition
-  // handles the easing.
-  useEffect(() => {
-    webRef.current?.injectJavaScript(
-      `window.auroraBreathe && window.auroraBreathe(${breathOn}, ${JSON.stringify(breathColor || '')}); true;`
-    );
-  }, [breathOn, breathColor]);
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: palette.fallback }]} pointerEvents="none">
-      <WebView
-        ref={webRef}
-        originWhitelist={['*']}
-        source={{ html }}
-        style={styles.webview}
-        containerStyle={styles.webview}
-        scrollEnabled={false}
-        bounces={false}
-        overScrollMode="never"
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}
-        androidLayerType={Platform.OS === 'android' ? 'hardware' : undefined}
-        javaScriptEnabled={true}
-        domStorageEnabled={false}
-        setSupportMultipleWindows={false}
-        cacheEnabled={false}
-      />
-    </View>
+    <Canvas pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Fill>
+        <Shader source={AURORA_EFFECT} uniforms={uniforms} />
+      </Fill>
+    </Canvas>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-});

@@ -30,6 +30,8 @@ export interface Profile {
     ai_per_photo_captions: boolean;
     ai_free_mode: boolean;
     selected_custom_tone_id?: string | null;
+    /** Free-text background injected as additive context into insight prompts. */
+    profile_context?: string | null;
 }
 
 function normalizeAiToneForSettings(aiTone: string | null | undefined): AiToneId {
@@ -81,6 +83,7 @@ export async function getProfile(): Promise<Profile | null> {
             ai_use_journal_in_insights: true,
             ai_per_photo_captions: true,
             ai_free_mode: false,
+            profile_context: null,
         };
     }
 
@@ -108,6 +111,7 @@ export async function getProfile(): Promise<Profile | null> {
             ai_use_journal_in_insights: true,
             ai_per_photo_captions: true,
             ai_free_mode: false,
+            profile_context: null,
         };
     }
 
@@ -125,6 +129,7 @@ export async function getProfile(): Promise<Profile | null> {
         ai_per_photo_captions: settingsData?.ai_per_photo_captions ?? true,
         ai_free_mode: settingsData?.ai_free_mode ?? false,
         selected_custom_tone_id: settingsData?.selected_custom_tone_id ?? undefined,
+        profile_context: settingsData?.profile_context ?? null,
     };
 }
 
@@ -162,6 +167,10 @@ export async function updateProfile(updates: Partial<Profile>) {
     if (updates.ai_per_photo_captions !== undefined) settingsUpdates.ai_per_photo_captions = updates.ai_per_photo_captions;
     if (updates.ai_free_mode !== undefined) settingsUpdates.ai_free_mode = updates.ai_free_mode;
     if (updates.selected_custom_tone_id !== undefined) settingsUpdates.selected_custom_tone_id = updates.selected_custom_tone_id;
+    if (updates.profile_context !== undefined) {
+        const trimmed = updates.profile_context?.trim();
+        settingsUpdates.profile_context = trimmed ? trimmed.slice(0, 600) : null;
+    }
 
 
     // Update profiles table if there are identity updates

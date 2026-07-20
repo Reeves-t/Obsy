@@ -65,6 +65,7 @@ interface MonthlyInsightState {
         userId: string,
         tone: string,
         customTonePrompt: string | undefined,
+        profileContext: string | undefined,
         allCaptures: Capture[],
         targetMonth: Date,
         force?: boolean
@@ -138,7 +139,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
         }
     },
 
-    refreshMonthlyInsight: async (userId, tone, customTonePrompt, allCaptures, targetMonth, force = false) => {
+    refreshMonthlyInsight: async (userId, tone, customTonePrompt, profileContext, allCaptures, targetMonth, force = false) => {
         if (get().status === 'loading') return;
 
         set({ status: 'loading', error: null });
@@ -235,7 +236,7 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
             }));
             const contextDigest = buildContextDigest(digestEntries) || undefined;
 
-            const response = await callMonthly(monthLabel, aiSignals, tone, customTonePrompt, monthStart.toISOString(), contextDigest);
+            const response = await callMonthly(monthLabel, aiSignals, tone, customTonePrompt, profileContext, monthStart.toISOString(), contextDigest);
 
             if (response.ok && response.text) {
                 const narrativeText = parseMonthlyContent(response.text) ?? response.text;

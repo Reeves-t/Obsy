@@ -5,6 +5,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { runAiTextTask } from "../_shared/ai/router.ts";
 import type { AiPostProcessResult } from "../_shared/ai/types.ts";
+import { buildProfileContextSection } from "../_shared/ai/profileContext.ts";
 
 type TimeBucket = "early" | "midday" | "late" | string;
 type DayPart = "Late night" | "Morning" | "Midday" | "Evening" | "Night" | string;
@@ -24,6 +25,7 @@ interface ObservedPatternsRequest {
   previousPatternText?: string | null;
   generationNumber?: number;
   eligibleCount?: number;
+  profileContext?: string;
 }
 
 interface SuccessResponse {
@@ -141,6 +143,7 @@ serve(async (req) => {
       previousPatternText,
       generationNumber,
       eligibleCount,
+      profileContext: body.profileContext,
     });
 
     const aiResult = await runAiTextTask({
@@ -158,6 +161,7 @@ serve(async (req) => {
         generation_number: generationNumber,
         eligible_count: eligibleCount,
         has_previous_pattern: Boolean(previousPatternText),
+        has_profile_context: Boolean(body.profileContext),
       },
       postProcess: (rawText: string): AiPostProcessResult => {
         const text = extractAndSanitize(rawText, requestId);
@@ -205,6 +209,7 @@ function buildObservedPatternsPrompt(input: {
   previousPatternText: string | null;
   generationNumber: number;
   eligibleCount: number;
+  profileContext?: string;
 }): string {
   const captureBlock = buildCaptureBlock(input.captures);
   const stats = computeStats(input.captures);
@@ -223,6 +228,7 @@ function buildObservedPatternsPrompt(input: {
     "",
     "CAPTURE DATA:",
     captureBlock,
+    ...buildProfileContextSection(input.profileContext),
   ];
 
   // Refinement context for subsequent generations

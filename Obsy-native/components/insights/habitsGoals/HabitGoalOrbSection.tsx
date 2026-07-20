@@ -169,6 +169,9 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
                     </Pressable>
                 </View>
             </View>
+            <Text style={[styles.headerDescription, { color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)' }]}>
+                Your {frequency} habits and goals as floating orbs. Tap one to mark it complete.
+            </Text>
 
             {/* Floating area */}
             <View
@@ -190,7 +193,7 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
                             Tap + to add a {frequency} habit or goal
                         </Text>
                         <Text style={[styles.emptySub, { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.28)' }]}>
-                            They float here as orbs — tap one to mark it complete.
+                            They float here as orbs. Tap one to mark it complete.
                         </Text>
                     </View>
                 ) : (
@@ -265,6 +268,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    headerDescription: {
+        fontSize: 13,
+        lineHeight: 19,
         marginBottom: 14,
     },
     headerTitle: {

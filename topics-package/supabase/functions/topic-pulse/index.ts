@@ -110,6 +110,7 @@ RULES (follow all):
 - Avoid over-personalization; speak to the topic, not the person's psychology.
 - Honor the requested tone and response energy as a light stylistic filter.
 - Each card body is at most 1-2 short sentences.
+- Never use dashes of any kind (em dash, en dash, or hyphens as punctuation) in titles or bodies. Use commas or periods instead.
 - Output VALID JSON ONLY. No markdown, no code fences, no commentary.`;
 
 function buildUserPrompt(req: PulseRequest, action: PulseAction): string {
@@ -169,8 +170,15 @@ function sanitizeJSON(rawText: string): string {
   return sanitized.trim();
 }
 
+function sanitizeDashes(text: string): string {
+  return text
+    .replace(/[–—]/g, ",")   // En dash / em dash → comma
+    .replace(/---?/g, ",")             // ASCII double/triple hyphens used as dashes → comma
+    .trim();
+}
+
 function clampBody(body: string): string {
-  const text = String(body).replace(/\s+/g, " ").trim();
+  const text = sanitizeDashes(String(body).replace(/\s+/g, " ").trim());
   if (text.length <= 220) return text;
   return `${text.slice(0, 217)}...`;
 }
@@ -181,7 +189,7 @@ function coerceCard(raw: any): PulseCard | null {
   const body = typeof raw.body === "string" ? clampBody(raw.body) : "";
   if (!body) return null;
   const title =
-    typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : CARD_TITLES[type];
+    typeof raw.title === "string" && raw.title.trim() ? sanitizeDashes(raw.title.trim()) : CARD_TITLES[type];
   return { type, title, body };
 }
 

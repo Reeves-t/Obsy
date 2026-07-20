@@ -6,6 +6,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { runAiTextTask } from "../_shared/ai/router.ts";
 import type { AiPostProcessResult } from "../_shared/ai/types.ts";
+import { buildProfileContextSection } from "../_shared/ai/profileContext.ts";
 
 interface MonthSignals {
   dominantMood: string;
@@ -23,6 +24,7 @@ interface MonthlyInsightRequest {
   signals?: MonthSignals;
   tone?: string;
   customTonePrompt?: string;
+  profileContext?: string;
 }
 
 interface SuccessResponse {
@@ -273,6 +275,7 @@ serve(async (req) => {
       dayContext,
       totalCaptures: captureRows.length,
       toneStyle: resolveToneStyle(tone, body.customTonePrompt),
+      profileContext: body.profileContext,
     });
 
     console.log(`[MONTHLY_INSIGHT_PARAMS] requestId: ${requestId} | captures: ${captureRows.length} | daysWithData: ${Object.keys(dayContext).length} | tone: ${tone}`);
@@ -293,6 +296,7 @@ serve(async (req) => {
       requestPayload: {
         tone,
         has_custom_tone: Boolean(body.customTonePrompt),
+        has_profile_context: Boolean(body.profileContext),
         month_label: body.monthLabel ?? "This month",
         total_captures: captureRows.length,
         active_days: signals.activeDays,
@@ -412,6 +416,7 @@ function buildMonthlyPrompt(input: {
   dayContext: Record<string, DaySummary>;
   totalCaptures: number;
   toneStyle: string;
+  profileContext?: string;
 }): string {
   const { signals, dayContext } = input;
   const volatility = describeVolatility(signals.volatilityScore ?? 0);
@@ -444,6 +449,7 @@ function buildMonthlyPrompt(input: {
     "",
     "DAY-BY-DAY CONTEXT (chronological):",
     dayLines || "(no capture data available)",
+    ...buildProfileContextSection(input.profileContext),
     "",
     "INSTRUCTIONS:",
     "- Identify the 2-3 most revealing patterns from the signals and day-by-day context.",

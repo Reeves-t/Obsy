@@ -1,15 +1,19 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { StyleSheet, TouchableOpacity, View, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { BlurView } from "expo-blur";
 import { ThemedText } from "@/components/ui/ThemedText";
 import { MoodFlow } from "@/components/insights/MoodFlow";
-import { MoodRingDial } from "@/components/insights/MoodRingDial";
+import { SkiaMoodRing } from "@/components/insights/ring/SkiaMoodRing";
+import { InsightReaderOverlay, OriginRect } from "@/components/insights/InsightReaderOverlay";
+import { CalendarModeToggle } from "@/components/insights/CalendarModeToggle";
 import Colors from "@/constants/Colors";
 import { Capture } from "@/types/capture";
 import { DailyMoodFlowData, filterCapturesForDate, formatDateKey } from "@/lib/dailyMoodFlows";
 import { getMoodTheme } from "@/lib/moods";
+import { computeMoodDistribution, hexToRgba } from "@/lib/moodDistribution";
+import { CalendarDisplayMode, useCalendarModeStore } from "@/lib/calendarModeStore";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,6 +59,24 @@ export function MonthView({
 
     const [isSaved, setIsSaved] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    // Full-screen insight reader, morphing out of the ring's measured position
+    const ringRef = useRef<View>(null);
+    const [readerVisible, setReaderVisible] = useState(false);
+    const [originRect, setOriginRect] = useState<OriginRect | null>(null);
+
+    const openReader = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const node = ringRef.current;
+        if (!node) {
+            setReaderVisible(true);
+            return;
+        }
+        node.measureInWindow((x, y, width, height) => {
+            setOriginRect({ x, y, width, height });
+            setReaderVisible(true);
+        });
+    };
 
     // Check if insight is already saved when component mounts or dependencies change
     React.useEffect(() => {
@@ -128,6 +150,16 @@ export function MonthView({
     const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
     const translatedText = useTranslatedInsight({ insightId: `monthly-${monthKey}`, sourceText: text, sourceLanguage: 'en' });
 
+    // Top two mood colors tint the reader's continuity ghost during the morph
+    const ghostColors = useMemo<[string, string]>(() => {
+        const distribution = computeMoodDistribution(dailyFlows, daysInMonth, {
+            year: currentMonth.getFullYear(),
+            month: currentMonth.getMonth(),
+        });
+        const first = distribution[0]?.color ?? '#3f3f46';
+        return [first, distribution[1]?.color ?? first];
+    }, [dailyFlows, daysInMonth, currentMonth]);
+
 
     // Get captures and flow for selected day
     const selectedDayData = useMemo(() => {
@@ -144,26 +176,38 @@ export function MonthView({
         <View style={styles.stack}>
             <MonthHeader date={currentMonth} onChange={onMonthChange} />
 
-            {/* Mood Ring Dial — floats on the background; tap to reveal the full insight */}
+            {/* Mood ring — floats on the background; tap to open the full-screen reader */}
             <View style={styles.ringContainer}>
-                <MoodRingDial
-                    dailyFlows={dailyFlows}
-                    daysInMonth={daysInMonth}
-                    monthYear={{ year: currentMonth.getFullYear(), month: currentMonth.getMonth() }}
-                    monthPhrase={monthPhrase}
-                    aiReasoning={aiReasoning}
-                    text={translatedText}
-                    isEligible={isEligibleForInsight}
-                    isGenerating={isGenerating}
-                    onGenerate={onGenerate}
-                    pendingCount={pendingCount}
-                    isSaved={isSaved}
-                    saving={saving}
-                    onSave={handleSave}
-                    showCenterMoodOrbs={!text}
-                    centerMoodOrbIds={monthlyMoodIds}
-                />
+                <View ref={ringRef} collapsable={false}>
+                    <SkiaMoodRing
+                        dailyFlows={dailyFlows}
+                        daysInMonth={daysInMonth}
+                        monthYear={{ year: currentMonth.getFullYear(), month: currentMonth.getMonth() }}
+                        monthPhrase={monthPhrase}
+                        isEligible={isEligibleForInsight}
+                        showCenterMoodOrbs={!text}
+                        centerMoodOrbIds={monthlyMoodIds}
+                        onPress={openReader}
+                    />
+                </View>
             </View>
+
+            <InsightReaderOverlay
+                visible={readerVisible}
+                originRect={originRect}
+                monthPhrase={monthPhrase}
+                aiReasoning={aiReasoning}
+                text={translatedText}
+                isEligible={isEligibleForInsight}
+                isGenerating={isGenerating}
+                onGenerate={onGenerate}
+                pendingCount={pendingCount}
+                isSaved={isSaved}
+                saving={saving}
+                onSave={handleSave}
+                onClose={() => setReaderVisible(false)}
+                ghostColors={ghostColors}
+            />
 
             <MonthCalendar
                 month={currentMonth}
@@ -208,6 +252,17 @@ function MonthCalendar({
     const year = month.getFullYear();
     const monthNum = month.getMonth();
 
+    const mode = useCalendarModeStore((s) => s.mode);
+    const setMode = useCalendarModeStore((s) => s.setMode);
+
+    const maxCaptures = useMemo(() => {
+        let max = 1;
+        for (const flow of Object.values(dailyFlows)) {
+            if (flow.totalCaptures > max) max = flow.totalCaptures;
+        }
+        return max;
+    }, [dailyFlows]);
+
     const getDateKeyForDay = (day: number): string => {
         const m = String(monthNum + 1).padStart(2, "0");
         const d = String(day).padStart(2, "0");
@@ -216,6 +271,9 @@ function MonthCalendar({
 
     return (
         <View style={styles.calendarContainer}>
+            <View style={styles.calendarToolbar}>
+                <CalendarModeToggle mode={mode} onChange={setMode} />
+            </View>
             <View style={styles.weekdayRow}>
                 {["S", "M", "T", "W", "T", "F", "S"].map((d, idx) => (
                     <ThemedText key={`weekday-${idx}`} style={[styles.weekday, colors && { color: colors.cardTextSecondary }]}>
@@ -224,45 +282,97 @@ function MonthCalendar({
                 ))}
             </View>
             <View style={styles.daysGrid}>
-                {days.map((day, idx) => {
-                    const isSelected = selectedDay === day;
-                    const dateKey = day > 0 ? getDateKeyForDay(day) : "";
-                    const flowData = dateKey ? dailyFlows[dateKey] : null;
-                    const hasData = flowData && flowData.totalCaptures > 0;
-                    const moodColor = hasData ? getMoodTheme(flowData.dominantId || flowData.dominant).solid : null;
-
-                    return (
-                        <TouchableOpacity
-                            key={idx}
-                            style={[
-                                styles.dayCell,
-                                { backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' },
-                                isSelected && { borderColor: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' },
-                                day === 0 && styles.emptyCell,
-                            ]}
-                            disabled={day === 0}
-                            onPress={() => day && onSelectDay(day)}
-                        >
-                            {day !== 0 && (
-                                <>
-                                    <ThemedText style={[styles.dayNumber, colors && { color: colors.cardText }]}>{day}</ThemedText>
-                                    {hasData && moodColor && (
-                                        <View
-                                            style={[
-                                                styles.moodDotIndicator,
-                                                { backgroundColor: moodColor },
-                                            ]}
-                                        />
-                                    )}
-                                </>
-                            )}
-                        </TouchableOpacity>
-                    );
-                })}
+                {days.map((day, idx) => (
+                    <DayCell
+                        key={idx}
+                        day={day}
+                        mode={mode}
+                        flowData={day > 0 ? dailyFlows[getDateKeyForDay(day)] ?? null : null}
+                        isSelected={selectedDay === day && day > 0}
+                        isLight={isLight}
+                        colors={colors}
+                        maxCaptures={maxCaptures}
+                        onSelect={onSelectDay}
+                    />
+                ))}
             </View>
         </View>
     );
 }
+
+// GitHub-style capture-count buckets for the activity heatmap
+function activityLevel(captureCount: number): number {
+    if (captureCount <= 0) return 0;
+    if (captureCount === 1) return 1;
+    if (captureCount <= 3) return 2;
+    if (captureCount <= 6) return 3;
+    return 4;
+}
+
+const ACTIVITY_ALPHAS_DARK = [0.05, 0.12, 0.22, 0.34, 0.5];
+const ACTIVITY_ALPHAS_LIGHT = [0.05, 0.1, 0.18, 0.28, 0.4];
+
+const DayCell = React.memo(function DayCell({
+    day,
+    mode,
+    flowData,
+    isSelected,
+    isLight,
+    colors,
+    maxCaptures,
+    onSelect,
+}: {
+    day: number;
+    mode: CalendarDisplayMode;
+    flowData: DailyMoodFlowData | null;
+    isSelected: boolean;
+    isLight?: boolean;
+    colors?: { cardText: string; cardTextSecondary: string; };
+    maxCaptures: number;
+    onSelect: (day: number) => void;
+}) {
+    if (day === 0) {
+        return <View style={[styles.dayCell, styles.emptyCell]} />;
+    }
+
+    const hasData = !!flowData && flowData.totalCaptures > 0;
+    let cellBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+    if (mode === 'mood' && hasData) {
+        const solid = getMoodTheme(flowData.dominantId || flowData.dominant).solid;
+        const alpha = 0.18 + 0.55 * Math.min(1, flowData.totalCaptures / maxCaptures);
+        cellBg = hexToRgba(solid, alpha);
+    } else if (mode === 'activity') {
+        const alphas = isLight ? ACTIVITY_ALPHAS_LIGHT : ACTIVITY_ALPHAS_DARK;
+        const alpha = alphas[activityLevel(flowData?.totalCaptures ?? 0)];
+        cellBg = isLight ? `rgba(0,0,0,${alpha})` : `rgba(255,255,255,${alpha})`;
+    }
+
+    return (
+        <TouchableOpacity
+            style={[
+                styles.dayCell,
+                { backgroundColor: cellBg },
+                isSelected && { borderColor: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' },
+            ]}
+            onPress={() => onSelect(day)}
+        >
+            <ThemedText style={[styles.dayNumber, colors && { color: colors.cardText }]}>{day}</ThemedText>
+            {mode === 'flow' && hasData && (
+                <View style={styles.flowBar}>
+                    {flowData.segments.slice(0, 4).map((segment, i) => (
+                        <View
+                            key={i}
+                            style={{
+                                flex: Math.max(segment.percentage, 1),
+                                backgroundColor: segment.color || getMoodTheme(segment.moodId || segment.mood).solid,
+                            }}
+                        />
+                    ))}
+                </View>
+            )}
+        </TouchableOpacity>
+    );
+});
 
 function SelectedDayPanel({
     dayCaptures,
@@ -404,6 +514,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         marginBottom: 24,
     },
+    calendarToolbar: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        marginBottom: 10,
+    },
     weekdayRow: {
         flexDirection: "row",
         justifyContent: "space-between",
@@ -440,10 +555,15 @@ const styles = StyleSheet.create({
         color: Colors.obsy.silver,
         opacity: 0.8,
     },
-    moodDotIndicator: {
-        width: 4,
+    flowBar: {
+        position: "absolute",
+        bottom: 6,
+        left: "15%",
+        right: "15%",
         height: 4,
         borderRadius: 2,
+        overflow: "hidden",
+        flexDirection: "row",
     },
     selectedDayPanel: {
         padding: 20,

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  
+  <defs>
+    <linearGradient id="dsMetal" gradientUnits="userSpaceOnUse" x1="90" y1="80" x2="290" y2="330">
+      <stop offset="0%" stop-color="#e9ebee"></stop><stop offset="55%" stop-color="#cfd3d9"></stop><stop offset="100%" stop-color="#b3b9c1"></stop>
+    </linearGradient>
+    <linearGradient id="dsEdge" gradientUnits="userSpaceOnUse" x1="200" y1="60" x2="200" y2="345">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"></stop><stop offset="60%" stop-color="#ffffff" stop-opacity="0.35"></stop><stop offset="100%" stop-color="#ffffff" stop-opacity="0.1"></stop>
+    </linearGradient>
+    <mask id="dsMask">
+      <path d="M126 78 H198 A122 122 0 0 1 198 322 H126 A22 22 0 0 1 104 300 V100 A22 22 0 0 1 126 78 Z" fill="#ffffff"></path>
+      <path d="M340 138 C310 112 224 104 182 126 C142 147 148 192 187 205 L227 218 C266 231 270 274 232 292 C194 310 112 298 76 266" stroke="#000000" stroke-width="30" stroke-linecap="round" transform="rotate(-18 200 200)"></path>
+      <path d="M340 138 C310 112 224 104 182 126 C142 147 148 192 187 205 L227 218 C266 231 270 274 232 292 C194 310 112 298 76 266" stroke="#000000" stroke-width="8" stroke-linecap="round" transform="rotate(-18 200 200) translate(0,-28)"></path>
+    </mask>
+  </defs>
+  <g mask="url(#dsMask)">
+    <path d="M126 78 H198 A122 122 0 0 1 198 322 H126 A22 22 0 0 1 104 300 V100 A22 22 0 0 1 126 78 Z" fill="url(#dsMetal)" stroke="url(#dsEdge)" stroke-width="2.2" stroke-linejoin="round"></path>
+  </g>
+</svg>

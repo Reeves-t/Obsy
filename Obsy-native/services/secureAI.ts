@@ -101,6 +101,8 @@ export interface AiSettings {
     selectedCustomToneId?: string;
     autoDailyInsights: boolean;
     useJournalInInsights: boolean;
+    /** Optional user-authored background injected as additive prompt context. */
+    profileContext?: string;
 }
 
 export interface CaptureData {
@@ -145,6 +147,7 @@ export interface InsightRequest {
     };
     tone: string;
     customTonePrompt?: string;
+    profileContext?: string;
 }
 
 export interface InsightResponse {
@@ -264,13 +267,15 @@ function formatMoodPhrase(mood: string): string {
 export async function generateCaptureInsightSecure(
     capture: CaptureData,
     tone: string,
-    customTonePrompt?: string
+    customTonePrompt?: string,
+    profileContext?: string
 ): Promise<string> {
     return invokeGenerateInsight({
         type: 'capture',
         data: { captures: [capture] },
         tone,
         customTonePrompt,
+        profileContext,
     });
 }
 
@@ -280,13 +285,15 @@ export async function generateCaptureInsightSecure(
 export async function generateAlbumInsightSecure(
     albumContext: AlbumEntry[],
     tone: string,
-    customTonePrompt?: string
+    customTonePrompt?: string,
+    profileContext?: string
 ): Promise<string> {
     return invokeGenerateInsight({
         type: 'album',
         data: { albumContext },
         tone,
         customTonePrompt,
+        profileContext,
     });
 }
 
@@ -296,11 +303,13 @@ export async function generateAlbumInsightSecure(
 export async function generateTagInsightSecure(
     tag: string,
     captures: CaptureData[],
-    tone: string
+    tone: string,
+    profileContext?: string
 ): Promise<string> {
     return invokeGenerateInsight({
         type: 'tag',
         data: { tag, captures },
         tone,
+        profileContext,
     });
 }

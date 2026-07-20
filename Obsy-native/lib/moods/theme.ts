@@ -108,7 +108,7 @@ export function generateMoodGradient(name: string): MoodGradient {
 
 const DEFAULT_GRADIENT: MoodGradient = { primary: '#A8A8A8', mid: '#909090', secondary: '#808080' };
 
-// Cache built themes to avoid recomputation on hot paths (MoodRingDial renders 180 segments)
+// Cache built themes to avoid recomputation on hot paths (calendar cells, mood distribution)
 const themeCache = new Map<string, MoodTheme>();
 
 function buildTheme(

@@ -9,6 +9,13 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+// Display-time safety net: older cached insights may still contain dashes,
+// which users read as an AI tell. Mirrors the server-side sanitizeText rules.
+const stripAiDashes = (text: string) =>
+    text
+        .replace(/[–—]/g, ',')  // En dash / em dash → comma
+        .replace(/---?/g, ',');           // ASCII double/triple hyphens used as dashes → comma
+
 interface InsightTextProps {
     /** Array of sentences with highlight info (legacy, requires useSentences=true) */
     sentences?: InsightSentence[];
@@ -106,7 +113,7 @@ export function InsightText({
     // Split text on double newlines to preserve paragraph structure
     // Within each paragraph, normalize internal whitespace for flowing prose
     const fallbackParagraphs = React.useMemo(() => {
-        return fallbackText
+        return stripAiDashes(fallbackText)
             .split(/\n\n+/)  // Split on double (or more) newlines to identify paragraphs
             .map(paragraph =>
                 paragraph
@@ -141,7 +148,7 @@ export function InsightText({
 
     if (shouldUseSentences) {
         // Join all visible sentences into a single flowing paragraph
-        const flowingText = visibleSentences.map(s => s.text).join(' ');
+        const flowingText = stripAiDashes(visibleSentences.map(s => s.text).join(' '));
 
         return (
             <View>

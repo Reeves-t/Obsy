@@ -5,6 +5,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { runAiTextTask } from "../_shared/ai/router.ts";
 import type { AiPostProcessResult } from "../_shared/ai/types.ts";
+import { buildProfileContextSection } from "../_shared/ai/profileContext.ts";
 
 type TimeBucket = "early" | "midday" | "late" | string;
 type DayPart = "Late night" | "Morning" | "Midday" | "Evening" | "Night" | string;
@@ -35,6 +36,7 @@ interface WeeklyInsightRequest {
   captures?: CaptureData[];
   tone?: string;
   customTonePrompt?: string;
+  profileContext?: string;
   habitGoals?: HabitGoalContext[];
 }
 
@@ -256,6 +258,7 @@ serve(async (req) => {
       weekLabel: body.weekLabel ?? "This week",
       captures,
       toneStyle: resolveToneStyle(tone, body.customTonePrompt),
+      profileContext: body.profileContext,
       habitGoals: Array.isArray(body.habitGoals) ? body.habitGoals : [],
     });
 
@@ -276,6 +279,7 @@ serve(async (req) => {
       requestPayload: {
         tone,
         has_custom_tone: Boolean(body.customTonePrompt),
+        has_profile_context: Boolean(body.profileContext),
         capture_count: captures.length,
         week_label: body.weekLabel ?? "This week",
       },
@@ -335,7 +339,7 @@ function buildHabitGoalSection(habitGoals: HabitGoalContext[]): string[] {
   ];
 }
 
-function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; toneStyle: string; habitGoals: HabitGoalContext[] }): string {
+function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; toneStyle: string; profileContext?: string; habitGoals: HabitGoalContext[] }): string {
   const grouped = groupByDay(input.captures);
   const dayLines = Object.keys(grouped).sort().map((day) => {
     const lines = grouped[day].map((c) => {
@@ -368,6 +372,7 @@ function buildWeeklyPrompt(input: { weekLabel: string; captures: CaptureData[]; 
     "",
     "CAPTURES BY DAY (chronological):",
     dayLines,
+    ...buildProfileContextSection(input.profileContext),
     ...buildHabitGoalSection(input.habitGoals),
     "",
     "Identify the 2-3 most notable mood patterns, contrasts, or shifts. Do NOT narrate day by day.",

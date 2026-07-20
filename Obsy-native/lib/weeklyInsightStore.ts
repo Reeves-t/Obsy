@@ -72,6 +72,7 @@ interface WeeklyInsightState {
         userId: string,
         tone: string,
         customTonePrompt: string | undefined,
+        profileContext: string | undefined,
         allCaptures: Capture[],
         targetDate?: Date
     ) => Promise<void>;
@@ -138,7 +139,7 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
         }
     },
 
-    refreshWeeklyInsight: async (userId, tone, customTonePrompt, allCaptures, targetDate) => {
+    refreshWeeklyInsight: async (userId, tone, customTonePrompt, profileContext, allCaptures, targetDate) => {
         if (get().status === 'loading') return;
 
         set({ status: 'loading', error: null });
@@ -261,7 +262,7 @@ export const useWeeklyInsight = create<WeeklyInsightState>((set, get) => ({
                 completed: i.isCompleted,
             }));
 
-            const response = await callWeekly(weekLabel, captureData, tone, customTonePrompt, habitGoals);
+            const response = await callWeekly(weekLabel, captureData, tone, customTonePrompt, profileContext, habitGoals);
 
             if (response.ok && response.text) {
                 set({

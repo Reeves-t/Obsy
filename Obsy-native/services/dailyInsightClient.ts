@@ -26,6 +26,7 @@ export async function callDaily(
   captures: CaptureData[],
   tone: string,
   customTonePrompt?: string,
+  profileContext?: string,
   habitGoals?: HabitGoalContext[],
 ): Promise<DailyInsightResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
@@ -43,7 +44,7 @@ export async function callDaily(
 
   try {
     const response = await supabase.functions.invoke('generate-daily-insight', {
-      body: { dateLabel, captures, tone, customTonePrompt, habitGoals },
+      body: { dateLabel, captures, tone, customTonePrompt, profileContext, habitGoals },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 

@@ -74,6 +74,7 @@ interface TodayInsightState {
         userId: string,
         tone: string,
         customTonePrompt: string | undefined,
+        profileContext: string | undefined,
         allCaptures: Capture[]
     ) => Promise<void>;
     checkMidnightReset: () => void;
@@ -144,7 +145,7 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
         }
     },
 
-    refreshTodayInsight: async (userId, tone, customTonePrompt, allCaptures) => {
+    refreshTodayInsight: async (userId, tone, customTonePrompt, profileContext, allCaptures) => {
         if (get().status === 'loading') return;
 
         set({ status: 'loading', error: null });
@@ -240,7 +241,7 @@ export const useTodayInsight = create<TodayInsightState>((set, get) => ({
                 completed: i.isCompleted,
             }));
 
-            const response = await callDaily(dateLabel, captureData, tone, customTonePrompt, habitGoals);
+            const response = await callDaily(dateLabel, captureData, tone, customTonePrompt, profileContext, habitGoals);
 
             if (response.ok && response.text) {
                 // Save mood_flow data to database if present

@@ -1,23 +1,35 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  runOnUI,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
+  withSequence,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { AnimatedMicButton } from '@/components/home/AnimatedMicButton';
 import { AnimatedJournalButton } from '@/components/home/AnimatedJournalButton';
 import { PulsingCameraTrigger } from '@/components/home/PulsingCameraTrigger';
 import { QuickMoodButton } from '@/components/home/QuickMoodButton';
-import { useAuroraPulseStore } from '@/lib/auroraPulseStore';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { getThemeAccentRgb } from '@/lib/themeAccent';
-import { ReflectedCaption } from '@/components/ui/ReflectedCaption';
+import {
+  HALF,
+  useOrbitPhysics,
+  type SpinDirection,
+} from '@/components/home/orbital/useOrbitPhysics';
+import { FluidSliderTrack } from '@/components/home/orbital/FluidSliderTrack';
+import { CenterStage } from '@/components/home/orbital/CenterStage';
+import { OrbitParticles } from '@/components/home/orbital/OrbitParticles';
 
 type ActionKey = 'voice' | 'capture' | 'journal' | 'quick-mood';
-type OrbitSlotName = 'front' | 'left' | 'right' | 'top';
 
 interface ActionConfig {
   key: ActionKey;
@@ -30,89 +42,27 @@ interface ActionConfig {
   }) => React.ReactNode;
 }
 
-interface OrbitLayout {
-  hitSize: number;
-  opacity: number;
-  scale: number;
-  translateX: number;
-  translateY: number;
-  zIndex: number;
-}
+// ─── Geometry ────────────────────────────────────────────────────────
+// Buttons orbit an ellipse around an empty center that hosts the contextual
+// CenterStage animation. Radii are sized so no button ever touches the
+// center stage — front button inner edge clears it by ~12px, sides by ~16px.
 
-interface CarouselSlotProps {
-  action: ActionConfig;
-  size: number;
-  disabled: boolean;
-  dim?: boolean;
-  isFront?: boolean;
-  onPress?: () => void;
-  pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
-}
-
-interface OrbitItemProps {
-  action: ActionConfig;
-  slot: OrbitSlotName;
-  onRotateLeft: () => void;
-  onRotateRight: () => void;
-  motionKey: number;
-}
-
-const MAIN_BUTTON_SIZE = 172;
+const BUTTON_BASE_SIZE = 120;
 const BUTTON_RING_PADDING = 8;
-const STAGE_SIZE = MAIN_BUTTON_SIZE + BUTTON_RING_PADDING;
-const CONTAINER_WIDTH = 360;
-const CONTAINER_HEIGHT = 300;
+const SLOT_SIZE = BUTTON_BASE_SIZE + BUTTON_RING_PADDING;
+const MIN_SCALE = 0.26; // scale at the very back (depth 0); front is 1
+const STAGE_WIDTH = 360;
+const STAGE_HEIGHT = 368;
+const CX = STAGE_WIDTH / 2;
+const CY = 163;
+const RX = 124;
+const RY = 138;
+const CENTER_STAGE_SIZE = 120;
+const RING_GUIDE_SIZE = 160;
+
 const CAPTION_SWAP_OUT_DURATION = 170;
 const CAPTION_SWAP_DELAY = 180;
 const CAPTION_SWAP_IN_DURATION = 230;
-const ORBIT_ANIMATION_DURATION = 680;
-const TRANSLATE_DURATION = 500;
-const SCALE_DURATION = 500;
-const OPACITY_DURATION = 440;
-const STAGGER_DELAY = 180;
-const SWIPE_THRESHOLD = 36;
-
-const SLOT_LAYOUTS: Record<OrbitSlotName, OrbitLayout> = {
-  front: {
-    hitSize: STAGE_SIZE,
-    opacity: 1,
-    scale: 1,
-    translateX: 0,
-    translateY: 44,
-    zIndex: 4,
-  },
-  left: {
-    hitSize: 96,
-    opacity: 0.95,
-    scale: 0.30,
-    translateX: -118,
-    translateY: -6,
-    zIndex: 3,
-  },
-  right: {
-    hitSize: 96,
-    opacity: 0.95,
-    scale: 0.30,
-    translateX: 118,
-    translateY: -6,
-    zIndex: 3,
-  },
-  top: {
-    hitSize: 72,
-    opacity: 0.55,
-    scale: 0.20,
-    translateX: 0,
-    translateY: -94,
-    zIndex: 2,
-  },
-};
-
-const SLOT_DEPTHS: Record<OrbitSlotName, number> = {
-  front: 0,
-  left: 1,
-  right: 1,
-  top: 2,
-};
 
 const ACTIONS: ActionConfig[] = [
   {
@@ -148,205 +98,88 @@ const CTA_DESCRIPTIONS: Record<ActionKey, string> = {
   'quick-mood': 'no words needed, just log the mood',
 };
 
-// ─── Carousel helpers ────────────────────────────────────────────────
+// Turbo easter-egg caption one-liners (cycled while the orbit self-spins).
+const WITTY_PHRASES = [
+  'having fun are we?',
+  'okay speed demon.',
+  'someone is bored.',
+  'round and round we go.',
+  'dizzy yet?',
+  'the dial appreciates the workout.',
+  'not letting go, huh?',
+  'we see you.',
+];
 
-function wrapIndex(index: number): number {
-  const length = ACTIONS.length;
-  return ((index % length) + length) % length;
+const INITIAL_INDEX = 1;
+
+// ─── Orbit button ────────────────────────────────────────────────────
+
+interface OrbitButtonProps {
+  index: number;
+  action: ActionConfig;
+  isActive: boolean;
+  isBack: boolean;
+  thetaDisplay: SharedValue<number>;
+  pop: SharedValue<number>;
+  onSelect: () => void;
 }
 
-function getSlotForAction(actionIndex: number, activeIndex: number): OrbitSlotName {
-  const relativeIndex = wrapIndex(actionIndex - activeIndex);
-
-  if (relativeIndex === 0) return 'front';
-  if (relativeIndex === 1) return 'right';
-  if (relativeIndex === 2) return 'top';
-  return 'left';
-}
-
-function CarouselSlot({
+function OrbitButton({
+  index,
   action,
-  size,
-  disabled,
-  dim = false,
-  isFront = false,
-  onPress,
-  pointerEvents = 'auto',
-}: CarouselSlotProps) {
-  const visualSize = size + BUTTON_RING_PADDING;
+  isActive,
+  isBack,
+  thetaDisplay,
+  pop,
+  onSelect,
+}: OrbitButtonProps) {
+  const orbitStyle = useAnimatedStyle(() => {
+    const a = thetaDisplay.value + index * HALF;
+    const depth = (Math.sin(a) + 1) / 2;
+    const scale = (MIN_SCALE + (1 - MIN_SCALE) * depth) * pop.value;
+    const z = 1 + Math.round(depth * 40);
+    return {
+      opacity: 0.38 + 0.62 * depth,
+      zIndex: z,
+      elevation: z,
+      transform: [
+        { translateX: RX * Math.cos(a) },
+        { translateY: RY * Math.sin(a) },
+        { scale },
+      ],
+    };
+  });
+
+  const content = action.render({
+    size: BUTTON_BASE_SIZE,
+    disabled: !isActive,
+    dim: isBack,
+    isFront: isActive,
+  });
 
   return (
-    <View
-      pointerEvents={pointerEvents}
-      style={[
-        styles.slot,
-        {
-          width: visualSize,
-          height: visualSize,
-        },
-      ]}
-    >
-      {action.render({ size, disabled, onPress, dim, isFront })}
-    </View>
-  );
-}
-
-function OrbitItem({
-  action,
-  slot,
-  onRotateLeft,
-  onRotateRight,
-  motionKey,
-}: OrbitItemProps) {
-  const layout = SLOT_LAYOUTS[slot];
-  const translateX = useSharedValue(layout.translateX);
-  const translateY = useSharedValue(layout.translateY);
-  const scale = useSharedValue(layout.scale);
-  const opacity = useSharedValue(layout.opacity);
-  const swayRotation = useSharedValue(0);
-  const swayLift = useSharedValue(0);
-
-  const prevSlotRef = useRef<OrbitSlotName>(slot);
-
-  useEffect(() => {
-    const prevSlot = prevSlotRef.current;
-    const prevDepth = SLOT_DEPTHS[prevSlot];
-    const newDepth = SLOT_DEPTHS[slot];
-    prevSlotRef.current = slot;
-
-    const movingForward = newDepth < prevDepth;
-    const movingBackward = newDepth > prevDepth;
-    const isBecomingFront = slot === 'front';
-
-    // Forward: translate first, scale resolves after. Backward: scale shrinks first, translate drifts after.
-    const translateDelay = movingBackward ? STAGGER_DELAY : 0;
-    const scaleDelay = movingForward ? STAGGER_DELAY : 0;
-
-    const translateEasing = Easing.bezier(0.22, 1, 0.36, 1);
-    const scaleEasing = movingForward
-      ? Easing.bezier(0.34, 1.2, 0.64, 1)
-      : Easing.bezier(0.22, 1, 0.36, 1);
-
-    translateX.value = withDelay(
-      translateDelay,
-      withTiming(layout.translateX, { duration: TRANSLATE_DURATION, easing: translateEasing })
-    );
-    translateY.value = withDelay(
-      translateDelay,
-      withTiming(layout.translateY, { duration: TRANSLATE_DURATION, easing: translateEasing })
-    );
-
-    if (isBecomingFront) {
-      // Snap arrival: hold near origin scale during travel, then punchy overshoot landing
-      scale.value = withDelay(
-        280,
-        withTiming(layout.scale, { duration: 320, easing: Easing.bezier(0.34, 1.55, 0.64, 1) })
-      );
-    } else {
-      scale.value = withDelay(
-        scaleDelay,
-        withTiming(layout.scale, { duration: SCALE_DURATION, easing: scaleEasing })
-      );
-    }
-
-    opacity.value = withTiming(layout.opacity, {
-      duration: OPACITY_DURATION,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [slot, layout.opacity, layout.scale, layout.translateX, layout.translateY, opacity, scale, translateX, translateY]);
-
-  useEffect(() => {
-    if (slot !== 'front') return;
-
-    // Hold a small tilt + lift during translation, then kick back to upright synced with the snap
-    swayRotation.value = -3;
-    swayLift.value = -1;
-    swayRotation.value = withDelay(
-      280,
-      withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) })
-    );
-    swayLift.value = withDelay(
-      280,
-      withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) })
-    );
-  }, [motionKey, slot, swayLift, swayRotation]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-  }));
-
-  const swayStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: swayLift.value },
-      { rotateZ: `${swayRotation.value}deg` },
-    ],
-  }));
-
-  const slotContent = (
-    <CarouselSlot
-      action={action}
-      size={MAIN_BUTTON_SIZE}
-      disabled={slot !== 'front'}
-      dim={slot === 'top'}
-      isFront={slot === 'front'}
-      pointerEvents={slot === 'front' ? 'auto' : 'none'}
-    />
-  );
-
-  return (
-    <Animated.View
-      style={[
-        styles.orbitItem,
-        {
-          zIndex: layout.zIndex,
-          elevation: layout.zIndex,
-        },
-        animatedStyle,
-      ]}
-      pointerEvents="box-none"
-    >
-      {slot === 'front' ? (
-        <Animated.View style={[styles.frontMotionWrap, swayStyle]}>
-          {slotContent}
-        </Animated.View>
-      ) : slot === 'left' ? (
-        <Pressable
-          style={[styles.touchZone, { width: layout.hitSize, height: layout.hitSize }]}
-          onPress={onRotateRight}
-        >
-          <View pointerEvents="none">{slotContent}</View>
-        </Pressable>
-      ) : slot === 'right' ? (
-        <Pressable
-          style={[styles.touchZone, { width: layout.hitSize, height: layout.hitSize }]}
-          onPress={onRotateLeft}
-        >
-          <View pointerEvents="none">{slotContent}</View>
-        </Pressable>
+    <Animated.View style={[styles.orbitItem, orbitStyle]} pointerEvents="box-none">
+      {isActive ? (
+        <View style={styles.slot}>{content}</View>
       ) : (
-        <Pressable
-          style={[styles.touchZone, { width: layout.hitSize, height: layout.hitSize }]}
-          onPress={onRotateLeft}
-        >
-          <View pointerEvents="none">{slotContent}</View>
+        <Pressable style={styles.slot} onPress={onSelect} hitSlop={12}>
+          <View pointerEvents="none">{content}</View>
         </Pressable>
       )}
     </Animated.View>
   );
 }
 
+// ─── Carousel ────────────────────────────────────────────────────────
+
 export function HomeActionCarousel() {
-  const [activeIndex, setActiveIndex] = useState(1);
-  const [displayedActionKey, setDisplayedActionKey] = useState<ActionKey>(ACTIONS[1].key);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [motionKey, setMotionKey] = useState(0);
-  const animationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeIndex, setActiveIndex] = useState(INITIAL_INDEX);
+  const [captionText, setCaptionText] = useState(CTA_DESCRIPTIONS[ACTIONS[INITIAL_INDEX].key]);
+  const activeIndexRef = useRef(INITIAL_INDEX);
+  const turboRef = useRef(false);
+  const pendingCaptionRef = useRef(CTA_DESCRIPTIONS[ACTIONS[INITIAL_INDEX].key]);
   const captionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const capOpacity = useSharedValue(1);
   const capLift = useSharedValue(0);
   const capScale = useSharedValue(1);
@@ -354,157 +187,252 @@ export function HomeActionCarousel() {
   const { auroraBackground, orbWave } = useObsyTheme();
   const accentRgb = getThemeAccentRgb(auroraBackground, orbWave);
 
+  // Per-button settle "pop" scales (fixed 4-button orbit).
+  const pop0 = useSharedValue(1);
+  const pop1 = useSharedValue(1);
+  const pop2 = useSharedValue(1);
+  const pop3 = useSharedValue(1);
+  const popScales = [pop0, pop1, pop2, pop3];
+
   useEffect(() => {
     return () => {
-      if (animationTimeoutRef.current) {
-        clearTimeout(animationTimeoutRef.current);
-      }
       if (captionTimeoutRef.current) {
         clearTimeout(captionTimeoutRef.current);
       }
     };
   }, []);
 
-  useEffect(() => {
-    const nextActionKey = ACTIONS[activeIndex].key;
+  const swapCaption = useCallback(
+    (text: string) => {
+      if (text === pendingCaptionRef.current) return;
+      pendingCaptionRef.current = text;
 
-    if (nextActionKey === displayedActionKey) return;
+      if (captionTimeoutRef.current) {
+        clearTimeout(captionTimeoutRef.current);
+      }
 
-    if (captionTimeoutRef.current) {
-      clearTimeout(captionTimeoutRef.current);
-    }
+      // Fade out + lift away, swap at the trough, settle back in.
+      capOpacity.value = withTiming(0, {
+        duration: CAPTION_SWAP_OUT_DURATION,
+        easing: Easing.out(Easing.quad),
+      });
+      capLift.value = withTiming(-6, {
+        duration: CAPTION_SWAP_OUT_DURATION,
+        easing: Easing.out(Easing.quad),
+      });
 
-    // Fade out + lift away.
-    capOpacity.value = withTiming(0, { duration: CAPTION_SWAP_OUT_DURATION, easing: Easing.out(Easing.quad) });
-    capLift.value = withTiming(-6, { duration: CAPTION_SWAP_OUT_DURATION, easing: Easing.out(Easing.quad) });
+      captionTimeoutRef.current = setTimeout(() => {
+        setCaptionText(text);
+        capLift.value = 6;
+        capScale.value = 0.96;
+        capOpacity.value = withTiming(1, {
+          duration: CAPTION_SWAP_IN_DURATION,
+          easing: Easing.out(Easing.cubic),
+        });
+        capLift.value = withTiming(0, {
+          duration: CAPTION_SWAP_IN_DURATION,
+          easing: Easing.out(Easing.cubic),
+        });
+        capScale.value = withTiming(1, {
+          duration: CAPTION_SWAP_IN_DURATION,
+          easing: Easing.out(Easing.cubic),
+        });
+        captionTimeoutRef.current = null;
+      }, CAPTION_SWAP_DELAY);
+    },
+    [capLift, capOpacity, capScale]
+  );
 
-    captionTimeoutRef.current = setTimeout(() => {
-      // Swap text at the opacity trough, then fade in with a gentle scale settle.
-      setDisplayedActionKey(nextActionKey);
-      capLift.value = 6;
-      capScale.value = 0.96;
-      capOpacity.value = withTiming(1, { duration: CAPTION_SWAP_IN_DURATION, easing: Easing.out(Easing.cubic) });
-      capLift.value = withTiming(0, { duration: CAPTION_SWAP_IN_DURATION, easing: Easing.out(Easing.cubic) });
-      capScale.value = withTiming(1, { duration: CAPTION_SWAP_IN_DURATION, easing: Easing.out(Easing.cubic) });
-      captionTimeoutRef.current = null;
-    }, CAPTION_SWAP_DELAY);
-  }, [activeIndex, capOpacity, capLift, capScale, displayedActionKey]);
+  const handleIndexChange = useCallback(
+    (index: number, _direction: SpinDirection) => {
+      // Aurora coupling is continuous now: the physics loop streams theta and
+      // velocity straight into the background shader via `auroraFlow`.
+      activeIndexRef.current = index;
+      setActiveIndex(index);
+      if (!turboRef.current) {
+        swapCaption(CTA_DESCRIPTIONS[ACTIONS[index].key]);
+      }
+    },
+    [swapCaption]
+  );
+
+  const handleSettle = useCallback(
+    (index: number) => {
+      // Micro-bounce "pop" on the newly-front button.
+      popScales[index].value = withSequence(
+        withTiming(1.16, { duration: 120, easing: Easing.bezier(0.34, 1.8, 0.64, 1) }),
+        withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) })
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pop0, pop1, pop2, pop3]
+  );
+
+  const handleTurboStart = useCallback(() => {
+    turboRef.current = true;
+  }, []);
+
+  const handleTurboPhrase = useCallback(
+    (phraseIndex: number) => {
+      swapCaption(WITTY_PHRASES[phraseIndex % WITTY_PHRASES.length]);
+    },
+    [swapCaption]
+  );
+
+  const handleTurboEnd = useCallback(() => {
+    turboRef.current = false;
+    // Force a refresh — the front button may be the same one turbo started on.
+    swapCaption(CTA_DESCRIPTIONS[ACTIONS[activeIndexRef.current].key]);
+  }, [swapCaption]);
+
+  const physics = useOrbitPhysics(INITIAL_INDEX, {
+    onIndexChange: handleIndexChange,
+    onSettle: handleSettle,
+    onTurboStart: handleTurboStart,
+    onTurboPhrase: handleTurboPhrase,
+    onTurboEnd: handleTurboEnd,
+  });
+
+  const { beginDrag, dragBy, endDrag, spinTo } = physics;
+
+  // Slider drives the orbit 1:1; grabbing it (even without moving) interrupts
+  // any fling/turbo, like catching a spinning dial.
+  const sliderPan = Gesture.Pan()
+    .minDistance(1)
+    .maxPointers(1)
+    .onBegin(() => {
+      beginDrag();
+    })
+    .onChange((e) => {
+      dragBy(e.changeX);
+    })
+    .onFinalize((e) => {
+      endDrag(e.velocityX);
+    });
+
+  // Swiping across the orbit itself also spins it (pre-slider behavior kept),
+  // feeding the exact same physics. Activation offsets leave taps for buttons.
+  const stagePan = Gesture.Pan()
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-16, 16])
+    .onStart(() => {
+      beginDrag();
+    })
+    .onChange((e) => {
+      dragBy(e.changeX);
+    })
+    .onEnd((e) => {
+      endDrag(e.velocityX);
+    });
+
+  const selectIndex = useCallback(
+    (index: number) => {
+      runOnUI(spinTo)(index);
+    },
+    [spinTo]
+  );
 
   const captionStyle = useAnimatedStyle(() => ({
     opacity: capOpacity.value,
     transform: [{ translateY: capLift.value }, { scale: capScale.value }],
   }));
 
-  const rotate = useCallback((direction: 'left' | 'right') => {
-    if (isAnimating) return;
-
-    // Nudge the Aurora background orbs to wander with the carousel move.
-    // getState() avoids adding a re-render dependency to this callback.
-    useAuroraPulseStore.getState().pulse(direction);
-
-    setIsAnimating(true);
-    setMotionKey((current) => current + 1);
-    setActiveIndex((current) => wrapIndex(current + (direction === 'left' ? 1 : -1)));
-
-    if (animationTimeoutRef.current) {
-      clearTimeout(animationTimeoutRef.current);
-    }
-
-    animationTimeoutRef.current = setTimeout(() => {
-      setIsAnimating(false);
-      animationTimeoutRef.current = null;
-    }, ORBIT_ANIMATION_DURATION);
-  }, [isAnimating]);
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          !isAnimating &&
-          Math.abs(gestureState.dx) > 10 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
-        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
-          !isAnimating &&
-          Math.abs(gestureState.dx) > 10 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
-        onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dx <= -SWIPE_THRESHOLD) {
-            rotate('left');
-          } else if (gestureState.dx >= SWIPE_THRESHOLD) {
-            rotate('right');
-          }
-        },
-      }),
-    [isAnimating, rotate]
-  );
+  const backIndex = (activeIndex + 2) % ACTIONS.length;
 
   return (
-    <View style={styles.carouselShell}>
-      <View style={styles.container} {...panResponder.panHandlers}>
-        {ACTIONS.map((action, index) => (
-          <OrbitItem
-            key={action.key}
-            action={action}
-            slot={getSlotForAction(index, activeIndex)}
-            onRotateLeft={() => rotate('left')}
-            onRotateRight={() => rotate('right')}
-            motionKey={motionKey}
+    <GestureHandlerRootView style={styles.carouselShell}>
+      <GestureDetector gesture={stagePan}>
+        <View style={styles.stage} collapsable={false}>
+          <View style={styles.ringGuide} pointerEvents="none" />
+          <OrbitParticles
+            theta={physics.theta}
+            phase={physics.phase}
+            settlePulse={physics.settlePulse}
+            accentRgb={accentRgb}
+            width={STAGE_WIDTH}
+            height={STAGE_HEIGHT}
+            cx={CX}
+            cy={CY}
+            rx={RX}
+            ry={RY}
           />
-        ))}
-      </View>
+          <CenterStage
+            activeKey={ACTIONS[activeIndex].key}
+            accentRgb={accentRgb}
+            size={CENTER_STAGE_SIZE}
+            style={styles.centerStage}
+          />
+          {ACTIONS.map((action, index) => (
+            <OrbitButton
+              key={action.key}
+              index={index}
+              action={action}
+              isActive={index === activeIndex}
+              isBack={index === backIndex}
+              thetaDisplay={physics.thetaDisplay}
+              pop={popScales[index]}
+              onSelect={() => selectIndex(index)}
+            />
+          ))}
+        </View>
+      </GestureDetector>
 
       <View style={styles.captionWrap}>
         <Animated.View style={[styles.captionInner, captionStyle]}>
-          <ReflectedCaption
-            text={CTA_DESCRIPTIONS[displayedActionKey]}
-            textStyle={styles.captionText}
-            reflectionColor={`rgb(${accentRgb})`}
-          />
+          <Text style={styles.captionText}>{captionText}</Text>
         </Animated.View>
       </View>
-    </View>
+
+      <View style={styles.sliderWrap}>
+        <FluidSliderTrack gesture={sliderPan} theta={physics.theta} vel={physics.vel} />
+      </View>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   carouselShell: {
-    width: CONTAINER_WIDTH,
+    width: STAGE_WIDTH,
     alignItems: 'center',
   },
-  container: {
-    width: CONTAINER_WIDTH,
-    height: CONTAINER_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
+  stage: {
+    width: STAGE_WIDTH,
+    height: STAGE_HEIGHT,
+  },
+  ringGuide: {
+    position: 'absolute',
+    left: CX - RING_GUIDE_SIZE / 2,
+    top: CY - RING_GUIDE_SIZE / 2,
+    width: RING_GUIDE_SIZE,
+    height: RING_GUIDE_SIZE,
+    borderRadius: RING_GUIDE_SIZE / 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  centerStage: {
+    position: 'absolute',
+    left: CX - CENTER_STAGE_SIZE / 2,
+    top: CY - CENTER_STAGE_SIZE / 2,
   },
   orbitItem: {
     position: 'absolute',
-    top: CONTAINER_HEIGHT / 2 - STAGE_SIZE / 2,
-    left: CONTAINER_WIDTH / 2 - STAGE_SIZE / 2,
-    width: STAGE_SIZE,
-    height: STAGE_SIZE,
+    left: CX - SLOT_SIZE / 2,
+    top: CY - SLOT_SIZE / 2,
+    width: SLOT_SIZE,
+    height: SLOT_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   slot: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  frontMotionWrap: {
-    width: STAGE_SIZE,
-    height: STAGE_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  touchZone: {
+    width: SLOT_SIZE,
+    height: SLOT_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   captionWrap: {
-    width: CONTAINER_WIDTH,
+    width: STAGE_WIDTH,
     minHeight: 32,
-    marginTop: 80,
+    marginTop: 10,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingHorizontal: 28,
@@ -523,5 +451,9 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     fontWeight: '500',
     letterSpacing: 0.4,
+  },
+  sliderWrap: {
+    marginTop: 18,
+    alignItems: 'center',
   },
 });

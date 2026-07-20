@@ -11,7 +11,7 @@
  */
 
 export type AuthMethod = 'account' | 'guest';
-export type CaptureType = 'photo' | 'text' | 'voice' | 'link';
+export type CaptureType = 'photo' | 'text' | 'voice' | 'link' | 'unpack';
 export type InsightPeriod = 'daily' | 'weekly' | 'monthly';
 export type PlanInterval = 'monthly' | 'yearly';
 

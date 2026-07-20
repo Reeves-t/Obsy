@@ -5,6 +5,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { runAiTextTask } from "../_shared/ai/router.ts";
 import type { AiPostProcessResult } from "../_shared/ai/types.ts";
+import { buildProfileContextSection } from "../_shared/ai/profileContext.ts";
 
 interface CaptureData {
   mood: string;
@@ -24,6 +25,7 @@ interface InsightCardRequest {
   dateTo: string;
   tone?: string;
   customTonePrompt?: string;
+  profileContext?: string;
   captures: CaptureData[];
 }
 
@@ -187,8 +189,17 @@ ${toneInstruction}
 
 Captures (chronological):
 ${captureLines}
+${buildProfileContextSection(req.profileContext).join("\n")}
 
 Return the JSON card structure described in your instructions.`;
+}
+
+function sanitizeDashes(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/[–—]/g, ",")          // En dash / em dash → comma
+    .replace(/---?/g, ",")                    // ASCII double/triple hyphens used as dashes → comma
+    .trim();
 }
 
 function parseCardResponse(text: string, cardType: CardType): { title: string; body: string; emotionalTheme?: string; dominantMoods?: string[] } {
@@ -200,8 +211,8 @@ function parseCardResponse(text: string, cardType: CardType): { title: string; b
   try {
     const parsed = JSON.parse(cleaned);
     return {
-      title: String(parsed.title || "A Moment in Time"),
-      body: String(parsed.body || ""),
+      title: sanitizeDashes(String(parsed.title || "A Moment in Time")),
+      body: sanitizeDashes(String(parsed.body || "")),
       emotionalTheme: parsed.emotionalTheme ? String(parsed.emotionalTheme) : undefined,
       dominantMoods: Array.isArray(parsed.dominantMoods) ? parsed.dominantMoods.map(String) : undefined,
     };
@@ -209,7 +220,7 @@ function parseCardResponse(text: string, cardType: CardType): { title: string; b
     // Fallback: treat the whole text as body
     return {
       title: "A Moment in Time",
-      body: cleaned.slice(0, 500),
+      body: sanitizeDashes(cleaned.slice(0, 500)),
     };
   }
 }

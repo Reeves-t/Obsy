@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { View } from 'react-native';
-import { ObsyAnimatedSplash } from '@/components/splash/ObsyAnimatedSplash';
+import { DaystructMorphSplash } from '@/components/splash/DaystructMorphSplash';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -28,6 +28,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold
 } from '@expo-google-fonts/inter';
+import { SpaceGrotesk_500Medium } from '@expo-google-fonts/space-grotesk';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -49,6 +50,7 @@ export default function RootLayout() {
     Inter_400Regular,
     Inter_600SemiBold,
     Inter_700Bold,
+    SpaceGrotesk_500Medium,
     ...FontAwesome.font,
   });
 
@@ -91,7 +93,7 @@ export default function RootLayout() {
     <View style={{ flex: 1 }}>
       <RootLayoutNav onDataReady={handleDataReady} />
       {isSplashVisible && (
-        <ObsyAnimatedSplash onAnimationComplete={handleAnimationComplete} />
+        <DaystructMorphSplash onAnimationComplete={handleAnimationComplete} />
       )}
     </View>
   );
@@ -213,6 +215,7 @@ function ThemedNavigator() {
         <Stack.Screen name="friends" options={{ headerShown: false }} />
         <Stack.Screen name="invite" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="capture" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="unpack" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="journal" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="voice" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="quick-mood" options={{ presentation: 'modal', headerShown: false }} />

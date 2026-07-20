@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;}
+body{margin:0;background:#050505;}
+*::-webkit-scrollbar{width:0;height:0;display:none;}
+*{scrollbar-width:none;}
+@keyframes glowPulse{0%,100%{opacity:.45}50%{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes glimmer{0%{transform:translateX(-180%) skewX(-20deg);opacity:0}3%{opacity:0}5%{opacity:.9}13%{transform:translateX(180%) skewX(-20deg);opacity:0}100%{transform:translateX(180%) skewX(-20deg);opacity:0}}
+@keyframes shimmerCycle{0%{transform:rotate(0deg)}26.19%{transform:rotate(360deg)}52.38%{transform:rotate(720deg)}78.57%{transform:rotate(1080deg)}85.71%{transform:rotate(1440deg)}92.86%{transform:rotate(1800deg)}100%{transform:rotate(2160deg)}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes sheetUp{from{transform:translateY(100%);opacity:.4}to{transform:translateY(0);opacity:1}}
+@keyframes screenIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes detailIn{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+@keyframes newFlash{0%{box-shadow:0 0 0 1.5px var(--accent,#A3E635),0 0 34px color-mix(in srgb,var(--accent,#A3E635) 45%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes dotPulse{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-4px)}}
+@keyframes checkPop{0%{transform:scale(0)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes logoBoxGlow{0%,100%{box-shadow:0 0 18px color-mix(in srgb,var(--accent,#7E93A6) 28%,transparent)}50%{box-shadow:0 0 0 rgba(0,0,0,0)}}
+@keyframes logoMarkGlow{0%,100%{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent,#7E93A6) 45%,transparent))}50%{filter:drop-shadow(0 0 1px transparent)}}
+@keyframes labelGive{0%,100%{opacity:1}50%{opacity:.55}}
+@keyframes colorBleed{0%,100%{background-position:100% 0}50%{background-position:0% 0}}
+@keyframes flashIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes barSweep{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+</style>
+</helmet>
+
+<div style="--accent: {{ accent }}; min-height:100vh; display:flex; align-items:center; justify-content:center; background:radial-gradient(120% 80% at 50% -10%, #0b0b0b 0%, #050505 55%); font-family:'Space Grotesk',system-ui,sans-serif; padding:36px 20px; position:relative; overflow:hidden;">
+
+  <div style="position:absolute; top:-12%; left:50%; transform:translateX(-50%); width:680px; height:620px; background:radial-gradient(circle, color-mix(in srgb, var(--accent,#A3E635) 13%, transparent), transparent 62%); filter:blur(30px); pointer-events:none;"></div>
+
+  <div style="position:relative; width:392px; height:846px; background:radial-gradient(140% 120% at 50% 30%, #07090b 0%, #030405 55%, #000000 100%); border-radius:56px; border:1px solid #232323; box-shadow:0 50px 130px rgba(0,0,0,.75), inset 0 0 0 8px #090909, inset 0 0 80px rgba(0,0,0,.8); overflow:hidden; z-index:1; display:flex; flex-direction:column;">
+
+    <!-- STATUS BAR -->
+    <div style="flex:none; height:54px; display:flex; align-items:center; justify-content:space-between; padding:20px 34px 0; position:relative; z-index:8;">
+      <span style="font:600 15px 'Space Grotesk'; color:#fff; letter-spacing:.3px;">9:41</span>
+      <div style="position:absolute; left:50%; top:13px; transform:translateX(-50%); width:104px; height:30px; background:#000; border-radius:16px;"></div>
+      <div style="display:flex; gap:7px; align-items:center; color:#fff;">
+        <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4.5" width="3" height="7.5" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".4"/></svg>
+        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 2.6c2.3 0 4.4.9 6 2.4l1.4-1.5C13.9 1.5 11.3.5 8.5.5S3.1 1.5 1.1 3.5L2.5 5c1.6-1.5 3.7-2.4 6-2.4z"/><path d="M8.5 6.2c1.3 0 2.5.5 3.4 1.4l1.4-1.5C12 4.8 10.3 4.1 8.5 4.1S5 4.8 3.7 6.1l1.4 1.5c.9-.9 2.1-1.4 3.4-1.4z"/><circle cx="8.5" cy="10" r="1.6"/></svg>
+        <svg width="26" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24" y="4" width="1.6" height="5" rx="0.8" fill="currentColor" opacity=".5"/></svg>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <div style="flex:1; position:relative; overflow:hidden;">
+
+      <!-- ===== CONTROL TAB ===== -->
+      <sc-if value="{{ isControl }}" hint-placeholder-val="{{ true }}">
+        <div style="position:absolute; inset:0; overflow-y:auto; padding:8px 24px 28px; animation:screenIn .34s ease both;">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0 4px;">
+            <div style="display:flex; align-items:center; gap:11px;">
+              <div style="width:34px; height:34px; border-radius:11px; background:#0d0d0d; border:1px solid #232323; display:flex; align-items:center; justify-content:center; box-shadow:0 0 18px color-mix(in srgb,var(--accent,#7E93A6) 28%,transparent); animation:logoBoxGlow 6s ease-in-out infinite;">
+                <span style="display:flex; filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent,#7E93A6) 45%,transparent)); animation:logoMarkGlow 6s ease-in-out infinite;">{{ logoMark }}</span>
+              </div>
+              <span style="font:600 18px 'Space Grotesk'; color:#f4f4f4; letter-spacing:-.2px;">Control</span>
+            </div>
+            <sc-if value="{{ showFreeBadge }}" hint-placeholder-val="{{ true }}">
+              <span style="font:500 11px 'JetBrains Mono'; color:#6a6a6a; border:1px solid #1e1e1e; padding:5px 9px; border-radius:8px;">{{ freeText }}</span>
+            </sc-if>
+          </div>
+
+          <div style="margin-top:54px;">
+            <div style="font:500 13px 'JetBrains Mono'; color:var(--accent,#7E93A6); letter-spacing:1.5px; text-transform:uppercase; animation:labelGive 14s ease-in-out infinite;">Drop it in</div>
+            <h1 style="font:600 33px/1.12 'Space Grotesk'; margin:14px 0 0; letter-spacing:-.8px; text-wrap:balance; background:linear-gradient(120deg, #f6f6f6 0%, #f6f6f6 32%, var(--accent,#7E93A6) 50%, #f6f6f6 68%, #f6f6f6 100%); background-size:280% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:colorBleed 14s ease-in-out infinite;">What needs<br>handling?</h1>
+            <p style="font:400 14px/1.5 'Space Grotesk'; color:#7a7a7a; margin:14px 0 0; max-width:320px; min-height:42px;">{{ rotatingMsg }}<span style="display:inline-block; width:2px; height:15px; background:var(--accent,#A3E635); margin-left:2px; vertical-align:-2px; opacity:{{ caretOpacity }};"></span></p>
+          </div>
+
+          <div style="margin-top:24px; background:radial-gradient(140% 120% at 50% 30%, #07090b 0%, #030405 55%, #000000 100%); border:1px solid #101317; border-radius:18px; padding:22px 18px 14px; box-shadow:inset 0 0 40px rgba(0,0,0,.8), 0 8px 30px rgba(0,0,0,.5);">
+            <textarea value="{{ inputValue }}" onChange="{{ onInput }}" placeholder="Add daughter to insurance…" rows="2" style="width:100%; resize:none; border:none; outline:none; background:transparent; color:#eef2f6; font:500 18px/1.5 'Space Grotesk'; caret-color:var(--accent,#7E93A6); min-height:64px; text-shadow:0 0 14px rgba(190,208,222,.28);"></textarea>
+            <div style="display:flex; justify-content:flex-end;">
+              <button onClick="{{ startFlow }}" style="display:flex; align-items:center; gap:8px; border:1px solid #262626; cursor:pointer; background:radial-gradient(135% 105% at 50% -8%, #242424 0%, #181818 38%, #111111 72%, #0d0d0d 100%); color:#e8ecf0; font:600 15px 'Space Grotesk'; padding:11px 18px; border-radius:12px; box-shadow:0 6px 22px rgba(0,0,0,.5);">
+                Break it down
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h9M8 4l4 4-4 4" stroke="#e8ecf0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top:26px;">
+            <div style="font:500 11px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:1.2px; text-transform:uppercase; margin-bottom:12px;">Or try one</div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="5">
+                <button onClick="{{ ex.onPick }}" style="display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; cursor:pointer; background:radial-gradient(135% 105% at 50% -8%, #242424 0%, #181818 38%, #111111 72%, #0d0d0d 100%); border:1px solid #222; border-radius:13px; padding:14px 15px; color:#cfcfcf; font:500 15px 'Space Grotesk';">
+                  {{ ex.label }}
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="#4a4a4a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== ACTIVE TAB ===== -->
+      <sc-if value="{{ isActive }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute; inset:0; overflow-y:auto; padding:8px 24px 28px; animation:screenIn .34s ease both;">
+          <div style="display:flex; align-items:flex-end; justify-content:space-between; padding:10px 0 13px;">
+            <div>
+              <h1 style="font:600 30px 'Space Grotesk'; color:#f4f4f4; margin:0; letter-spacing:-.6px;">Active</h1>
+              <div style="font:400 13px 'Space Grotesk'; color:#6a6a6a; margin-top:4px;">{{ activeCount }} things under control</div>
+            </div>
+            <div style="display:flex; background:#0c0c0c; border:1px solid #1c1c1c; border-radius:11px; padding:3px;">
+              <div onClick="{{ onViewList }}" style="display:flex; align-items:center; justify-content:center; width:36px; height:28px; border-radius:8px; cursor:pointer; background:{{ listBg }};">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h10M3 12h10" stroke="{{ listIcon }}" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </div>
+              <div onClick="{{ onViewCal }}" style="display:flex; align-items:center; justify-content:center; width:36px; height:28px; border-radius:8px; cursor:pointer; background:{{ calBg }};">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><rect x="3" y="4" width="12" height="11" rx="2" stroke="{{ calIcon }}" stroke-width="1.5"/><path d="M3 7.5h12M6.5 2.5v3M11.5 2.5v3" stroke="{{ calIcon }}" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; padding:0 0 16px;">
+            <sc-if value="{{ isCalView }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; background:#0c0c0c; border:1px solid #1c1c1c; border-radius:10px; padding:3px;">
+                <div onClick="{{ onCalPlanner }}" style="display:flex; align-items:center; gap:5px; cursor:pointer; padding:5px 9px; border-radius:7px; background:{{ plannerBg }};">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h7M3 12h9" stroke="{{ plannerIcon }}" stroke-width="1.5" stroke-linecap="round"/></svg>
+                  <span style="font:500 10px 'JetBrains Mono'; color:{{ plannerIcon }}; letter-spacing:.3px;">Planner</span>
+                </div>
+                <div onClick="{{ onCalGrid }}" style="display:flex; align-items:center; gap:5px; cursor:pointer; padding:5px 9px; border-radius:7px; background:{{ gridBg }};">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="{{ gridIcon }}" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="{{ gridIcon }}" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="{{ gridIcon }}" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="{{ gridIcon }}" stroke-width="1.4"/></svg>
+                  <span style="font:500 10px 'JetBrains Mono'; color:{{ gridIcon }}; letter-spacing:.3px;">Grid</span>
+                </div>
+              </div>
+            </sc-if>
+            <div style="display:flex; align-items:center; gap:7px; border:1px solid #1f1f1f; border-radius:10px; padding:7px 11px;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M5 8h6M7 12h2" stroke="#7a7a7a" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span style="font:500 11px 'JetBrains Mono'; color:#9a9a9a; letter-spacing:.3px;">{{ sortBy }}</span>
+            </div>
+          </div>
+
+          <sc-if value="{{ isListView }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; gap:13px;">
+            <sc-for list="{{ activeTasks }}" as="task" hint-placeholder-count="3">
+              <div onClick="{{ task.onOpen }}" style="position:relative; border-radius:18px; cursor:pointer; overflow:hidden; animation:cardIn .4s ease both; box-shadow:0 10px 30px rgba(0,0,0,.45);">
+                <div style="position:absolute; inset:-65%; pointer-events:none; background:conic-gradient(from 0deg, transparent 0deg, transparent 58deg, color-mix(in srgb,var(--accent,#A3E635) 60%,transparent) 84deg, #f4ffe0 98deg, color-mix(in srgb,var(--accent,#A3E635) 60%,transparent) 112deg, transparent 138deg, transparent 360deg); animation:shimmerCycle 16.8s linear infinite;"></div>
+                <div style="position:absolute; inset:1.4px; border-radius:16.6px; pointer-events:none; background:radial-gradient(135% 105% at 50% -8%, #242424 0%, #181818 38%, #111111 72%, #0d0d0d 100%);"></div>
+                <div style="position:absolute; inset:1.4px; border-radius:16.6px; pointer-events:none; background:radial-gradient(70% 60% at 78% 8%, color-mix(in srgb,var(--accent,#A3E635) 12%,transparent) 0%, transparent 60%);"></div>
+                <sc-if value="{{ task.isNew }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute; inset:0; border-radius:18px; pointer-events:none; animation:newFlash 1.6s ease forwards;"></div>
+                </sc-if>
+                <div style="position:relative; padding:17px 17px 16px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:11px;">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span style="width:6px; height:6px; border-radius:50%; background:{{ task.priorityDot }};"></span>
+                    <span style="font:600 10px 'JetBrains Mono'; color:#9a9a9a; letter-spacing:1px; text-transform:uppercase;">{{ task.priority }} · {{ task.status }}</span>
+                  </div>
+                  <span style="font:500 11px 'JetBrains Mono'; color:{{ task.dueColor }};">{{ task.due }}</span>
+                </div>
+                <h3 style="font:600 19px/1.2 'Space Grotesk'; color:#f6f6f6; margin:0 0 12px; letter-spacing:-.3px;">{{ task.title }}</h3>
+                <div style="display:flex; align-items:flex-start; gap:10px; background:rgba(8,8,8,.55); border:1px solid #242424; border-radius:12px; padding:11px 12px; backdrop-filter:blur(2px);">
+                  <div style="flex:none; margin-top:1px; width:18px; height:18px; border-radius:6px; background:color-mix(in srgb,var(--accent,#A3E635) 22%,transparent); display:flex; align-items:center; justify-content:center;">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8h9M8 4l4 4-4 4" stroke="var(--accent,#A3E635)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </div>
+                  <div>
+                    <div style="font:600 10px 'JetBrains Mono'; color:var(--accent,#A3E635); letter-spacing:.6px; text-transform:uppercase; margin-bottom:3px;">Next best step</div>
+                    <div style="font:400 13.5px/1.4 'Space Grotesk'; color:#cccccc;">{{ task.nextStep }}</div>
+                  </div>
+                </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ isCalView }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:2px;">
+              <sc-if value="{{ showPlanner }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+                <div style="display:flex; align-items:baseline; gap:8px;">
+                  <span style="font:600 18px 'Space Grotesk'; color:#f2f2f2; letter-spacing:-.3px;">This week</span>
+                  <span style="font:500 12px 'JetBrains Mono'; color:#5a5a5a;">{{ weekRange }}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:7px; border:1px solid #1f1f1f; border-radius:9px; padding:6px 10px;">
+                  <span style="width:7px; height:7px; border-radius:50%; background:var(--accent,#A3E635);"></span>
+                  <span style="font:500 10px 'JetBrains Mono'; color:#9a9a9a; letter-spacing:.4px;">{{ weekCount }}</span>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:20px;">
+                <sc-for list="{{ planDays }}" as="day" hint-placeholder-count="4">
+                  <div>
+                    <div style="display:flex; align-items:center; gap:11px; margin-bottom:11px;">
+                      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:46px; flex:none;">
+                        <span style="font:600 23px 'Space Grotesk'; color:{{ day.numColor }}; line-height:1; letter-spacing:-.5px;">{{ day.dnum }}</span>
+                        <span style="font:500 9px 'JetBrains Mono'; color:#6a6a6a; letter-spacing:1px; text-transform:uppercase; margin-top:3px;">{{ day.wd }}</span>
+                      </div>
+                      <div style="flex:1; height:1px; background:linear-gradient(90deg,#1e1e1e,transparent);"></div>
+                      <sc-if value="{{ day.isToday }}" hint-placeholder-val="{{ false }}">
+                        <span style="font:600 9px 'JetBrains Mono'; color:#06140a; background:var(--accent,#A3E635); padding:4px 8px; border-radius:6px; letter-spacing:.6px; text-transform:uppercase;">Today</span>
+                      </sc-if>
+                      <span style="font:500 10px 'JetBrains Mono'; color:#6a6a6a;">{{ day.count }}</span>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:9px; padding-left:57px;">
+                      <sc-for list="{{ day.cards }}" as="c" hint-placeholder-count="1">
+                        <div onClick="{{ c.onOpen }}" style="position:relative; display:flex; gap:12px; border-radius:13px; padding:12px 13px 12px 14px; cursor:pointer; overflow:hidden; background:{{ c.bg }}; border:1px solid {{ c.border }}; border-left:3px solid {{ c.color }};">
+                          <div style="flex:none; display:flex; flex-direction:column; align-items:flex-start; min-width:52px;">
+                            <span style="font:600 11px 'JetBrains Mono'; color:{{ c.color }}; letter-spacing:.2px;">{{ c.time }}</span>
+                            <span style="font:500 9px 'JetBrains Mono'; color:#8a8a8a; letter-spacing:.5px; text-transform:uppercase; margin-top:5px;">{{ c.cat }}</span>
+                          </div>
+                          <div style="flex:1; min-width:0;">
+                            <div style="font:600 14.5px/1.25 'Space Grotesk'; color:#f2f2f2; letter-spacing:-.2px;">{{ c.title }}</div>
+                            <div style="display:flex; align-items:center; gap:6px; margin-top:5px;">
+                              <span style="width:5px; height:5px; border-radius:50%; background:{{ c.priorityDot }};"></span>
+                              <span style="font:500 10px 'JetBrains Mono'; color:#9a9a9a; letter-spacing:.3px; text-transform:uppercase;">{{ c.priority }} · {{ c.status }}</span>
+                            </div>
+                          </div>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex:none; align-self:center;"><path d="M6 3l5 5-5 5" stroke="#4a4a4a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ day.empty }}" hint-placeholder-val="{{ false }}">
+                        <div style="font:500 12px 'Space Grotesk'; color:#4e4e4e; padding:4px 0;">Clear day.</div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              </sc-if>
+
+              <sc-if value="{{ showGrid }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                  <div style="display:flex; align-items:baseline; gap:8px;">
+                    <span style="font:600 18px 'Space Grotesk'; color:#f2f2f2; letter-spacing:-.3px;">June – July</span>
+                    <span style="font:500 12px 'JetBrains Mono'; color:#5a5a5a;">{{ weekRange }}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:7px; border:1px solid #1f1f1f; border-radius:9px; padding:6px 10px;">
+                    <span style="width:7px; height:7px; border-radius:50%; background:var(--accent,#A3E635);"></span>
+                    <span style="font:500 10px 'JetBrains Mono'; color:#9a9a9a; letter-spacing:.4px;">{{ weekCount }}</span>
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:8px;">
+                  <sc-for list="{{ gridDow }}" as="d" hint-placeholder-count="7">
+                    <div style="text-align:center; font:600 9px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:.5px;">{{ d.label }}</div>
+                  </sc-for>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px;">
+                  <sc-for list="{{ gridCells }}" as="cell" hint-placeholder-count="14">
+                    <div onClick="{{ cell.onSelect }}" style="position:relative; min-height:72px; border-radius:9px; padding:5px 4px 4px; display:flex; flex-direction:column; gap:3px; background:{{ cell.bg }}; border:{{ cell.border }}; cursor:{{ cell.cursor }}; overflow:hidden;">
+                      <sc-if value="{{ cell.inMonth }}" hint-placeholder-val="{{ true }}">
+                        <span style="font:600 11px 'Space Grotesk'; color:{{ cell.numColor }}; text-align:center; line-height:1.1;">{{ cell.dnum }}</span>
+                        <div style="display:flex; flex-direction:column; gap:2px;">
+                          <sc-for list="{{ cell.chips }}" as="ch" hint-placeholder-count="0">
+                            <div style="height:5px; border-radius:2px; background:{{ ch.color }};"></div>
+                          </sc-for>
+                        </div>
+                        <sc-if value="{{ cell.more }}" hint-placeholder-val="{{ false }}">
+                          <span style="font:500 7px 'JetBrains Mono'; color:#7a7a7a; text-align:center;">{{ cell.moreLabel }}</span>
+                        </sc-if>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="margin-top:20px;">
+                  <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;">
+                    <span style="font:600 15px 'Space Grotesk'; color:#f2f2f2; letter-spacing:-.2px;">{{ gridSelLabel }}</span>
+                    <span style="font:500 10px 'JetBrains Mono'; color:#7a7a7a; letter-spacing:.4px; text-transform:uppercase;">{{ gridSelCount }}</span>
+                  </div>
+                  <sc-if value="{{ gridSelHas }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex; flex-direction:column; gap:9px;">
+                      <sc-for list="{{ gridSelCards }}" as="c" hint-placeholder-count="2">
+                        <div onClick="{{ c.onOpen }}" style="display:flex; align-items:center; gap:12px; border-radius:13px; padding:12px 13px; cursor:pointer; background:{{ c.bg }}; border:1px solid {{ c.border }}; border-left:3px solid {{ c.color }}; animation:cardIn .3s ease both;">
+                          <div style="flex:none; display:flex; flex-direction:column; align-items:flex-start; min-width:52px;">
+                            <span style="font:600 11px 'JetBrains Mono'; color:{{ c.color }};">{{ c.time }}</span>
+                            <span style="font:500 9px 'JetBrains Mono'; color:#8a8a8a; letter-spacing:.5px; text-transform:uppercase; margin-top:5px;">{{ c.cat }}</span>
+                          </div>
+                          <div style="flex:1; min-width:0;">
+                            <div style="font:600 14.5px/1.25 'Space Grotesk'; color:#f2f2f2; letter-spacing:-.2px;">{{ c.title }}</div>
+                            <div style="display:flex; align-items:center; gap:6px; margin-top:5px;">
+                              <span style="width:5px; height:5px; border-radius:50%; background:{{ c.priorityDot }};"></span>
+                              <span style="font:500 10px 'JetBrains Mono'; color:#9a9a9a; letter-spacing:.3px; text-transform:uppercase;">{{ c.priority }} · {{ c.status }}</span>
+                            </div>
+                          </div>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex:none;"><path d="M6 3l5 5-5 5" stroke="#4a4a4a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ gridSelEmpty }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding:26px 0; background:#0a0a0a; border:1px dashed #1e1e1e; border-radius:13px;">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#3a3a3a" stroke-width="1.6"/><path d="M8 12l2.5 2.5L16 9" stroke="#3a3a3a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <span style="font:500 12.5px 'Space Grotesk'; color:#6a6a6a;">Nothing planned. Clear day.</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <!-- ===== PLANNER AI CHAT DOCK ===== -->
+              <div style="position:sticky; bottom:-28px; margin:14px -24px -28px; padding:12px 18px 22px; background:linear-gradient(to top, #050505 58%, rgba(5,5,5,.86) 84%, transparent); z-index:6;">
+                <div style="background:#0d0d0d; border:1px solid #232323; border-radius:18px; padding:13px 13px 12px; box-shadow:0 12px 36px rgba(0,0,0,.6);">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:11px;">
+                    <div style="width:22px; height:22px; border-radius:7px; background:#0d0d0d; border:1px solid #2a2a2a; display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px color-mix(in srgb,var(--accent,#A3E635) 30%,transparent);">
+                      <span style="font:700 13px 'Space Grotesk'; color:#fff; line-height:1;">C</span>
+                    </div>
+                    <span style="font:600 12px 'Space Grotesk'; color:#dcdcdc;">Planner assistant</span>
+                    <span style="font:500 9px 'JetBrains Mono'; color:var(--accent,#A3E635); border:1px solid color-mix(in srgb,var(--accent,#A3E635) 35%,transparent); padding:2px 6px; border-radius:5px; letter-spacing:.4px;">THIS WEEK</span>
+                  </div>
+
+                  <div style="display:flex; flex-direction:column; gap:8px; max-height:172px; overflow-y:auto; margin-bottom:11px;">
+                    <sc-for list="{{ chatBubbles }}" as="m" hint-placeholder-count="1">
+                      <div style="display:flex; justify-content:{{ m.align }};">
+                        <div style="max-width:84%; font:400 12.5px/1.45 'Space Grotesk'; color:{{ m.color }}; background:{{ m.bg }}; border:1px solid {{ m.border }}; border-radius:13px; padding:9px 12px;">{{ m.text }}</div>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ chatThinking }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex; justify-content:flex-start;">
+                        <div style="display:flex; gap:5px; align-items:center; background:#141414; border:1px solid #222; border-radius:13px; padding:11px 13px;">
+                          <span style="width:5px; height:5px; border-radius:50%; background:var(--accent,#A3E635); animation:dotPulse 1s ease-in-out infinite;"></span>
+                          <span style="width:5px; height:5px; border-radius:50%; background:var(--accent,#A3E635); animation:dotPulse 1s ease-in-out infinite .18s;"></span>
+                          <span style="width:5px; height:5px; border-radius:50%; background:var(--accent,#A3E635); animation:dotPulse 1s ease-in-out infinite .36s;"></span>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+
+                  <div style="display:flex; gap:7px; overflow-x:auto; margin-bottom:10px; padding-bottom:2px;">
+                    <sc-for list="{{ chatChips }}" as="chip" hint-placeholder-count="3">
+                      <button onClick="{{ chip.onTap }}" style="flex:none; cursor:pointer; background:#141414; border:1px solid #242424; color:#bcbcbc; font:500 11px 'Space Grotesk'; padding:7px 11px; border-radius:9px; white-space:nowrap;">{{ chip.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:9px; background:#070707; border:1px solid #232323; border-radius:13px; padding:7px 7px 7px 14px;">
+                    <input value="{{ chatInput }}" onChange="{{ onChatInput }}" onKeyDown="{{ onChatKey }}" placeholder="Ask about your week…" style="flex:1; border:none; outline:none; background:transparent; color:#f2f2f2; font:500 13.5px 'Space Grotesk'; caret-color:var(--accent,#A3E635);">
+                    <button onClick="{{ sendChat }}" style="flex:none; border:none; cursor:pointer; width:34px; height:34px; border-radius:9px; background:var(--accent,#A3E635); display:flex; align-items:center; justify-content:center;">
+                      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8h9M8 4l4 4-4 4" stroke="#06140a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- ===== DONE TAB ===== -->
+      <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute; inset:0; overflow-y:auto; padding:8px 24px 28px; animation:screenIn .34s ease both;">
+          <sc-if value="{{ showCompletedFlash }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:center; gap:12px; background:color-mix(in srgb,var(--accent,#A3E635) 12%,#0c0c0c); border:1px solid color-mix(in srgb,var(--accent,#A3E635) 30%,transparent); border-radius:14px; padding:13px 15px; margin:6px 0 18px; animation:flashIn .35s ease both;">
+              <div style="flex:none; width:26px; height:26px; border-radius:50%; background:var(--accent,#A3E635); display:flex; align-items:center; justify-content:center; animation:checkPop .4s ease both;">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5l3 3 6-7" stroke="#06140a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span style="font:500 14px 'Space Grotesk'; color:#e8e8e8;">Handled. That's one less thing.</span>
+            </div>
+          </sc-if>
+
+          <div style="padding:10px 0 6px;">
+            <h1 style="font:600 30px 'Space Grotesk'; color:#f4f4f4; margin:0; letter-spacing:-.6px;">Done</h1>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+              <span style="font:600 15px 'Space Grotesk'; color:var(--accent,#A3E635);">{{ momentum }}</span>
+              <span style="font:400 13px 'Space Grotesk'; color:#6a6a6a;">handled this month</span>
+            </div>
+          </div>
+
+          <div style="margin-top:22px;">
+            <div style="font:500 11px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:1.2px; text-transform:uppercase; margin-bottom:11px;">This week</div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              <sc-for list="{{ doneWeek }}" as="d" hint-placeholder-count="2">
+                <div style="display:flex; align-items:center; gap:13px; background:radial-gradient(135% 105% at 50% -8%, #242424 0%, #181818 38%, #111111 72%, #0d0d0d 100%); border:1px solid #222; border-radius:13px; padding:14px 15px;">
+                  <div style="flex:none; width:22px; height:22px; border-radius:50%; border:1.5px solid rgba(74,222,128,.55); display:flex; align-items:center; justify-content:center;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5l3 3 6-7" stroke="#4ADE80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </div>
+                  <span style="flex:1; font:500 14.5px 'Space Grotesk'; color:#b8b8b8;">{{ d.title }}</span>
+                  <span style="font:500 11px 'JetBrains Mono'; color:#555;">{{ d.when }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-top:24px;">
+            <div style="font:500 11px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:1.2px; text-transform:uppercase; margin-bottom:11px;">Earlier this month</div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              <sc-for list="{{ doneMonth }}" as="d" hint-placeholder-count="3">
+                <div style="display:flex; align-items:center; gap:13px; background:radial-gradient(135% 105% at 50% -8%, #242424 0%, #181818 38%, #111111 72%, #0d0d0d 100%); border:1px solid #222; border-radius:13px; padding:14px 15px;">
+                  <div style="flex:none; width:22px; height:22px; border-radius:50%; border:1.5px solid rgba(74,222,128,.35); display:flex; align-items:center; justify-content:center;">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5l3 3 6-7" stroke="#4ADE80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </div>
+                  <span style="flex:1; font:500 14.5px 'Space Grotesk'; color:#8e8e8e;">{{ d.title }}</span>
+                  <span style="font:500 11px 'JetBrains Mono'; color:#555;">{{ d.when }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+
+    <!-- TAB BAR -->
+    <div style="flex:none; height:84px; background:rgba(8,8,8,.92); backdrop-filter:blur(20px); border-top:1px solid #1a1a1a; display:flex; align-items:flex-start; padding:11px 30px 0; z-index:7;">
+      <div onClick="{{ onTabControl }}" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; color:{{ controlColor }};">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></svg>
+        <span style="font:600 10px 'JetBrains Mono'; letter-spacing:.5px;">Control</span>
+      </div>
+      <div onClick="{{ onTabActive }}" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; color:{{ activeColor }};">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="4" y="4.5" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="13.5" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.7"/></svg>
+        <span style="font:600 10px 'JetBrains Mono'; letter-spacing:.5px;">Active</span>
+      </div>
+      <div onClick="{{ onTabDone }}" style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; color:{{ doneColor }};">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 12l2.5 2.5L16 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font:600 10px 'JetBrains Mono'; letter-spacing:.5px;">Done</span>
+      </div>
+    </div>
+
+    <!-- ===== FLOW OVERLAY (questions + thinking) ===== -->
+    <sc-if value="{{ showFlow }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; left:0; right:0; top:54px; bottom:0; z-index:12; background:#000; animation:sheetUp .36s cubic-bezier(.2,.8,.2,1) both; display:flex; flex-direction:column;">
+
+        <sc-if value="{{ showQuestions }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; flex-direction:column; height:100%;">
+            <div style="flex:none; padding:18px 24px 14px; border-bottom:1px solid #161616;">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font:500 11px 'JetBrains Mono'; color:var(--accent,#A3E635); letter-spacing:1px; text-transform:uppercase;">Question {{ progressLabel }}</span>
+                <button onClick="{{ closeFlow }}" style="border:none; background:#141414; width:30px; height:30px; border-radius:9px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="#9a9a9a" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+              <div style="font:500 13px 'Space Grotesk'; color:#7a7a7a; margin-top:9px; display:flex; align-items:center; gap:7px;">
+                <span style="color:#5a5a5a;">Task</span>
+                <span style="color:#dcdcdc; font-weight:600;">{{ flowTitle }}</span>
+              </div>
+              <div style="display:flex; gap:5px; margin-top:13px;">
+                <sc-for list="{{ progressDots }}" as="p" hint-placeholder-count="4">
+                  <div style="flex:1; height:3px; border-radius:2px; background:{{ p.color }};"></div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="flex:1; overflow-y:auto; padding:20px 24px 24px;">
+              <sc-if value="{{ hasAnswered }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:20px;">
+                  <sc-for list="{{ answeredChips }}" as="c" hint-placeholder-count="1">
+                    <div style="display:flex; align-items:center; gap:10px; background:#0b0b0b; border:1px solid #181818; border-radius:11px; padding:9px 12px;">
+                      <span style="font:600 10px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:.5px;">{{ c.q }}</span>
+                      <span style="flex:1; font:500 12.5px 'Space Grotesk'; color:#9a9a9a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ c.ans }}</span>
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="color-mix(in srgb,var(--accent,#A3E635) 20%,transparent)"/><path d="M5 8l2 2 4-4.5" stroke="var(--accent,#A3E635)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <h2 style="font:600 24px/1.25 'Space Grotesk'; color:#f4f4f4; margin:0 0 20px; letter-spacing:-.4px; text-wrap:balance;">{{ currentText }}</h2>
+
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <sc-for list="{{ currentOptions }}" as="opt" hint-placeholder-count="4">
+                  <div onClick="{{ opt.onSelect }}" style="position:relative; display:flex; align-items:center; gap:13px; padding:15px 15px; background:#0e0e0e; border:1px solid #1e1e1e; border-radius:14px; cursor:pointer;">
+                    <sc-if value="{{ opt.selected }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:absolute; inset:0; border-radius:14px; border:1.5px solid var(--accent,#A3E635); box-shadow:0 0 24px color-mix(in srgb,var(--accent,#A3E635) 28%,transparent); pointer-events:none;"></div>
+                      <div style="flex:none; width:27px; height:27px; border-radius:8px; background:var(--accent,#A3E635); display:flex; align-items:center; justify-content:center;">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5l3 3 6-7" stroke="#06140a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ opt.unselected }}" hint-placeholder-val="{{ true }}">
+                      <div style="flex:none; width:27px; height:27px; border-radius:8px; background:#1a1a1a; color:#8a8a8a; display:flex; align-items:center; justify-content:center; font:600 12px 'JetBrains Mono';">{{ opt.key }}</div>
+                    </sc-if>
+                    <span style="font:500 15px/1.3 'Space Grotesk'; color:#dcdcdc;">{{ opt.label }}</span>
+                  </div>
+                </sc-for>
+
+                <sc-if value="{{ otherClosed }}" hint-placeholder-val="{{ true }}">
+                  <div onClick="{{ openOther }}" style="display:flex; align-items:center; gap:13px; padding:15px 15px; background:transparent; border:1px dashed #2a2a2a; border-radius:14px; cursor:pointer;">
+                    <div style="flex:none; width:27px; height:27px; border-radius:8px; background:#141414; color:#7a7a7a; display:flex; align-items:center; justify-content:center;">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="#7a7a7a" stroke-width="1.6" stroke-linecap="round"/></svg>
+                    </div>
+                    <span style="font:500 15px 'Space Grotesk'; color:#8a8a8a;">Something else…</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ otherOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex; align-items:center; gap:10px; padding:8px 8px 8px 15px; background:#0e0e0e; border:1.5px solid var(--accent,#A3E635); border-radius:14px;">
+                    <input value="{{ otherText }}" onChange="{{ onOther }}" onKeyDown="{{ onOtherKey }}" placeholder="Type your answer…" autofocus="true" style="flex:1; border:none; outline:none; background:transparent; color:#f2f2f2; font:500 15px 'Space Grotesk'; caret-color:var(--accent,#A3E635);">
+                    <button onClick="{{ submitOtherNow }}" style="flex:none; border:none; cursor:pointer; width:38px; height:38px; border-radius:10px; background:var(--accent,#A3E635); display:flex; align-items:center; justify-content:center;">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h9M8 4l4 4-4 4" stroke="#06140a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                </sc-if>
+              </div>
+
+              <div style="margin-top:18px; font:400 12px 'Space Grotesk'; color:#4e4e4e; text-align:center;">Tap an answer to continue</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showThinking }}" hint-placeholder-val="{{ false }}">
+          <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:34px; padding:24px;">
+            <div style="position:relative; width:118px; height:118px; animation:floaty 3s ease-in-out infinite;">
+              <div style="position:absolute; inset:-16px; border-radius:42px; border:1.5px solid transparent; border-top-color:var(--accent,#A3E635); border-right-color:color-mix(in srgb,var(--accent,#A3E635) 40%,transparent); animation:spin 1.1s linear infinite;"></div>
+              <div style="position:absolute; inset:0; border-radius:30px; box-shadow:0 0 46px color-mix(in srgb,var(--accent,#A3E635) 55%,transparent); animation:glowPulse 1.5s ease-in-out infinite;"></div>
+              <div style="position:absolute; inset:0; border-radius:30px; background:#0d0d0d; border:1px solid #242424; display:flex; align-items:center; justify-content:center;">
+                <span style="font:700 64px 'Space Grotesk'; color:#fff; line-height:1; text-shadow:0 0 20px color-mix(in srgb,var(--accent,#A3E635) 60%,transparent);">C</span>
+              </div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font:600 18px 'Space Grotesk'; color:#ededed; min-height:24px;">{{ thinkingMsg }}</div>
+              <div style="display:flex; gap:6px; justify-content:center; margin-top:14px;">
+                <span style="width:6px; height:6px; border-radius:50%; background:var(--accent,#A3E635); animation:dotPulse 1s ease-in-out infinite;"></span>
+                <span style="width:6px; height:6px; border-radius:50%; background:var(--accent,#A3E635); animation:dotPulse 1s ease-in-out infinite .18s;"></span>
+                <span style="width:6px; height:6px; border-radius:50%; background:var(--accent,#A3E635); animation:dotPulse 1s ease-in-out infinite .36s;"></span>
+              </div>
+            </div>
+            <div style="font:500 11px 'JetBrains Mono'; color:#4a4a4a; letter-spacing:1px; text-transform:uppercase;">Building your plan</div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ===== TASK DETAIL OVERLAY ===== -->
+    <sc-if value="{{ showDetail }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; left:0; right:0; top:54px; bottom:0; z-index:11; background:#000; display:flex; flex-direction:column; animation:detailIn .3s ease both;">
+        <div style="flex:none; display:flex; align-items:center; gap:13px; padding:14px 22px 13px; border-bottom:1px solid #161616;">
+          <button onClick="{{ closeDetail }}" style="border:none; background:#141414; width:34px; height:34px; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="#bcbcbc" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="width:6px; height:6px; border-radius:50%; background:{{ detail.priorityDot }};"></span>
+            <span style="font:600 10px 'JetBrains Mono'; color:#8a8a8a; letter-spacing:1px; text-transform:uppercase;">{{ detail.priority }} · {{ detail.status }}</span>
+          </div>
+        </div>
+
+        <div style="flex:1; overflow-y:auto; padding:20px 22px 24px;">
+          <h1 style="font:600 25px/1.2 'Space Grotesk'; color:#f4f4f4; margin:0 0 6px; letter-spacing:-.4px;">{{ detail.title }}</h1>
+          <div style="font:500 12px 'JetBrains Mono'; color:{{ detail.dueColor }}; margin-bottom:20px;">{{ detail.due }}</div>
+
+          <div style="background:linear-gradient(180deg, color-mix(in srgb,var(--accent,#A3E635) 14%,#0c0c0c), #0c0c0c); border:1px solid color-mix(in srgb,var(--accent,#A3E635) 32%,transparent); border-radius:16px; padding:16px; margin-bottom:24px;">
+            <div style="font:600 10px 'JetBrains Mono'; color:var(--accent,#A3E635); letter-spacing:1px; text-transform:uppercase; margin-bottom:8px;">Next best step</div>
+            <div style="font:500 16px/1.4 'Space Grotesk'; color:#eee;">{{ detail.nextStep }}</div>
+          </div>
+
+          <div style="margin-bottom:24px;">
+            <div style="font:500 11px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:1px; text-transform:uppercase; margin-bottom:12px;">The plan</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <sc-for list="{{ detail.steps }}" as="s" hint-placeholder-count="4">
+                <div onClick="{{ s.onToggle }}" style="display:flex; align-items:flex-start; gap:12px; cursor:pointer; padding:3px 0;">
+                  <sc-if value="{{ s.checked }}" hint-placeholder-val="{{ false }}">
+                    <div style="flex:none; margin-top:1px; width:22px; height:22px; border-radius:7px; background:var(--accent,#A3E635); display:flex; align-items:center; justify-content:center;">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5l3 3 6-7" stroke="#06140a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ s.unchecked }}" hint-placeholder-val="{{ true }}">
+                    <div style="flex:none; margin-top:1px; width:22px; height:22px; border-radius:7px; border:1.5px solid #2c2c2c;"></div>
+                  </sc-if>
+                  <span style="font:500 14.5px/1.4 'Space Grotesk'; color:{{ s.color }}; text-decoration:{{ s.strike }};">{{ s.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-bottom:24px;">
+            <div style="font:500 11px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:1px; text-transform:uppercase; margin-bottom:11px;">You'll need</div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              <sc-for list="{{ detail.needed }}" as="n" hint-placeholder-count="3">
+                <span style="font:500 13px 'Space Grotesk'; color:#bcbcbc; background:#0e0e0e; border:1px solid #1e1e1e; border-radius:9px; padding:8px 12px;">{{ n.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-bottom:24px;">
+            <div style="font:500 11px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:1px; text-transform:uppercase; margin-bottom:11px;">Reminders</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <sc-for list="{{ detail.reminders }}" as="r" hint-placeholder-count="2">
+                <div style="display:flex; align-items:center; gap:11px; background:#0b0b0b; border:1px solid #181818; border-radius:11px; padding:11px 13px;">
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="9" r="5.5" stroke="#7a7a7a" stroke-width="1.4"/><path d="M8 6.5V9l1.5 1.2M6 1.5L3.5 3.5M10 1.5l2.5 2" stroke="#7a7a7a" stroke-width="1.4" stroke-linecap="round"/></svg>
+                  <span style="font:500 13.5px 'Space Grotesk'; color:#a8a8a8;">{{ r.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <div style="font:500 11px 'JetBrains Mono'; color:#5a5a5a; letter-spacing:1px; text-transform:uppercase; margin-bottom:11px;">Notes</div>
+            <textarea value="{{ detail.noteValue }}" onChange="{{ detail.onNote }}" placeholder="Confirmation numbers, call notes, links…" rows="3" style="width:100%; resize:none; border:1px solid #1e1e1e; outline:none; background:#0b0b0b; color:#d4d4d4; font:400 14px/1.5 'Space Grotesk'; border-radius:12px; padding:13px; caret-color:var(--accent,#A3E635);"></textarea>
+          </div>
+        </div>
+
+        <div style="flex:none; padding:14px 22px; border-top:1px solid #161616; background:#000;">
+          <button onClick="{{ detail.onComplete }}" style="width:100%; border:none; cursor:pointer; background:var(--accent,#A3E635); color:#06140a; font:600 16px 'Space Grotesk'; padding:16px; border-radius:14px; display:flex; align-items:center; justify-content:center; gap:9px; box-shadow:0 8px 26px color-mix(in srgb,var(--accent,#A3E635) 32%,transparent);">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="#06140a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Mark as handled
+          </button>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:480,&quot;height&quot;:920},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#7E93A6&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;logo&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;1a&quot;,&quot;options&quot;:[&quot;1a&quot;,&quot;1b&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Branding&quot;},&quot;showFreeBadge&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;sortBy&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Most important&quot;,&quot;options&quot;:[&quot;Most important&quot;,&quot;Deadline&quot;,&quot;Quick wins&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.QUESTIONS = [
+      { text:'How would you describe this?', options:[
+        {key:'A',label:'Urgent — there\u2019s a deadline'},
+        {key:'B',label:'Important, but flexible'},
+        {key:'C',label:'Waiting on someone else'},
+        {key:'D',label:'Just figuring it out'} ] },
+      { text:'Have you started on this yet?', options:[
+        {key:'A',label:'Haven\u2019t started'},
+        {key:'B',label:'Gathered some info'},
+        {key:'C',label:'Made a call or inquiry'},
+        {key:'D',label:'Almost done'} ] },
+      { text:'What\u2019s the main thing in your way?', options:[
+        {key:'A',label:'Don\u2019t know where to start'},
+        {key:'B',label:'Missing documents or info'},
+        {key:'C',label:'Need to coordinate with others'},
+        {key:'D',label:'Just no time'} ] },
+      { text:'When does this need to happen?', options:[
+        {key:'A',label:'This week'},
+        {key:'B',label:'This month'},
+        {key:'C',label:'Next few months'},
+        {key:'D',label:'No hard deadline'} ] },
+    ];
+    this.THINK = ['Reading your task\u2026','Mapping what actually matters\u2026','Finding the next best step\u2026','Building your plan\u2026'];
+    this.EXAMPLES = ['Add daughter to insurance','Plan wife\u2019s birthday gift','Fix car registration issue','Schedule doctor appointment'];
+    this.MESSAGES = [
+      'Type the messy thing. Control asks a few questions, then breaks it into a clear plan.',
+      'Plan Sunday dinner \u2014 Control turns the recipe into a grocery list and a prep order.',
+      'Sort out the bill you\u2019ve been avoiding. Control maps the calls, forms, and deadlines.',
+      'Finally start that hobby. Control breaks the gear, budget, and first steps into a plan.',
+      'Pull off the weekend trip. Control handles bookings, packing, and who needs to know.',
+    ];
+    this.t = {};
+    this.tw = { mi:0, ci:0, phase:'typing' };
+    this.state = {
+      tab:'control', inputValue:'', flowStage:'none', qIndex:0,
+      activeView:'list', stackPos:0, dragX:0, dragging:false, flyDir:0, selectedCalDay:28, calSubView:'planner', gridSelKey:'Jun29',
+      answers:[null,null,null,null], otherOpen:false, otherText:'', thinkIdx:0,
+      detailId:null, newTaskId:null, completedFlash:false,
+      typed:this.MESSAGES[0], caretOn:true,
+      chatMsgs:[{role:'ai', text:'I keep an eye on your week. Ask me to reschedule, rebalance, or block time for any control.'}],
+      chatInput:'', chatThinking:false,
+      checkedSteps:{ ins:{0:true} }, notes:{},
+      tasks:this.seed(),
+      done:{ week:[
+          {title:'Scheduled Jade\u2019s doctor appointment', when:'Mon'},
+          {title:'Submitted insurance documents', when:'Tue'} ],
+        month:[
+          {title:'Bought Mom\u2019s birthday gift', when:'Jun 6'},
+          {title:'Set up autopay for utilities', when:'Jun 3'},
+          {title:'Filed school enrollment forms', when:'Jun 1'} ] },
+    };
+  }
+
+  seed(){
+    return [
+      { id:'car', title:'Fix car registration issue', priority:'High', status:'Not started',
+        deadlineDays:1, minutes:25, importance:92, due:'Expires tomorrow', day:29,
+        cat:'Auto', color:'#FF7A45', ord:0, wd:'Mon', dnum:29, mon:'Jun', time:'9:00 AM',
+        nextStep:'Log into the DMV portal and find what flag is on your registration.',
+        steps:['Log into the DMV portal and read the flag','Pay any outstanding fee or fine','Upload updated proof of insurance','Print the temporary registration'],
+        needed:['DMV login','Proof of insurance','Payment method'],
+        reminders:['Pay before Friday to avoid the late fee'] },
+      { id:'ins', title:'Add daughter to insurance', priority:'High', status:'In progress',
+        deadlineDays:9, minutes:20, importance:90, due:'Deadline in 9 days', day:29,
+        cat:'Finance', color:'#5B9DFF', ord:0, wd:'Mon', dnum:29, mon:'Jun', time:'2:00 PM',
+        nextStep:'Call HR and ask: \u201CWhat do I need to add my daughter as a dependent?\u201D',
+        steps:['Call HR and confirm the dependent-add process','Gather her birth certificate + SSN','Submit the dependent form in the benefits portal','Confirm the coverage start date in writing'],
+        needed:['Birth certificate','Social Security number','Benefits portal login'],
+        reminders:['HR follow-up \u2014 Thu, 10:00 AM','Submit before the 30-day window closes'] },
+      { id:'dinner', title:'Plan Sunday dinner', priority:'Medium', status:'In progress',
+        deadlineDays:1, minutes:30, importance:50, due:'Tue', day:30,
+        cat:'Home', color:'#5BD98C', ord:1, wd:'Tue', dnum:30, mon:'Jun', time:'5:30 PM',
+        nextStep:'Pick the recipe so Control can build the grocery list and prep order.',
+        steps:['Choose the recipe','Build the grocery list','Shop tonight or order delivery','Set the prep timeline for Sunday'],
+        needed:['Recipe','Headcount','Grocery budget'],
+        reminders:['Order groceries by Sat night'] },
+      { id:'bday', title:'Plan wife\u2019s birthday gift', priority:'Medium', status:'In progress',
+        deadlineDays:8, minutes:15, importance:58, due:'Tue eve', day:30,
+        cat:'Event', color:'#C77DFF', ord:1, wd:'Tue', dnum:30, mon:'Jun', time:'7:30 PM',
+        nextStep:'Set a budget tonight, then shortlist 3 gift ideas.',
+        steps:['Set a budget','Shortlist 3 ideas she\u2019d actually love','Order by the 24th for on-time delivery','Plan the dinner reservation'],
+        needed:['Budget','Her recent hints / wishlist','Reservation link'],
+        reminders:['Order the gift by June 24 (shipping)'] },
+      { id:'doc', title:'Schedule doctor appointment', priority:'Medium', status:'Not started',
+        deadlineDays:3, minutes:10, importance:46, due:'Wed', day:31,
+        cat:'Health', color:'#2DD4BF', ord:2, wd:'Wed', dnum:1, mon:'Jul', time:'11:00 AM',
+        nextStep:'Call the clinic and ask for the first available annual-checkup slot.',
+        steps:['Call the clinic for availability','Confirm insurance is accepted','Add the appointment to your calendar','Set a day-before reminder'],
+        needed:['Insurance card','Preferred dates','Clinic number'],
+        reminders:['Call during clinic hours (8\u20135)'] },
+      { id:'hobby', title:'Start pottery class', priority:'Low', status:'Just figuring it out',
+        deadlineDays:5, minutes:20, importance:30, due:'Thu', day:32,
+        cat:'Hobby', color:'#FFC53D', ord:3, wd:'Thu', dnum:2, mon:'Jul', time:'6:00 PM',
+        nextStep:'Find one local studio with a beginner class and check the next start date.',
+        steps:['Find a nearby studio','Check the beginner schedule + price','Reserve a trial class','Set the budget for supplies'],
+        needed:['Budget','Free evening','Studio shortlist'],
+        reminders:['Trial classes fill up \u2014 book early'] },
+    ];
+  }
+  catColor(t){ return t.color || this.dotFor(t.priority); }
+
+  dotFor(p){ return p==='High' ? '#F2754B' : (p==='Waiting' ? '#6FA8FF' : '#7a7a7a'); }
+  dueColorFor(d){ return d<=5 ? '#F2754B' : '#6a6a6a'; }
+
+  sortedTasks(){
+    const sortBy = this.props.sortBy ?? 'Most important';
+    let l=[...this.state.tasks];
+    if(sortBy==='Deadline') l.sort((a,b)=>a.deadlineDays-b.deadlineDays);
+    else if(sortBy==='Quick wins') l.sort((a,b)=>a.minutes-b.minutes);
+    else l.sort((a,b)=>b.importance-a.importance);
+    return l;
+  }
+  topTaskId(){ const l=this.sortedTasks(); if(!l.length) return null; return l[this.state.stackPos % l.length].id; }
+
+  setView = (v)=> this.setState({activeView:v, stackPos:0, dragX:0, dragging:false, flyDir:0});
+  setCalDay = (d)=> this.setState({selectedCalDay:d});
+  setCalSub = (v)=> this.setState({calSubView:v});
+  selectGridDay = (key)=> this.setState({gridSelKey:key});
+
+  onChatInput = (e)=> this.setState({chatInput:e.target.value});
+  onChatKey = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); this.sendChat(); } };
+  chatReply(q){
+    const s=(q||'').toLowerCase();
+    if(/busy|busiest|heavy|most/.test(s)) return 'Tuesday is your heaviest \u2014 the Sunday-dinner prep and the birthday gift both land that evening. Want me to pull one earlier in the week?';
+    if(/car|dmv|registration/.test(s)) return 'The car registration expires tomorrow, so I\u2019d keep it first thing Monday at 9 AM. I can set a reminder an hour before \u2014 want that?';
+    if(/dinner|grocer|recipe|cook/.test(s)) return 'I can move the grocery run to Saturday night so Sunday is just prep. That frees up Tuesday evening \u2014 should I shift it?';
+    if(/birthday|gift|wife/.test(s)) return 'The gift needs to ship by the 24th to arrive in time. I\u2019ll block 20 minutes Tuesday to shortlist ideas \u2014 sound good?';
+    if(/free|open|light|when can/.test(s)) return 'Wednesday afternoon and Thursday before 6 are wide open. Want me to drop something there?';
+    if(/reschedul|move|push|shift/.test(s)) return 'Tell me which control and where \u2014 e.g. \u201Cmove pottery to Friday\u201D \u2014 and I\u2019ll rebalance the rest of the week around it.';
+    return 'I can reschedule a control, rebalance your week, or break any one into time blocks. Which would help most right now?';
+  }
+  sendChat = ()=>{
+    const q=(this.state.chatInput||'').trim(); if(!q) return;
+    this.setState(s=>({ chatMsgs:[...s.chatMsgs, {role:'me', text:q}], chatInput:'', chatThinking:true }));
+    clearTimeout(this.t.chat);
+    this.t.chat=setTimeout(()=>{
+      this.setState(s=>({ chatMsgs:[...s.chatMsgs, {role:'ai', text:this.chatReply(q)}], chatThinking:false }));
+    }, 950);
+  };
+  sendChip = (txt)=>{ this.setState({chatInput:txt}, ()=>this.sendChat()); };
+
+
+  // --- handlers ---
+  onInput = (e)=> this.setState({inputValue:e.target.value});
+  pickExample = (t)=> this.setState({inputValue:t});
+  setTab = (t)=> this.setState({tab:t, detailId:null});
+
+  startFlow = ()=> this.setState({flowStage:'questions', qIndex:0, answers:[null,null,null,null], otherOpen:false, otherText:''});
+  closeFlow = ()=>{ this.clearT(); this.setState({flowStage:'none'}); };
+
+  selectOption = (qi,key,label)=>{
+    const answers=[...this.state.answers]; answers[qi]={value:key,label};
+    this.setState({answers, otherOpen:false});
+    clearTimeout(this.t.adv); this.t.adv=setTimeout(()=>this.advance(),330);
+  };
+  openOther = ()=> this.setState({otherOpen:true, otherText:''});
+  onOther = (e)=> this.setState({otherText:e.target.value});
+  onOtherKey = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); this.submitOther(); } };
+  submitOther = ()=>{
+    const txt=(this.state.otherText||'').trim(); if(!txt) return;
+    const qi=this.state.qIndex; const answers=[...this.state.answers];
+    answers[qi]={value:'other',label:txt}; this.setState({answers, otherOpen:false});
+    clearTimeout(this.t.adv); this.t.adv=setTimeout(()=>this.advance(),200);
+  };
+  advance = ()=>{
+    if(this.state.qIndex < this.QUESTIONS.length-1){
+      this.setState(s=>({qIndex:s.qIndex+1, otherOpen:false, otherText:''}));
+    } else { this.goThinking(); }
+  };
+
+  goThinking = ()=>{
+    this.setState({flowStage:'thinking', thinkIdx:0});
+    clearInterval(this.t.think);
+    this.t.think=setInterval(()=>this.setState(s=>({thinkIdx:Math.min(s.thinkIdx+1,this.THINK.length-1)})),640);
+    clearTimeout(this.t.fin); this.t.fin=setTimeout(()=>this.finalize(),2700);
+  };
+  finalize = ()=>{
+    clearInterval(this.t.think);
+    const task=this.buildTask();
+    this.setState(s=>({tasks:[task,...s.tasks], flowStage:'none', tab:'active', inputValue:'',
+      qIndex:0, answers:[null,null,null,null], newTaskId:task.id}));
+    clearTimeout(this.t.newt); this.t.newt=setTimeout(()=>this.setState({newTaskId:null}),1700);
+  };
+  buildTask(){
+    const inp=(this.state.inputValue||'').trim() || 'Add daughter to insurance';
+    const a=this.state.answers;
+    const q1=a[0]&&a[0].value, q3=a[2]&&a[2].value, q4=a[3]&&a[3].value;
+    const nextMap={A:'Spend 10 minutes finding the one official source \u2014 the portal, office, or person who owns this.',
+      B:'Write down exactly which documents you need, then locate the first one today.',
+      C:'Send one message to the key person to lock in a time or an answer.',
+      D:'Block 20 minutes this week. That\u2019s all this needs to get moving.'};
+    const remMap={A:'Tomorrow, 9:00 AM',B:'In 3 days',C:'Next week',D:'In 2 weeks'};
+    const dueMap={A:'Due this week',B:'Due this month',C:'Due in a few months',D:'No hard deadline'};
+    const ddMap={A:5,B:20,C:75,D:999};
+    const priority = q1==='A' ? 'High' : (q1==='C' ? 'Waiting' : 'Medium');
+    return { id:'t'+Date.now(), title:inp, priority, status:'New',
+      due:dueMap[q4]||'Due this month', deadlineDays:ddMap[q4]||20, minutes:20, importance:95,
+      day: q4==='A'?28:(q4==='C'||q4==='D'?29:30),
+      cat:'New', color:(this.props.accent ?? '#7E93A6'), ord:-1, wd:'Today', dnum:29, mon:'Jun', time:'Today',
+      nextStep:nextMap[q3]||'Take the smallest action you can finish in under 10 minutes.',
+      steps:['Find the official source that handles this.','Gather the 2\u20133 things you\u2019ll be asked for.','Make the call or submit the request.','Confirm it went through and save the proof.'],
+      needed:['Photo ID','Reference / account number','Relevant dates'],
+      reminders:[(remMap[q4]||'In 3 days')+' \u2014 first follow-up','Set a deadline reminder'] };
+  }
+
+  openDetail = (id)=> this.setState({detailId:id});
+  closeDetail = ()=> this.setState({detailId:null});
+  toggleStep = (id,i)=> this.setState(s=>{ const cs={...s.checkedSteps}; const o={...(cs[id]||{})}; o[i]=!o[i]; cs[id]=o; return {checkedSteps:cs}; });
+  setNote = (id,e)=>{ const v=e.target.value; this.setState(s=>({notes:{...s.notes,[id]:v}})); };
+  completeTask = (id)=>{
+    this.setState(s=>{
+      const t=s.tasks.find(x=>x.id===id); if(!t) return {};
+      return { tasks:s.tasks.filter(x=>x.id!==id),
+        done:{...s.done, week:[{title:t.title, when:'Just now'}, ...s.done.week]},
+        detailId:null, tab:'done', completedFlash:true };
+    });
+    clearTimeout(this.t.flash); this.t.flash=setTimeout(()=>this.setState({completedFlash:false}),2600);
+  };
+
+  clearT(){ Object.values(this.t).forEach(clearTimeout); Object.values(this.t).forEach(clearInterval); }
+  componentWillUnmount(){ this.clearT(); clearTimeout(this._twT); clearInterval(this._caretT); }
+
+  componentDidMount(){
+    // typewriter caret blink
+    this._caretT = setInterval(()=>this.setState(s=>({caretOn:!s.caretOn})), 480);
+    // start with first message fully shown, then begin rotating
+    this.tw = { mi:0, ci:this.MESSAGES[0].length, phase:'hold' };
+    this._twT = setTimeout(()=>this.twStep(), 5000);
+  }
+  twStep(){
+    const msgs = this.MESSAGES;
+    let { mi, ci, phase } = this.tw;
+    let delay = 38;
+    if(phase==='typing'){
+      ci++;
+      if(ci >= msgs[mi].length){ ci = msgs[mi].length; phase='hold'; delay=5000; }
+      else { delay = 30 + Math.random()*45; }
+    } else if(phase==='hold'){
+      phase='deleting'; delay=24;
+    } else { // deleting
+      ci--;
+      if(ci <= 0){ ci=0; mi=(mi+1)%msgs.length; phase='typing'; delay=180; }
+      else { delay=16; }
+    }
+    this.tw = { mi, ci, phase };
+    this.setState({ typed: msgs[mi].slice(0, ci) });
+    this._twT = setTimeout(()=>this.twStep(), delay);
+  }
+
+  circ3(p1,p2,p3){
+    const ax=p1[0],ay=p1[1],bx=p2[0],by=p2[1],cx=p3[0],cy=p3[1];
+    const d=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+    const ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/d;
+    const uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/d;
+    return {r:Math.hypot(ax-ux,ay-uy)};
+  }
+  crescent(RO, aT, aB, t){
+    const rd=d=>d*Math.PI/180, f=n=>n.toFixed(1);
+    const T=[200+RO*Math.cos(rd(aT)),200-RO*Math.sin(rd(aT))];
+    const B=[200+RO*Math.cos(rd(aB)),200+RO*Math.sin(rd(aB))];
+    const c=this.circ3(T,B,[200-RO+t,200]);
+    return 'M'+f(T[0])+' '+f(T[1])+' A'+RO+' '+RO+' 0 1 0 '+f(B[0])+' '+f(B[1])+
+           ' A'+f(c.r)+' '+f(c.r)+' 0 1 1 '+f(T[0])+' '+f(T[1])+' Z';
+  }
+  buildLogo(v){
+    const e=React.createElement;
+    // dreamy glossy blue-grey: pale luminous core fading into deep slate edges
+    const light=e('radialGradient',{key:'lg',id:'clogo-l',gradientUnits:'userSpaceOnUse',cx:170,cy:150,r:230},[
+      e('stop',{key:0,offset:'0%',stopColor:'#d5e0e9'}),
+      e('stop',{key:1,offset:'48%',stopColor:'#aebfcd'}),
+      e('stop',{key:2,offset:'100%',stopColor:'#7e93a6'}),
+    ]);
+    const darkg=e('radialGradient',{key:'dg',id:'clogo-d',gradientUnits:'userSpaceOnUse',cx:170,cy:150,r:230},[
+      e('stop',{key:0,offset:'0%',stopColor:'#8fa2b2'}),
+      e('stop',{key:1,offset:'52%',stopColor:'#617484'}),
+      e('stop',{key:2,offset:'100%',stopColor:'#42525f'}),
+    ]);
+    const shapes=[];
+    if(v==='1a'){
+      shapes.push(e('path',{key:'o',d:this.crescent(130,54,24,15),fill:'url(#clogo-l)'}));
+      shapes.push(e('path',{key:'i',d:this.crescent(86,24,54,12),fill:'url(#clogo-l)'}));
+    } else {
+      shapes.push(e('path',{key:'o',d:this.crescent(130,38,38,20),fill:'url(#clogo-d)',stroke:'#ffffff',strokeWidth:6,strokeLinejoin:'round'}));
+    }
+    return e('svg',{viewBox:'0 0 400 400',width:24,height:24,style:{display:'block',overflow:'visible'}},[
+      e('defs',{key:'d'},[light,darkg]),
+      e('rect',{key:'bar',x:22,y:193,width:330,height:14,rx:7,fill:v==='1a'?'url(#clogo-l)':'url(#clogo-d)',
+        stroke:v==='1b'?'#ffffff':'none',strokeWidth:v==='1b'?3:0}),
+      e('g',{key:'t',transform:'rotate(-8 200 200)'},shapes),
+    ]);
+  }
+
+  renderVals(){
+    const accent = this.props.accent ?? '#7E93A6';
+    const showFreeBadge = this.props.showFreeBadge ?? true;
+    const sortBy = this.props.sortBy ?? 'Most important';
+    const s = this.state;
+    const idle = '#5c5c5c';
+
+    // sorting
+    const list=this.sortedTasks();
+
+    const activeTasks=list.map(t=>({
+      title:t.title, priority:t.priority, status:t.status, due:t.due,
+      nextStep:t.nextStep, priorityDot:this.dotFor(t.priority), dueColor:this.dueColorFor(t.deadlineDays),
+      isNew:t.id===s.newTaskId, onOpen:()=>this.openDetail(t.id),
+    }));
+
+    // flow
+    const showFlow = s.flowStage!=='none';
+    const showQuestions = s.flowStage==='questions';
+    const showThinking = s.flowStage==='thinking';
+    const flowTitle=(s.inputValue||'').trim()||'Add daughter to insurance';
+    const q=this.QUESTIONS[s.qIndex];
+    const cur=s.answers[s.qIndex];
+    const currentOptions=(q?q.options:[]).map(o=>{
+      const selected = !!cur && cur.value===o.key;
+      return {key:o.key, label:o.label, selected, unselected:!selected, onSelect:()=>this.selectOption(s.qIndex,o.key,o.label)};
+    });
+    const answeredChips=[];
+    for(let i=0;i<s.qIndex;i++){ if(s.answers[i]) answeredChips.push({q:'Q'+(i+1), ans:s.answers[i].label}); }
+    const progressDots=this.QUESTIONS.map((_,i)=>({color: i<s.qIndex ? accent : (i===s.qIndex ? 'color-mix(in srgb,'+accent+' 55%,#222)' : '#1d1d1d')}));
+
+    // detail
+    const dt=s.tasks.find(x=>x.id===s.detailId);
+    let detail=null;
+    if(dt){
+      const chk=s.checkedSteps[dt.id]||{};
+      detail={
+        title:dt.title, priority:dt.priority, status:dt.status, due:dt.due,
+        priorityDot:this.dotFor(dt.priority), dueColor:this.dueColorFor(dt.deadlineDays), nextStep:dt.nextStep,
+        steps:dt.steps.map((label,i)=>({label, checked:!!chk[i], unchecked:!chk[i],
+          color:chk[i]?'#5a5a5a':'#d4d4d4', strike:chk[i]?'line-through':'none', onToggle:()=>this.toggleStep(dt.id,i)})),
+        needed:dt.needed.map(label=>({label})),
+        reminders:dt.reminders.map(label=>({label})),
+        noteValue:s.notes[dt.id]||'', onNote:(e)=>this.setNote(dt.id,e), onComplete:()=>this.completeTask(dt.id),
+      };
+    }
+
+    const monthCount = s.done.week.length + s.done.month.length;
+
+    const isListView = s.activeView==='list';
+
+    // ===== PLANNER (calendar) view =====
+    const isCalView = s.activeView==='cal';
+    // group tasks into day blocks by ord (ascending), today = ord 0
+    const groups = {};
+    list.forEach(t=>{ const k = (t.ord==null?99:t.ord); (groups[k]=groups[k]||[]).push(t); });
+    const dayMeta = [
+      {ord:0, wd:'Mon', dnum:29, label:'Mon Jun 29'},
+      {ord:1, wd:'Tue', dnum:30, label:'Tue Jun 30'},
+      {ord:2, wd:'Wed', dnum:1,  label:'Wed Jul 1'},
+      {ord:3, wd:'Thu', dnum:2,  label:'Thu Jul 2'},
+      {ord:4, wd:'Fri', dnum:3,  label:'Fri Jul 3'},
+    ];
+    // any new (ord -1) tasks ride along on today
+    if(groups[-1]){ groups[0] = [...(groups[-1]||[]), ...(groups[0]||[])]; delete groups[-1]; }
+    const planDays = dayMeta.map(d=>{
+      const mins = (t)=>{ const m=(t.time||'').match(/(\d+):(\d+)\s*(AM|PM)/i); if(!m) return 9999; let h=+m[1]%12; if(/PM/i.test(m[3]))h+=12; return h*60+(+m[2]); };
+      const cards = (groups[d.ord]||[]).slice().sort((a,b)=>mins(a)-mins(b)).map(t=>({
+        title:t.title, time:t.time||'\u2014', cat:(t.cat||'Task').toUpperCase(),
+        color:t.color||this.dotFor(t.priority), priority:t.priority, status:t.status,
+        priorityDot:this.dotFor(t.priority), onOpen:()=>this.openDetail(t.id),
+        bg:'color-mix(in srgb,'+(t.color||'#888')+' 9%, #0c0c0c)',
+        border:'color-mix(in srgb,'+(t.color||'#888')+' 22%, #1e1e1e)',
+      }));
+      return { wd:d.wd, dnum:d.dnum, isToday:d.ord===0,
+        numColor: d.ord===0 ? accent : '#f2f2f2',
+        count: cards.length ? (cards.length+(cards.length===1?' control':' controls')) : '',
+        cards, empty: cards.length===0 };
+    });
+    const weekCount = list.length+' active';
+
+    // ===== grid sub-view (2-week grid, Sun Jun 28 → Sat Jul 11; today = Jun 29) =====
+    const gridDow = ['S','M','T','W','T','F','S'].map(label=>({label}));
+    const ordByDate = { 'Jun29':0,'Jun30':1,'Jul1':2,'Jul2':3,'Jul3':4 };
+    const gridSeq = [
+      ['Jun',28],['Jun',29],['Jun',30],['Jul',1],['Jul',2],['Jul',3],['Jul',4],
+      ['Jul',5],['Jul',6],['Jul',7],['Jul',8],['Jul',9],['Jul',10],['Jul',11],
+    ];
+    const tasksOnDate = (mon,dn)=>{ const o=ordByDate[mon+dn]; return o==null?[]:(groups[o]||[]); };
+    const gridSelKey = s.gridSelKey;
+    const monLabel = { Jun:'Jun', Jul:'Jul' };
+    const wdShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    // Sun Jun 28 is index 0 of gridSeq → weekday Sunday
+    const gridCells = gridSeq.map(([mon,dn],i)=>{
+      const dt = tasksOnDate(mon,dn);
+      const key = mon+dn;
+      const isToday = mon==='Jun' && dn===29;
+      const isSel = key===gridSelKey;
+      const has = dt.length>0;
+      return { inMonth:true, dnum:dn,
+        numColor: isSel ? accent : (isToday ? accent : (has ? '#f2f2f2' : '#5a5a5a')),
+        bg: isSel ? 'color-mix(in srgb,'+accent+' 20%,#0c0c0c)' : (isToday ? 'color-mix(in srgb,'+accent+' 12%,#0c0c0c)' : (has ? '#111' : '#0a0a0a')),
+        border: isSel ? '1.5px solid '+accent : (isToday ? '1px solid color-mix(in srgb,'+accent+' 45%,transparent)' : (has ? '1px solid #242424' : '1px solid #141414')),
+        cursor:'pointer',
+        chips: dt.slice(0,3).map(t=>({color:t.color||this.dotFor(t.priority)})),
+        more: dt.length>3, moreLabel:'+'+(dt.length-3),
+        onSelect: (()=>this.selectGridDay(key)) };
+    });
+    // expanded selected day
+    const selIdx = gridSeq.findIndex(([m,d])=>m+d===gridSelKey);
+    const selPair = selIdx>=0 ? gridSeq[selIdx] : ['Jun',29];
+    const selWd = wdShort[selIdx>=0 ? selIdx%7 : 1];
+    const gridSelTasks = tasksOnDate(selPair[0], selPair[1]);
+    const gridSelCards = gridSelTasks.slice().sort((a,b)=>{
+      const mins=(t)=>{ const m=(t.time||'').match(/(\d+):(\d+)\s*(AM|PM)/i); if(!m) return 9999; let h=+m[1]%12; if(/PM/i.test(m[3]))h+=12; return h*60+(+m[2]); };
+      return mins(a)-mins(b);
+    }).map(t=>({
+      title:t.title, time:t.time||'\u2014', cat:(t.cat||'Task').toUpperCase(),
+      color:t.color||this.dotFor(t.priority), priority:t.priority, status:t.status,
+      priorityDot:this.dotFor(t.priority), onOpen:()=>this.openDetail(t.id),
+      bg:'color-mix(in srgb,'+(t.color||'#888')+' 9%, #0c0c0c)',
+      border:'color-mix(in srgb,'+(t.color||'#888')+' 22%, #1e1e1e)',
+    }));
+    const showPlanner = s.calSubView!=='grid';
+    const showGrid = s.calSubView==='grid';
+
+    // ===== planner chat =====
+    const chatBubbles = s.chatMsgs.map(m=>{
+      const me = m.role==='me';
+      return { text:m.text, align: me?'flex-end':'flex-start',
+        color: me?'#06140a':'#d4d4d4',
+        bg: me?accent:'#141414',
+        border: me?accent:'#222' };
+    });
+    const chatChips = ['What\u2019s my busiest day?','Reschedule the car','When am I free?'].map(label=>({label, onTap:()=>this.sendChip(label)}));
+
+    return {
+      isCalView, planDays, weekRange:'Jun 29 \u2013 Jul 3', weekCount,
+      showPlanner, showGrid, gridDow, gridCells,
+      gridSelLabel: selWd+', '+selPair[0]+' '+selPair[1],
+      gridSelCards, gridSelHas:gridSelCards.length>0, gridSelEmpty:gridSelCards.length===0,
+      gridSelCount: gridSelCards.length ? (gridSelCards.length+(gridSelCards.length===1?' control':' controls')) : 'Clear',
+      plannerBg: showPlanner?'#1c1c1c':'transparent', plannerIcon: showPlanner?'#f0f0f0':'#7a7a7a',
+      gridBg: showGrid?'#1c1c1c':'transparent', gridIcon: showGrid?'#f0f0f0':'#7a7a7a',
+      onCalPlanner:()=>this.setCalSub('planner'), onCalGrid:()=>this.setCalSub('grid'),
+      chatBubbles, chatThinking:s.chatThinking, chatChips,
+      chatInput:s.chatInput, onChatInput:this.onChatInput, onChatKey:this.onChatKey, sendChat:this.sendChat,
+      calBg: isCalView?'#1c1c1c':'transparent', calIcon: isCalView?'#f0f0f0':'#6a6a6a',
+      onViewCal:()=>this.setView('cal'),
+      isListView,
+      listBg: isListView?'#1c1c1c':'transparent', listIcon: isListView?'#f0f0f0':'#6a6a6a',
+      onViewList:()=>this.setView('list'),
+      accent, showFreeBadge, sortBy,
+      logoMark: this.buildLogo(this.props.logo ?? '1a'),
+      freeText: Math.min(s.tasks.length,3)+' of 3 free',
+      isControl:s.tab==='control', isActive:s.tab==='active', isDone:s.tab==='done',
+      controlColor:s.tab==='control'?accent:idle, activeColor:s.tab==='active'?accent:idle, doneColor:s.tab==='done'?accent:idle,
+      onTabControl:()=>this.setTab('control'), onTabActive:()=>this.setTab('active'), onTabDone:()=>this.setTab('done'),
+      inputValue:s.inputValue, onInput:this.onInput, startFlow:this.startFlow,
+      rotatingMsg:s.typed, caretOpacity:s.caretOn?1:0.15,
+      examples:this.EXAMPLES.map(label=>({label, onPick:()=>this.pickExample(label)})),
+      activeTasks, activeCount:s.tasks.length, hasActive:s.tasks.length>0,
+      doneWeek:s.done.week, doneMonth:s.done.month, momentum:monthCount,
+      showCompletedFlash:s.completedFlash,
+      showFlow, showQuestions, showThinking, flowTitle,
+      progressLabel:(s.qIndex+1)+' / '+this.QUESTIONS.length,
+      progressDots, answeredChips, hasAnswered:answeredChips.length>0,
+      currentText:q?q.text:'', currentOptions,
+      otherOpen:s.otherOpen, otherClosed:!s.otherOpen, otherText:s.otherText,
+      onOther:this.onOther, onOtherKey:this.onOtherKey, openOther:this.openOther, submitOtherNow:this.submitOther,
+      closeFlow:this.closeFlow, thinkingMsg:this.THINK[s.thinkIdx],
+      showDetail:!!detail, detail:detail||{steps:[],needed:[],reminders:[]},
+      closeDetail:this.closeDetail,
+    };
+  }
+}
+</script>
+</body>
+</html>

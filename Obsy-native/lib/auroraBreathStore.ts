@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 
 // Cross-tree signal so an insight refresh can make the background Aurora
-// "breathe" a mood-tinted light up from the bottom. Mirrors auroraPulseStore:
-// the refresh button lives deep in an insight card while the Aurora sits up in
-// ScreenWrapper, so a tiny store is the simplest bridge.
+// "breathe" a mood-tinted light up from the bottom. The refresh button lives
+// deep in an insight card while the Aurora sits up in ScreenWrapper, so a tiny
+// store is the simplest bridge.
 //
 // `activeCount` is a refcount — the Aurora breathes the light OUT while it's > 0
 // and breathes it back IN once it returns to 0. A refcount (rather than a bool)

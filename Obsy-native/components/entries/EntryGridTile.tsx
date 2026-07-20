@@ -17,6 +17,7 @@ import { useMoodResolver } from '@/hooks/useMoodResolver';
 import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
 import { getVoicePlaybackUrl } from '@/services/voiceNotes';
+import { splitFirstSentence } from '@/lib/text';
 
 /**
  * EntryGridTile — a square tile representing one Capture entry in the grid view.
@@ -34,6 +35,14 @@ type EntryTileKind = 'photo' | 'link' | 'mood' | 'journal' | 'voice';
 export function classifyEntry(c: Capture): EntryTileKind {
     if (c.source_type === 'shared_link') return 'link';
     if (c.source_type === 'voice') return 'voice';
+    // Unpack entries render like their original moment (photo/link) or as a
+    // reflection card (voice/text), with a ✦ badge overlaid to mark them guided.
+    if (c.source_type === 'unpack') {
+        const orig = c.unpack_payload?.originalEntryType;
+        if (orig === 'link') return 'link';
+        if (orig === 'photo' && c.image_url) return 'photo';
+        return c.note && c.note.trim().length > 0 ? 'journal' : 'mood';
+    }
     if (c.source_type === 'journal') {
         if (c.note && c.note.trim().length > 0) return 'journal';
         return 'mood';
@@ -99,6 +108,11 @@ export const EntryGridTile = memo(function EntryGridTile({
     return (
         <View style={{ width: size }}>
             {tile}
+            {capture.source_type === 'unpack' && (
+                <View style={styles.unpackBadge} pointerEvents="none">
+                    <ThemedText style={styles.unpackBadgeText}>✦</ThemedText>
+                </View>
+            )}
             <TileMeta capture={capture} isLight={isLight} />
         </View>
     );
@@ -253,39 +267,87 @@ const JournalTile = memo(function JournalTile({
 }) {
     const { getMoodDisplay } = useMoodResolver();
     const moodDisplay = getMoodDisplay(capture.mood_id, capture.mood_name_snapshot);
-    const tint = moodDisplay?.color ?? (isLight ? '#888' : '#444');
 
-    // Build gradient tint background — darker at top-right corner using mood color
-    const baseBg = isLight ? '#FAFAFA' : '#101010';
-    const textColor = isLight ? '#1A1A1A' : '#EAEAEA';
-    const quoteColor = tint + (isLight ? '55' : '88');
+    // Mood gradient owns the card; neutral fallback when no mood is set.
+    const g = moodDisplay?.gradient;
+    const gradientColors: [string, string, string] = g
+        ? [g.primary, g.mid, g.secondary]
+        : isLight
+            ? ['#F2F2F4', '#E7E7EB', '#DEDEE4']
+            : ['#1C1C20', '#141418', '#0E0E12'];
+    // Vertical gradient keeps the bottom edge a single color so the fade
+    // overlay below can match it exactly.
+    const fadeColor = gradientColors[2];
+    const darkTextOn = g ? moodDisplay!.textOn === 'dark' : isLight;
+    const textColor = g
+        ? (darkTextOn ? '#0A0A0A' : '#FFFFFF')
+        : (isLight ? '#1A1A1A' : '#EAEAEA');
 
-    // Crop note for display — first ~120 chars
-    const text = (capture.note ?? '').trim().slice(0, 140);
+    const { title, rest } = splitFirstSentence(capture.note);
 
-    // Font size scales with tile size — small text reads as a thumbnail
-    const fontSize = Math.max(9, Math.round(size * 0.085));
-    const lineHeight = Math.round(fontSize * 1.35);
+    const isUnpack = capture.source_type === 'unpack';
+    const themes = isUnpack ? (capture.unpack_payload?.themes ?? capture.tags ?? []) : [];
+    const chips = themes.slice(0, size >= 140 ? 2 : 1);
+    const chipBg = darkTextOn ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.20)';
+
+    // Font sizes scale with tile size — small text reads as a thumbnail
+    const titleSize = Math.max(11, Math.round(size * 0.105));
+    const restSize = Math.max(9, Math.round(size * 0.08));
 
     return (
-        <View style={[styles.fill, { backgroundColor: baseBg }]}>
+        <View style={styles.fill}>
             <LinearGradient
-                colors={[tint + '22', 'transparent']}
-                start={{ x: 1, y: 0 }}
-                end={{ x: 0, y: 1 }}
+                colors={gradientColors}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
                 style={styles.fill}
             />
-            <View style={styles.journalContent}>
-                <ThemedText style={[styles.journalQuoteMark, { color: quoteColor, fontSize: fontSize * 2.4 }]}>
+            <View style={[styles.journalContent, chips.length > 0 && { paddingBottom: 18 }]}>
+                <ThemedText style={[styles.journalQuoteMark, { color: textColor, fontSize: titleSize * 2.2 }]}>
                     “
                 </ThemedText>
                 <ThemedText
-                    numberOfLines={5}
-                    style={[styles.journalText, { color: textColor, fontSize, lineHeight }]}
+                    numberOfLines={3}
+                    style={[
+                        styles.journalTitle,
+                        { color: textColor, fontSize: titleSize, lineHeight: Math.round(titleSize * 1.3) },
+                    ]}
                 >
-                    {text}
+                    {title}
                 </ThemedText>
+                {rest !== '' && (
+                    <ThemedText
+                        style={[
+                            styles.journalRest,
+                            { color: textColor, fontSize: restSize, lineHeight: Math.round(restSize * 1.35) },
+                        ]}
+                    >
+                        {rest.slice(0, 240)}
+                    </ThemedText>
+                )}
             </View>
+            <LinearGradient
+                pointerEvents="none"
+                colors={[fadeColor + '00', fadeColor]}
+                style={[styles.journalFade, { height: Math.round(size * 0.34) }]}
+            />
+            {chips.length > 0 && (
+                <View style={styles.journalChipsRow} pointerEvents="none">
+                    {chips.map((theme) => (
+                        <View key={theme} style={[styles.journalChip, { backgroundColor: chipBg }]}>
+                            <ThemedText
+                                numberOfLines={1}
+                                style={[
+                                    styles.journalChipText,
+                                    { color: textColor, fontSize: Math.max(8, Math.round(size * 0.075)) },
+                                ]}
+                            >
+                                {theme}
+                            </ThemedText>
+                        </View>
+                    ))}
+                </View>
+            )}
         </View>
     );
 });
@@ -483,6 +545,24 @@ const styles = StyleSheet.create({
         backgroundColor: '#000',
         borderWidth: 1,
     },
+    unpackBadge: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(4,18,26,0.72)',
+        borderWidth: 1,
+        borderColor: 'rgba(65,202,236,0.6)',
+    },
+    unpackBadgeText: {
+        fontSize: 11,
+        color: '#41caec',
+        lineHeight: 14,
+    },
     fill: {
         ...StyleSheet.absoluteFillObject,
     },
@@ -558,22 +638,50 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
 
-    // Journal quote tile
+    // Journal quote tile (mood-gradient quote card)
     journalContent: {
         flex: 1,
         padding: 10,
-        justifyContent: 'center',
+        paddingTop: 14,
     },
     journalQuoteMark: {
         position: 'absolute',
         top: -4,
         left: 6,
         fontFamily: 'Inter_700Bold',
-        opacity: 0.6,
+        opacity: 0.35,
     },
-    journalText: {
+    journalTitle: {
+        fontFamily: 'Inter_600SemiBold',
+        marginBottom: 3,
+    },
+    journalRest: {
         fontStyle: 'italic',
         fontFamily: 'Inter_400Regular',
+        opacity: 0.8,
+    },
+    journalFade: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    journalChipsRow: {
+        position: 'absolute',
+        left: 6,
+        right: 6,
+        bottom: 6,
+        flexDirection: 'row',
+        gap: 4,
+    },
+    journalChip: {
+        borderRadius: 999,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        flexShrink: 1,
+    },
+    journalChipText: {
+        fontWeight: '500',
     },
 
     // Voice tile

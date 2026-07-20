@@ -37,6 +37,7 @@ export async function callObservedPatterns(
   generationNumber: number,
   eligibleCount: number,
   contextDigest?: string,
+  profileContext?: string,
 ): Promise<ObservedPatternsResponse> {
   const { data: sessionData } = await supabase.auth.getSession();
   const session = sessionData.session;
@@ -49,7 +50,7 @@ export async function callObservedPatterns(
 
   try {
     const response = await supabase.functions.invoke('generate-observed-patterns', {
-      body: { captures, previousPatternText, generationNumber, eligibleCount, contextDigest },
+      body: { captures, previousPatternText, generationNumber, eligibleCount, contextDigest, profileContext },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 

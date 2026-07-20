@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  html, body { margin: 0; background: #07090d; overflow-y: auto !important; height: auto !important; }
+  a { color: #7fc9e8; text-decoration: none; }
+  a:hover { color: #a8dcf2; }
+  @keyframes ccPulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.85; } }
+  @keyframes ccScribbleLine {
+    0% { transform: scaleX(0); opacity: 0; }
+    20% { opacity: 1; }
+    50% { transform: scaleX(1); opacity: 1; }
+    80% { opacity: 1; }
+    100% { transform: scaleX(0); opacity: 0; }
+  }
+  @keyframes ccShutter {
+    0% { clip-path: circle(48% at 50% 50%); }
+    50% { clip-path: circle(6% at 50% 50%); }
+    100% { clip-path: circle(48% at 50% 50%); }
+  }
+  @keyframes ccBar {
+    0% { transform: scaleY(0.22); }
+    50% { transform: scaleY(1); }
+    100% { transform: scaleY(0.3); }
+  }
+  @keyframes ccBubble {
+    0% { transform: translateY(14px) scale(0.85); opacity: 0; }
+    15% { opacity: 1; }
+    50% { transform: translateY(-10px) scale(1); opacity: 1; }
+    85% { opacity: 0; }
+    100% { transform: translateY(-30px) scale(0.9); opacity: 0; }
+  }
+</style>
+</helmet>
+<section style="display:flex;flex-direction:column;gap:22px;padding:56px clamp(16px, 4vw, 64px) 80px;font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:#e9eef2;align-items:center;">
+  <div style="display:flex;flex-direction:column;gap:6px;text-align:center;max-width:440px;">
+    <div style="font-size:24px;font-weight:700;">Fluid Dock</div>
+    <div style="font-size:14px;color:#8ba0ac;">Flick the dial — momentum spins the orbit and snaps the front button into place. Keep spinning it fast enough and see what happens. Tap a button to jump to it.</div>
+  </div>
+
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div data-orbit-root="c" style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;user-select:none;-webkit-user-select:none;color:#e9eef2;font-family:-apple-system,'SF Pro Display','SF Pro Text',system-ui,sans-serif;background:radial-gradient(120% 85% at 30% 10%, #0e1d2a 0%, #081019 42%, #04070c 100%);">
+      <div style="padding-top:82px;display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="font-size:60px;font-weight:800;letter-spacing:-1.5px;line-height:1;">{{ timeStr }}</div>
+        <div style="font-size:22px;font-weight:500;color:#8ea2ae;">{{ dateStr }}</div>
+      </div>
+
+      <div data-orbit style="position:relative;flex:1;min-height:0;touch-action:pan-y;">
+        <canvas data-trail style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+        <div style="position:absolute;left:201px;top:230px;transform:translate(-50%,-50%);width:246px;height:246px;border-radius:50%;border:1.5px solid rgba(96,156,178,0.28);background:radial-gradient(circle at 40% 30%, rgba(38,66,88,0.35) 0%, rgba(10,18,26,0.1) 60%, rgba(0,0,0,0) 100%);"></div>
+
+        <div data-center-stage style="position:absolute;left:136px;top:165px;width:130px;height:130px;z-index:3;pointer-events:none;">
+          <div data-stage="0" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:11px;padding-left:14px;">
+            <div style="width:78px;height:6px;border-radius:3px;background:linear-gradient(90deg, rgba(127,201,232,0.75), rgba(127,201,232,0.15));transform-origin:left center;animation:ccScribbleLine 2.6s ease-in-out infinite;"></div>
+            <div style="width:56px;height:6px;border-radius:3px;background:linear-gradient(90deg, rgba(127,201,232,0.75), rgba(127,201,232,0.15));transform-origin:left center;animation:ccScribbleLine 2.6s ease-in-out 0.4s infinite;"></div>
+            <div style="width:84px;height:6px;border-radius:3px;background:linear-gradient(90deg, rgba(127,201,232,0.75), rgba(127,201,232,0.15));transform-origin:left center;animation:ccScribbleLine 2.6s ease-in-out 0.8s infinite;"></div>
+            <div style="width:44px;height:6px;border-radius:3px;background:linear-gradient(90deg, rgba(127,201,232,0.75), rgba(127,201,232,0.15));transform-origin:left center;animation:ccScribbleLine 2.6s ease-in-out 1.2s infinite;"></div>
+          </div>
+          <div data-stage="1" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;">
+            <div style="position:absolute;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 38% 32%, #dff3ff 0%, #4FC3F7 45%, #0f5a8c 100%);box-shadow:0 0 30px rgba(79,195,247,0.55);"></div>
+            <div style="position:absolute;width:104px;height:104px;border-radius:50%;background:repeating-conic-gradient(#05080c 0deg 14deg, #0a1119 14deg 28deg);animation:ccShutter 2.4s ease-in-out infinite;"></div>
+          </div>
+          <div data-stage="2" style="position:absolute;inset:0;display:none;align-items:flex-end;justify-content:center;gap:7px;padding-bottom:30px;">
+            <div style="width:8px;height:52px;border-radius:4px;background:linear-gradient(180deg,#7fc9e8,#1d6fa8);transform-origin:bottom center;animation:ccBar 0.52s ease-in-out infinite alternate;"></div>
+            <div style="width:8px;height:52px;border-radius:4px;background:linear-gradient(180deg,#7fc9e8,#1d6fa8);transform-origin:bottom center;animation:ccBar 0.67s ease-in-out infinite alternate;"></div>
+            <div style="width:8px;height:52px;border-radius:4px;background:linear-gradient(180deg,#7fc9e8,#1d6fa8);transform-origin:bottom center;animation:ccBar 0.44s ease-in-out infinite alternate;"></div>
+            <div style="width:8px;height:52px;border-radius:4px;background:linear-gradient(180deg,#7fc9e8,#1d6fa8);transform-origin:bottom center;animation:ccBar 0.71s ease-in-out infinite alternate;"></div>
+            <div style="width:8px;height:52px;border-radius:4px;background:linear-gradient(180deg,#7fc9e8,#1d6fa8);transform-origin:bottom center;animation:ccBar 0.58s ease-in-out infinite alternate;"></div>
+          </div>
+          <div data-stage="3" style="position:absolute;inset:0;">
+            <div style="position:absolute;left:6px;bottom:18px;font-size:11px;font-weight:600;white-space:nowrap;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(126,168,188,0.2);color:#cfe3ec;animation:ccBubble 4.6s ease-in-out infinite;">doing okay?</div>
+            <div style="position:absolute;right:0px;bottom:36px;font-size:11px;font-weight:600;white-space:nowrap;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(126,168,188,0.2);color:#cfe3ec;animation:ccBubble 4.6s ease-in-out 1.5s infinite;">rough day?</div>
+            <div style="position:absolute;left:20px;bottom:6px;font-size:11px;font-weight:600;white-space:nowrap;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(126,168,188,0.2);color:#cfe3ec;animation:ccBubble 4.6s ease-in-out 3s infinite;">on top of the world?</div>
+          </div>
+        </div>
+
+        <div data-orb="0" data-emoji="📔" data-title="Journal" data-sub="write whatever is on your mind" style="position:absolute;left:0;top:0;width:64px;height:64px;transform:translate(169px,338px) scale(1.7);opacity:1;z-index:41;will-change:transform,opacity;">
+          <div data-orb-inner style="width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 36% 30%, rgba(46,72,92,0.85) 0%, rgba(14,22,30,0.95) 70%);border:1px solid rgba(126,168,188,0.18);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+            <span style="font-size:26px;line-height:1;">📔</span>
+          </div>
+        </div>
+        <div data-orb="1" data-emoji="📷" data-title="Snapshot" data-sub="catch the moment before it goes" style="position:absolute;left:0;top:0;width:64px;height:64px;transform:translate(17px,198px) scale(1.01);opacity:0.69;z-index:21;will-change:transform,opacity;">
+          <div data-orb-inner style="width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 36% 30%, rgba(46,72,92,0.85) 0%, rgba(14,22,30,0.95) 70%);border:1px solid rgba(126,168,188,0.18);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+            <span style="font-size:26px;line-height:1;">📷</span>
+          </div>
+        </div>
+        <div data-orb="2" data-emoji="🎙️" data-title="Voice note" data-sub="talk it out — it types itself" style="position:absolute;left:0;top:0;width:64px;height:64px;transform:translate(169px,58px) scale(0.62);opacity:0.38;z-index:1;will-change:transform,opacity;">
+          <div data-orb-inner style="width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 36% 30%, rgba(46,72,92,0.85) 0%, rgba(14,22,30,0.95) 70%);border:1px solid rgba(126,168,188,0.18);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+            <span style="font-size:26px;line-height:1;">🎙️</span>
+          </div>
+        </div>
+        <div data-orb="3" data-emoji="orb" data-title="Mood" data-sub="one tap. how are you, really?" style="position:absolute;left:0;top:0;width:64px;height:64px;transform:translate(321px,198px) scale(1.01);opacity:0.69;z-index:21;will-change:transform,opacity;">
+          <div data-orb-inner style="width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 36% 30%, rgba(46,72,92,0.85) 0%, rgba(14,22,30,0.95) 70%);border:1px solid rgba(126,168,188,0.18);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+            <div style="width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #cdeeff 0%, #58b8ef 40%, #1a6aa8 78%, #0d3d66 100%);box-shadow:0 0 14px rgba(79,195,247,0.55);"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 36px 0;text-align:center;">
+        <div data-title-out style="font-size:23px;font-weight:650;transition:opacity 0.13s;">Journal</div>
+        <div data-sub-out style="font-size:16px;color:#8ba0ac;transition:opacity 0.13s;max-width:300px;">write whatever is on your mind</div>
+      </div>
+
+      <div style="display:flex;justify-content:center;padding:16px 0 58px;">
+        <div data-track style="position:relative;width:262px;height:46px;border-radius:23px;background:rgba(255,255,255,0.055);border:1px solid rgba(126,168,188,0.16);cursor:grab;touch-action:pan-y;box-shadow:inset 0 2px 8px rgba(0,0,0,0.4);">
+          <span style="position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:18px;color:rgba(139,180,200,0.5);animation:ccPulse 2.2s ease-in-out infinite;pointer-events:none;">‹</span>
+          <span style="position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:18px;color:rgba(139,180,200,0.5);animation:ccPulse 2.2s ease-in-out 1.1s infinite;pointer-events:none;">›</span>
+          <div data-thumb style="position:absolute;left:0;top:3px;width:38px;height:38px;border-radius:50%;transform:translate(112px,0);background:radial-gradient(circle at 35% 30%, #d9f3ff 0%, #4FC3F7 45%, #1d6fa8 100%);box-shadow:0 0 20px rgba(79,195,247,0.5);pointer-events:none;"></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#4FC3F7&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#4FC3F7&quot;,&quot;#6EE7C8&quot;,&quot;#B79CFF&quot;,&quot;#FF9E7A&quot;],&quot;section&quot;:&quot;Style&quot;},&quot;bounce&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0.6,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Motion&quot;},&quot;trail&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Motion&quot;},&quot;sway&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Motion&quot;}}">
+class Component extends DCLogic {
+  state = { now: new Date() };
+
+  componentDidMount() {
+    this._clk = setInterval(() => this.setState({ now: new Date() }), 15000);
+    this._ctrls = this._ctrls || {};
+    this._scan = setInterval(() => this._scanRoots(), 450);
+    this._scanRoots();
+  }
+
+  componentWillUnmount() {
+    clearInterval(this._clk);
+    clearInterval(this._scan);
+    const cs = this._ctrls || {};
+    Object.keys(cs).forEach(k => cs[k].destroy());
+    this._ctrls = {};
+  }
+
+  _scanRoots() {
+    this._ctrls = this._ctrls || {};
+    const roots = document.querySelectorAll('[data-orbit-root]');
+    for (let i = 0; i < roots.length; i++) {
+      const el = roots[i];
+      const key = el.getAttribute('data-orbit-root');
+      const prev = this._ctrls[key];
+      if (prev && prev.el === el && el.isConnected) continue;
+      if (prev) prev.destroy();
+      this._ctrls[key] = this._make(el);
+    }
+  }
+
+  renderVals() {
+    const n = this.state.now;
+    let h = n.getHours();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    const mm = String(n.getMinutes()).padStart(2, '0');
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return {
+      timeStr: h + ':' + mm + ap,
+      dateStr: days[n.getDay()] + ', ' + months[n.getMonth()] + ' ' + n.getDate(),
+    };
+  }
+
+  _make(el) {
+    const self = this;
+    const P = () => self.props || {};
+    const zone = el.querySelector('[data-orbit]');
+    const cvs = el.querySelector('[data-trail]');
+    const ctx = cvs.getContext('2d');
+    const items = Array.prototype.slice.call(el.querySelectorAll('[data-orb]'));
+    const inners = items.map(it => it.querySelector('[data-orb-inner]'));
+    const titleOut = el.querySelector('[data-title-out]');
+    const subOut = el.querySelector('[data-sub-out]');
+    const thumb = el.querySelector('[data-thumb]');
+    const track = el.querySelector('[data-track]');
+    const stages = [0, 1, 2, 3].map(i => el.querySelector('[data-stage="' + i + '"]'));
+
+    const HALF = Math.PI / 2, FRONT = Math.PI / 2, TAU = Math.PI * 2;
+    const CX = 201, CY = 230, RX = 152, RY = 140;
+    let th = FRONT, vel = 0, phase = 'idle', target = FRONT;
+    let active = 0;
+    let pos = [{x:201,y:370,s:1.4},{x:49,y:230,s:1.01},{x:201,y:90,s:0.62},{x:353,y:230,s:1.01}];
+    let lastT = performance.now();
+    let parts = [];
+    let raf = 0, dead = false, lblTO = 0;
+
+    const norm = a => { a = a % TAU; if (a > Math.PI) a -= TAU; if (a < -Math.PI) a += TAU; return a; };
+    const nearestDetent = a => Math.round(a / HALF) * HALF;
+
+    // easter egg: rapid-spin tracking
+    const EGG_WINDOW = 4000, EGG_REVS = 7;
+    const WITTY = ['having fun are we?', 'okay speed demon.', 'someone is bored.', 'round and round we go.', 'dizzy yet?', 'the dial appreciates the workout.', 'not letting go, huh?', 'we see you.'];
+    let rotBuf = [], turboActive = false, turboEnd = 0, turboPhraseIdx = 0, turboPhraseT = 0;
+    function addRot(d) {
+      const now = performance.now();
+      rotBuf.push({ t: now, d: Math.abs(d) });
+      while (rotBuf.length && now - rotBuf[0].t > EGG_WINDOW) rotBuf.shift();
+    }
+    function revsInWindow() {
+      let s = 0;
+      for (let i = 0; i < rotBuf.length; i++) s += rotBuf[i].d;
+      return s / TAU;
+    }
+
+    function measure() {
+      const r = zone.getBoundingClientRect();
+      cvs.width = Math.max(1, Math.round(r.width));
+      cvs.height = Math.max(1, Math.round(r.height));
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(zone);
+
+    const accent = () => P().accent || '#4FC3F7';
+    function rgb() {
+      const x = accent().replace('#', '');
+      return [parseInt(x.substr(0, 2), 16), parseInt(x.substr(2, 2), 16), parseInt(x.substr(4, 2), 16)];
+    }
+
+    function spawn(x, y, n, spd) {
+      if (P().trail === false) return;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * TAU, s = (spd || 30) * (0.3 + Math.random());
+        parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5 + Math.random() * 0.4, max: 0.9, r: 1.5 + Math.random() * 2.5 });
+      }
+      if (parts.length > 260) parts.splice(0, parts.length - 260);
+    }
+
+    function popEl(n) {
+      if (n && n.animate) n.animate(
+        [{ transform: 'scale(1)' }, { transform: 'scale(1.16)' }, { transform: 'scale(1)' }],
+        { duration: 300, easing: 'cubic-bezier(.34,1.8,.64,1)' }
+      );
+    }
+
+    function updateStage(i) {
+      for (let k = 0; k < stages.length; k++) {
+        if (!stages[k]) continue;
+        stages[k].style.display = 'none';
+      }
+      if (stages[i]) stages[i].style.display = i === 2 ? 'flex' : (i === 0 ? 'flex' : (i === 1 ? 'flex' : 'block'));
+    }
+
+    function refreshLabel() {
+      const it = items[active];
+      titleOut.style.opacity = '1';
+      subOut.style.opacity = '1';
+      titleOut.textContent = it.getAttribute('data-title');
+      subOut.textContent = it.getAttribute('data-sub');
+    }
+
+    function setActive(i) {
+      if (i === active) {
+        return;
+      }
+      active = i;
+      updateStage(i);
+      if (turboActive) return;
+      const it = items[i];
+      titleOut.style.opacity = '0';
+      subOut.style.opacity = '0';
+      clearTimeout(lblTO);
+      lblTO = setTimeout(() => {
+        titleOut.textContent = it.getAttribute('data-title');
+        subOut.textContent = it.getAttribute('data-sub');
+        titleOut.style.opacity = '1';
+        subOut.style.opacity = '1';
+      }, 130);
+    }
+
+    function spinTo(i) {
+      const want = FRONT - i * HALF;
+      target = th + norm(want - th);
+      if (Math.abs(target - th) < 0.001) { popEl(inners[i]); return; }
+      phase = 'spring';
+    }
+
+    function tap(p) {
+      for (let i = 0; i < 4; i++) {
+        const q = pos[i];
+        if (Math.hypot(p.x - q.x, p.y - q.y) < 34 * q.s + 10) { spinTo(i); return; }
+      }
+    }
+
+    function onSettle() {
+      popEl(inners[active]);
+      const q = pos[active];
+      spawn(q.x, q.y, 14, 85);
+    }
+
+    let pid = null, pStart = null, pLast = null, moved = 0, samples = [], dragging = false, downT = 0;
+    const posOf = e => { const r = zone.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+
+    function down(e, drag) {
+      if (pid !== null) return;
+      pid = e.pointerId;
+      try { e.currentTarget.setPointerCapture(pid); } catch (err) {}
+      pStart = pLast = posOf(e);
+      moved = 0; downT = performance.now(); samples = [];
+      dragging = drag;
+      if (drag) {
+        phase = 'drag'; vel = 0;
+        if (turboActive) { turboActive = false; rotBuf = []; }
+      }
+    }
+    function move(e) {
+      if (e.pointerId !== pid) return;
+      const p = posOf(e);
+      moved += Math.hypot(p.x - pLast.x, p.y - pLast.y);
+      if (dragging) {
+        const da = -(p.x - pLast.x) * 0.016;
+        th += da;
+        addRot(da);
+        samples.push({ t: performance.now(), th: th });
+        if (samples.length > 8) samples.shift();
+        if (Math.abs(da) > 0.002) spawn(pos[active].x, pos[active].y, 2, 40);
+      }
+      pLast = p;
+    }
+    function up(e) {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      const dt = performance.now() - downT;
+      if (moved < 8 && dt < 450 && pStart) tap(pStart);
+      if (dragging) {
+        dragging = false;
+        let v = 0;
+        if (samples.length > 1) {
+          const a = samples[0], b = samples[samples.length - 1];
+          const ddt = (b.t - a.t) / 1000;
+          if (ddt > 0.005) v = (b.th - a.th) / ddt;
+        }
+        vel = Math.max(-14, Math.min(14, v));
+        if (Math.abs(vel) > 1.6) phase = 'fling';
+        else { target = nearestDetent(th + vel * 0.12); phase = 'spring'; }
+      }
+    }
+
+    track.addEventListener('pointerdown', e => { down(e, true); e.stopPropagation(); });
+    zone.addEventListener('pointerdown', e => down(e, false));
+    [zone, track].forEach(s => {
+      s.addEventListener('pointermove', move);
+      s.addEventListener('pointerup', up);
+      s.addEventListener('pointercancel', up);
+    });
+
+    function layout(a0) {
+      const c = rgb();
+      for (let i = 0; i < 4; i++) {
+        const a = a0 + i * HALF;
+        const x = CX + RX * Math.cos(a);
+        const y = CY + RY * Math.sin(a);
+        const d = (Math.sin(a) + 1) / 2;
+        const s = 0.58 + 1.12 * d;
+        pos[i] = { x: x, y: y, s: s };
+        items[i].style.transform = 'translate(' + (x - 32) + 'px, ' + (y - 32) + 'px) scale(' + s.toFixed(3) + ')';
+        items[i].style.opacity = (0.38 + 0.62 * d).toFixed(3);
+        items[i].style.zIndex = String(1 + Math.round(d * 40));
+        if (d > 0.86) {
+          const g = Math.round(36 * (d - 0.86) / 0.14);
+          inners[i].style.boxShadow = '0 0 ' + g + 'px rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.45), 0 8px 24px rgba(0,0,0,0.5)';
+          inners[i].style.borderColor = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.5)';
+        } else {
+          inners[i].style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+          inners[i].style.borderColor = 'rgba(126,168,188,0.18)';
+        }
+      }
+    }
+
+    function updateThumb() {
+      if (!thumb) return;
+      const c = rgb();
+      const off = norm(th - nearestDetent(th));
+      const p = Math.max(0, Math.min(1, 0.5 - off * 2 / Math.PI));
+      const tw = track.clientWidth - 46;
+      const sx = 1 + Math.min(1.1, Math.abs(vel) * 0.16);
+      const sy = 1 / Math.sqrt(sx);
+      thumb.style.transform = 'translate(' + (4 + p * tw).toFixed(1) + 'px, 0) scale(' + sx.toFixed(3) + ', ' + sy.toFixed(3) + ')';
+      thumb.style.background = 'radial-gradient(circle at 35% 30%, #d9f3ff 0%, ' + accent() + ' 45%, #1d6fa8 100%)';
+      thumb.style.boxShadow = '0 0 22px rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.55)';
+    }
+
+    function drawParts(dt) {
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      if (!parts.length) return;
+      const c = rgb();
+      ctx.globalCompositeOperation = 'lighter';
+      parts = parts.filter(pt => {
+        pt.life -= dt;
+        if (pt.life <= 0) return false;
+        pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+        pt.vx *= 0.96; pt.vy *= 0.96;
+        const al = Math.max(0, pt.life / pt.max);
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (al * 0.55).toFixed(3) + ')';
+        ctx.arc(pt.x, pt.y, pt.r * (0.5 + al), 0, TAU);
+        ctx.fill();
+        return true;
+      });
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function tick(now) {
+      if (dead) return;
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min(0.05, (now - lastT) / 1000);
+      lastT = now;
+
+      if (phase === 'fling') {
+        const d = vel * dt;
+        th += d;
+        addRot(d);
+        vel *= Math.exp(-2.6 * dt);
+        if (!turboActive && revsInWindow() >= EGG_REVS) {
+          turboActive = true;
+          turboEnd = now + 3200 + Math.random() * 900;
+          vel = Math.sign(vel || 1) * Math.max(20, Math.abs(vel) * 1.35);
+          phase = 'turbo';
+          turboPhraseT = 0.9;
+          titleOut.style.opacity = '1'; subOut.style.opacity = '1';
+          titleOut.textContent = '🌀';
+        } else if (Math.abs(vel) < 1.6) {
+          target = nearestDetent(th + vel * 0.12); phase = 'spring';
+        }
+      } else if (phase === 'turbo') {
+        const d = vel * dt;
+        th += d;
+        vel *= Math.exp(-0.5 * dt);
+        turboPhraseT += dt;
+        if (turboPhraseT > 0.85) {
+          turboPhraseT = 0;
+          subOut.textContent = WITTY[turboPhraseIdx % WITTY.length];
+          turboPhraseIdx++;
+        }
+        spawn(pos[active].x, pos[active].y, 3, 70);
+        if (now > turboEnd || Math.abs(vel) < 3) {
+          turboActive = false;
+          rotBuf = [];
+          target = nearestDetent(th);
+          phase = 'spring';
+        }
+      } else if (phase === 'spring') {
+        const b = P().bounce == null ? 0.6 : P().bounce;
+        const k = 130, cd = 2 * Math.sqrt(k) * (1.05 - 0.62 * b);
+        vel += (k * (target - th) - cd * vel) * dt;
+        th += vel * dt;
+        if (Math.abs(target - th) < 0.004 && Math.abs(vel) < 0.06) {
+          th = target; vel = 0; phase = 'idle';
+          refreshLabel();
+          onSettle();
+        }
+      }
+
+      const swayOn = P().sway !== false;
+      const disp = th + (phase === 'idle' && swayOn ? Math.sin(now / 850) * 0.026 : 0);
+      layout(disp);
+
+      const ai = ((Math.round((FRONT - th) / HALF) % 4) + 4) % 4;
+      if (ai !== active) setActive(ai);
+
+      updateThumb();
+      drawParts(dt);
+    }
+    raf = requestAnimationFrame(tick);
+    updateStage(0);
+
+    return {
+      el: el,
+      destroy: function () {
+        dead = true;
+        cancelAnimationFrame(raf);
+        clearTimeout(lblTO);
+        ro.disconnect();
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

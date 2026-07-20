@@ -21,6 +21,7 @@ export interface InsightCardRequest {
   dateTo: string;
   tone: string;
   customTonePrompt?: string;
+  profileContext?: string;
   captures: CardCaptureData[];
   /** Optional summary block enumerating shared links, journals, and entry-type mix */
   contextDigest?: string;

@@ -23,6 +23,7 @@ import { AURORA_BACKGROUNDS, AURORA_BACKGROUND_ORDER } from '@/constants/auroraB
 import { ORB_WAVES, ORB_WAVE_ORDER } from '@/constants/auroraOrbs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getProfile, updateProfile, Profile } from '@/services/profile';
+import { ProfileContextModal } from '@/components/settings/ProfileContextModal';
 import { supabase } from '@/lib/supabase';
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -279,6 +280,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [profileContextVisible, setProfileContextVisible] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Load Profile Data
@@ -788,7 +790,6 @@ export default function ProfileScreen() {
             title="Use Journal Entries"
             subtitle="Include your notes in analysis"
             showChevron={false}
-            isLast
             rightElement={
               <Switch
                 value={profile?.ai_use_journal_in_insights ?? true}
@@ -798,6 +799,14 @@ export default function ProfileScreen() {
                 thumbColor={isLight ? '#1a1a1a' : '#fff'}
               />
             }
+          />
+          <SettingRow
+            icon="person-circle-outline"
+            title="Profile Context"
+            subtitle="Tell Obsy about yourself to color insights"
+            value={profile?.profile_context?.trim() ? 'On' : 'Off'}
+            onPress={() => setProfileContextVisible(true)}
+            isLast
           />
         </CollapsibleSection>
 
@@ -905,6 +914,15 @@ export default function ProfileScreen() {
           <ThemedText style={[styles.footerText, { color: colors.textTertiary }]}>Obsy v1.0.0 • Built with ❤️</ThemedText>
         </View>
       </ScrollView>
+
+      <ProfileContextModal
+        visible={profileContextVisible}
+        initialValue={profile?.profile_context ?? ''}
+        onClose={() => setProfileContextVisible(false)}
+        onSave={async (value) => {
+          await handleUpdateProfile({ profile_context: value });
+        }}
+      />
     </ScreenWrapper >
   );
 }

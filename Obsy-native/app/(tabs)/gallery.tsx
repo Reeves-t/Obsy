@@ -11,12 +11,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { SharedLinkCard } from '@/components/entries/SharedLinkCard';
 import { EntryGridTile } from '@/components/entries/EntryGridTile';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient';
+import { splitFirstSentence } from '@/lib/text';
 
 const { width } = Dimensions.get('window');
 
 // ─── Filter types ────────────────────────────────────────────────────────────
 
-type EntryFilter = 'all' | 'captures' | 'journals' | 'mic' | 'shared_links';
+type EntryFilter = 'all' | 'captures' | 'journals' | 'mic' | 'shared_links' | 'unpack';
 type ViewMode = 'grid' | 'list';
 
 // Grid layout: 3 columns, 16px horizontal padding, 8px gap between tiles
@@ -31,6 +34,7 @@ const FILTER_OPTIONS: { key: EntryFilter; label: string }[] = [
     { key: 'journals', label: 'Journals' },
     { key: 'mic', label: 'Mic' },
     { key: 'shared_links', label: 'Shared Links' },
+    { key: 'unpack', label: 'Unpacked ✦' },
 ];
 
 // ─── Grid / List item shapes ─────────────────────────────────────────────────
@@ -108,9 +112,16 @@ const JournalEntryCard = memo(function JournalEntryCard({
     const date = new Date(capture.created_at);
     const isVoice = capture.source_type === 'voice';
     const isJournal = capture.source_type === 'journal';
+    const isUnpack = capture.source_type === 'unpack';
     const handlePress = useCallback(() => onPress(capture.id), [capture.id, onPress]);
     const cardBg = isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)';
     const cardBorder = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+
+    // Journal/unpack notes get a title + fading body instead of a hard cut
+    const quoteCard = (isJournal || isUnpack) && !!capture.note?.trim();
+    const { title, rest } = quoteCard
+        ? splitFirstSentence(capture.note)
+        : { title: '', rest: '' };
 
     return (
         <TouchableOpacity
@@ -120,17 +131,45 @@ const JournalEntryCard = memo(function JournalEntryCard({
         >
             <View style={styles.journalCardContent}>
                 <View style={styles.journalCardTextArea}>
-                    {(isVoice || isJournal) && (
+                    {(isVoice || isJournal || isUnpack) && (
                         <View style={styles.sourceTypeRow}>
-                            <Ionicons name={isVoice ? 'mic' : 'pencil'} size={11} color={textTertiary} />
+                            {isUnpack ? (
+                                <ThemedText style={[styles.sourceTypeLabel, { color: textTertiary }]}>✦</ThemedText>
+                            ) : (
+                                <Ionicons name={isVoice ? 'mic' : 'pencil'} size={11} color={textTertiary} />
+                            )}
                             <ThemedText style={[styles.sourceTypeLabel, { color: textTertiary }]}>
-                                {isVoice ? 'Voice' : 'Journal'}
+                                {isUnpack ? 'Guided' : isVoice ? 'Voice' : 'Journal'}
                             </ThemedText>
                         </View>
                     )}
-                    <ThemedText numberOfLines={3} style={[styles.journalCardNote, { color: textColor }]}>
-                        {capture.note}
-                    </ThemedText>
+                    {quoteCard ? (
+                        <View>
+                            <ThemedText numberOfLines={2} style={[styles.journalCardTitle, { color: textColor }]}>
+                                {title}
+                            </ThemedText>
+                            {rest !== '' && (
+                                <MaskedView
+                                    maskElement={
+                                        <LinearGradient
+                                            colors={['black', 'black', 'transparent']}
+                                            locations={[0, 0.6, 1]}
+                                            style={styles.flexOne}
+                                        />
+                                    }
+                                    style={styles.journalCardFadeBody}
+                                >
+                                    <ThemedText numberOfLines={4} style={[styles.journalCardNote, { color: textColor }]}>
+                                        {rest}
+                                    </ThemedText>
+                                </MaskedView>
+                            )}
+                        </View>
+                    ) : (
+                        <ThemedText numberOfLines={3} style={[styles.journalCardNote, { color: textColor }]}>
+                            {capture.note}
+                        </ThemedText>
+                    )}
                     <ThemedText style={[styles.journalCardMeta, { color: textTertiary }]}>
                         {format(date, 'h:mm a')} · {format(date, 'MMM d, yyyy')}
                     </ThemedText>
@@ -240,13 +279,15 @@ export default function GalleryScreen() {
     const filteredCaptures = useMemo(() => {
         switch (filter) {
             case 'captures':
-                return captures.filter(c => c.image_url && c.source_type !== 'journal' && c.source_type !== 'voice' && c.source_type !== 'shared_link');
+                return captures.filter(c => c.image_url && c.source_type !== 'journal' && c.source_type !== 'voice' && c.source_type !== 'shared_link' && c.source_type !== 'unpack');
             case 'journals':
-                return captures.filter(c => c.source_type === 'journal' || (c.note && c.note.trim().length > 0 && !c.image_url && c.source_type !== 'voice' && c.source_type !== 'shared_link'));
+                return captures.filter(c => c.source_type === 'journal' || (c.note && c.note.trim().length > 0 && !c.image_url && c.source_type !== 'voice' && c.source_type !== 'shared_link' && c.source_type !== 'unpack'));
             case 'mic':
                 return captures.filter(c => c.source_type === 'voice');
             case 'shared_links':
                 return captures.filter(c => c.source_type === 'shared_link');
+            case 'unpack':
+                return captures.filter(c => c.source_type === 'unpack');
             case 'all':
             default:
                 return captures;
@@ -588,6 +629,19 @@ const styles = StyleSheet.create({
     journalCardNote: {
         fontSize: 15,
         lineHeight: 22,
+    },
+    journalCardTitle: {
+        fontSize: 15,
+        lineHeight: 21,
+        fontFamily: 'Inter_600SemiBold',
+        marginBottom: 2,
+    },
+    journalCardFadeBody: {
+        maxHeight: 3 * 22,
+        overflow: 'hidden',
+    },
+    flexOne: {
+        flex: 1,
     },
     journalCardMeta: {
         fontSize: 12,

@@ -9,6 +9,7 @@ import {
     ObservedPatternsCaptureData,
 } from '@/services/observedPatternsClient';
 import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
+import { getProfile } from '@/services/profile';
 
 const GENERATION_THRESHOLD = 5;
 
@@ -151,12 +152,16 @@ export const useObservedPatterns = create<ObservedPatternsState>((set, get) => (
 
             const newGenNumber = state.generationNumber + 1;
 
+            const profile = await getProfile();
+            const profileContext = profile?.profile_context?.trim() || undefined;
+
             const response = await callObservedPatterns(
                 captureData,
                 state.text,
                 newGenNumber,
                 eligibleCount,
                 contextDigest,
+                profileContext,
             );
 
             if (response.ok && response.text) {

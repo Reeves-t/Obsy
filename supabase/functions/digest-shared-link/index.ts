@@ -21,7 +21,16 @@ import { fetchLyrics } from "../_shared/links/lyrics.ts";
 import { digestLinkWithGemini } from "../_shared/links/gemini.ts";
 
 interface DigestRequest {
-  entryId: string;
+  /** Enrich a saved entry in place (original flow). */
+  entryId?: string;
+  /**
+   * Preview mode: digest a raw URL and RETURN the result without writing any
+   * row. Used by the Unpack flow, which must not persist an entry before the
+   * user confirms. `platform`/`title` are optional fallbacks.
+   */
+  url?: string;
+  platform?: string;
+  title?: string;
 }
 
 const corsHeaders = {
@@ -64,6 +73,48 @@ serve(async (req) => {
     body = (await req.json()) as DigestRequest;
   } catch {
     return jsonResponse({ ok: false, error: "invalid_json" }, 400);
+  }
+
+  // ── Preview mode: digest a raw URL without persisting anything ──────────
+  if (body?.url && !body?.entryId) {
+    // Require a valid session (no RLS row to gate against in preview mode).
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return jsonResponse({ ok: false, error: "invalid_token" }, 401);
+    }
+
+    const url = body.url;
+    const resolved = await resolveLinkMetadata(url);
+    const lyrics = resolved.mediaType === "music"
+      ? await fetchLyrics(resolved.author, resolved.track ?? resolved.title)
+      : null;
+
+    let digest: string | null = null;
+    try {
+      digest = await digestLinkWithGemini(url, resolved, lyrics);
+    } catch {
+      digest = null;
+    }
+    if (digest) digest = digest.slice(0, MAX_DIGEST_CHARS);
+
+    let source: string | null = null;
+    try {
+      source = new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      source = null;
+    }
+
+    return jsonResponse({
+      ok: true,
+      preview: true,
+      url,
+      digest,
+      mediaType: resolved.mediaType,
+      title: resolved.title ?? body.title ?? null,
+      thumbnailUrl: resolved.thumbnailUrl ?? null,
+      source,
+    });
   }
 
   if (!body?.entryId) {
