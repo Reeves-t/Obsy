@@ -25,7 +25,7 @@ import {
 /** Platform dots shown alongside the count, newest saves first. */
 const MAX_DOTS = 4;
 
-export function ReflectionInboxStrip({ bottom }: { bottom: number }) {
+export function ReflectionInboxStrip() {
     const router = useRouter();
     const { colors, isLight } = useObsyTheme();
     const captures = useCaptureStore(state => state.captures);
@@ -52,7 +52,7 @@ export function ReflectionInboxStrip({ bottom }: { bottom: number }) {
         : `${pending.length} saves waiting for you`;
 
     return (
-        <Animated.View entering={FadeIn.duration(400)} style={[styles.wrapper, { bottom }]}>
+        <Animated.View entering={FadeIn.duration(400)} style={styles.wrapper}>
             <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => router.push('/reflect')}
@@ -92,9 +92,6 @@ export function ReflectionInboxStrip({ bottom }: { bottom: number }) {
 
 const styles = StyleSheet.create({
     wrapper: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
         alignItems: 'center',
     },
     pill: {

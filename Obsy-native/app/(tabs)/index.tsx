@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
 import { ReflectionInboxStrip } from '@/components/home/ReflectionInboxStrip';
+import { ClipboardLinkPill } from '@/components/home/ClipboardLinkPill';
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -115,10 +116,20 @@ export default function HomeScreen() {
             <HomeActionCarousel />
           </View>
 
-          {/* Renders itself only when there is a backlog to clear. Sits where
-              the first-capture hint would go; the two never coexist, since a
-              pending save means the user already has an entry. */}
-          <ReflectionInboxStrip bottom={insets.bottom + DEFAULT_TAB_BAR_HEIGHT + 28} />
+          {/* Capture nudges, stacked above the tab bar. Each renders null when
+              it has nothing to offer, so the column collapses on its own rather
+              than leaving a gap. Both sit where the first-capture hint goes; the
+              hint never coexists with them, since either nudge implies an entry
+              already exists or a link is waiting. */}
+          <View
+            style={[
+              styles.nudgeStack,
+              { bottom: insets.bottom + DEFAULT_TAB_BAR_HEIGHT + 28 },
+            ]}
+          >
+            <ClipboardLinkPill />
+            <ReflectionInboxStrip />
+          </View>
 
           {showFirstCaptureHint && (
             <Animated.View
@@ -231,6 +242,13 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     transform: [{ translateY: -140 }],
+  },
+  nudgeStack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: 8,
   },
   firstCaptureHint: {
     position: 'absolute',
