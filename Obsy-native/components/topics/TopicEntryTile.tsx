@@ -5,6 +5,7 @@ import type { Capture } from '@/types/capture';
 import type { TopicNote } from '@/lib/topicStore';
 import type { TopicAttachment } from '@/services/topicAttachments';
 import { getMoodTheme } from '@/lib/moods';
+import { useLinkThumbnail } from '@/hooks/useLinkThumbnail';
 
 export type TopicEntryItem =
     | { kind: 'capture'; capture: Capture }
@@ -210,6 +211,14 @@ function glyphForAttachment(a: TopicAttachment) {
 // ── Tile ───────────────────────────────────────────────────
 
 export function TopicEntryTile({ item, size, onPress }: TopicEntryTileProps) {
+    // Resolved unconditionally (rules of hooks) and only consumed by the
+    // shared-link branch below. Prefers our re-hosted copy over the source CDN
+    // URL, which for TikTok/Meta expires within days of the save.
+    const linkThumbnail = useLinkThumbnail(
+        item.kind === 'capture' ? item.capture.shared_link_thumbnail_path : null,
+        item.kind === 'capture' ? item.capture.shared_link_thumbnail_url : null,
+    );
+
     // Derive accent color, glyph, date, title/body, optional thumbnail per kind.
     let accent = 'rgba(255,255,255,0.20)';
     let glyph: React.ReactNode = null;
@@ -227,7 +236,7 @@ export function TopicEntryTile({ item, size, onPress }: TopicEntryTileProps) {
         title = p.title;
         body = p.body;
         thumbnail = item.capture.source_type === 'shared_link'
-            ? item.capture.shared_link_thumbnail_url ?? null
+            ? linkThumbnail
             : (item.capture.image_url && !item.capture.image_url.startsWith('blank://')
                 ? item.capture.image_url
                 : null);

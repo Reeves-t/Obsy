@@ -14,9 +14,10 @@ import Animated, {
 import { ThemedText } from '@/components/ui/ThemedText';
 import type { Capture } from '@/types/capture';
 import { useMoodResolver } from '@/hooks/useMoodResolver';
-import { detectPlatform, platformToColor } from '@/services/sharedLinkService';
+import { detectPlatform, platformToColor, platformToGradient } from '@/services/sharedLinkService';
 import type { SharedLinkPlatform } from '@/services/sharedLinkService';
 import { getVoicePlaybackUrl } from '@/services/voiceNotes';
+import { useLinkThumbnail } from '@/hooks/useLinkThumbnail';
 
 /**
  * EntryGridTile — a square tile representing one Capture entry in the grid view.
@@ -169,13 +170,26 @@ function PlatformBrandIcon({ platform, size, color }: { platform: SharedLinkPlat
     }
 }
 
+/**
+ * Grid rendering of a shared link — the square-tile counterpart to
+ * StaticLinkPreview's three tiers. The tile is always square, so aspect
+ * handling does not apply; what carries over is that a link with no image
+ * still reads as its platform rather than as a blank square.
+ */
 const LinkTile = memo(function LinkTile({ capture, size }: { capture: Capture; size: number }) {
-    const thumbnail = capture.shared_link_thumbnail_url;
     const savedPlatform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
     const platform = savedPlatform === 'Web' && capture.shared_link_url
         ? detectPlatform(capture.shared_link_url)
         : savedPlatform;
     const platformColor = platformToColor(platform);
+    const gradient = platformToGradient(platform);
+
+    // Prefer our re-hosted copy; the source CDN URL is the fallback and, for
+    // TikTok/Meta, expires within days of being saved.
+    const thumbnail = useLinkThumbnail(
+        capture.shared_link_thumbnail_path,
+        capture.shared_link_thumbnail_url,
+    );
 
     if (thumbnail) {
         return (
@@ -194,15 +208,42 @@ const LinkTile = memo(function LinkTile({ capture, size }: { capture: Capture; s
         );
     }
 
-    // No thumbnail — let the platform mark own the whole square in grid view.
-    const iconSize = Math.round(size * 0.58);
+    const excerpt = capture.shared_link_text?.trim();
+
+    // Text posts (X especially, which publishes no thumbnail at all) show their
+    // own words. Quoting reads as deliberate where a blank platform square does not.
+    if (excerpt) {
+        return (
+            <LinearGradient
+                colors={gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.linkTextTile}
+            >
+                <ThemedText numberOfLines={size > 140 ? 5 : 3} style={styles.linkTextQuote}>
+                    “{excerpt}”
+                </ThemedText>
+                <View style={[styles.linkBadge, { backgroundColor: platformColor }]}>
+                    <PlatformBrandIcon platform={platform} size={16} color="#FFFFFF" />
+                </View>
+            </LinearGradient>
+        );
+    }
+
+    // Nothing resolved — the platform mark owns the whole square.
+    const iconSize = Math.round(size * 0.5);
 
     return (
-        <View style={[styles.linkFallback, { backgroundColor: platformColor }]}>
+        <LinearGradient
+            colors={gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.linkFallback}
+        >
             <View style={styles.linkFullIconWrap}>
                 <PlatformBrandIcon platform={platform} size={iconSize} color="#FFFFFF" />
             </View>
-        </View>
+        </LinearGradient>
     );
 });
 
@@ -492,6 +533,17 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    linkTextTile: {
+        flex: 1,
+        padding: 10,
+        justifyContent: 'center',
+    },
+    linkTextQuote: {
+        color: '#fff',
+        fontSize: 12,
+        lineHeight: 16,
+        fontWeight: '500',
     },
     linkFullIconWrap: {
         width: '100%',
