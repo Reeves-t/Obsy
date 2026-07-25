@@ -33,8 +33,9 @@ type CaptureState = {
     addCapture: (
         user: User | null,
         data: Omit<Capture, "id" | "user_id" | "created_at" | "tags" | "includeInInsights" | "usePhotoForInsight" | "mood_id" | "mood_name_snapshot"> & {
-            mood_id: string,
-            mood_name_snapshot: string,
+            /** Null only for a shared link saved without reflecting yet. */
+            mood_id: string | null,
+            mood_name_snapshot: string | null,
             tags?: string[],
             includeInInsights?: boolean,
             usePhotoForInsight?: boolean,
@@ -73,8 +74,9 @@ type CaptureState = {
     ) => Promise<string | null>;
     createSharedLinkEntry: (
         user: User | null,
-        moodId: string,
-        moodName: string,
+        /** Null when saved from the share sheet — the mood comes at reflection time. */
+        moodId: string | null,
+        moodName: string | null,
         url: string,
         platform: string,
         title: string | null,
@@ -163,19 +165,26 @@ export const useCaptureStore = create<CaptureState>()(
                                 resolvedUrl = localUri;
                             }
 
-                            // Ensure required mood fields are populated
-                            const moodId = entry.mood || 'neutral';
+                            /**
+                             * A shared link saved from the share sheet has no mood until
+                             * the user reflects on it. That null must survive the round
+                             * trip — coercing it to 'neutral' here would silently mark
+                             * every pending save as reflected on the next fetch, and feed
+                             * a mood the user never chose into their history.
+                             */
+                            const isUnreflectedLink = entry.source_type === 'shared_link' && !entry.mood;
+                            const moodId: string | null = isUnreflectedLink ? null : (entry.mood || 'neutral');
 
                             // Resolve mood name: if snapshot looks like a raw ID (e.g., "custom_abc123"),
                             // try to resolve it to the actual mood name
                             let moodSnapshot = entry.mood_name_snapshot;
-                            if (!moodSnapshot || moodSnapshot.startsWith('custom_') || moodSnapshot === moodId) {
+                            if (moodId && (!moodSnapshot || moodSnapshot.startsWith('custom_') || moodSnapshot === moodId)) {
                                 // Snapshot is missing or appears to be a raw ID - resolve it
                                 moodSnapshot = getMoodLabel(moodId, entry.mood_name_snapshot);
                             }
 
                             // Log warning if we had to use fallback values
-                            if (!entry.mood_name_snapshot || entry.mood_name_snapshot.startsWith('custom_')) {
+                            if (moodId && (!entry.mood_name_snapshot || entry.mood_name_snapshot.startsWith('custom_'))) {
                                 console.warn(`[captureStore] Entry ${entry.id} has invalid mood_name_snapshot "${entry.mood_name_snapshot}", resolved to: ${moodSnapshot}`);
                             }
 
@@ -184,7 +193,7 @@ export const useCaptureStore = create<CaptureState>()(
                                 user_id: entry.user_id,
                                 created_at: entry.created_at,
                                 mood_id: moodId,
-                                mood_name_snapshot: moodSnapshot,
+                                mood_name_snapshot: moodSnapshot || 'Neutral',
                                 note: entry.note,
                                 image_url: resolvedUrl,
                                 image_path: entry.photo_path,
@@ -213,7 +222,7 @@ export const useCaptureStore = create<CaptureState>()(
                         if (missingEffects.length > 0) {
                             const generatedById = new Map<string, ReturnType<typeof generateOrbEffect>>();
                             for (const capture of missingEffects) {
-                                generatedById.set(capture.id, generateOrbEffect(capture.mood_name_snapshot || capture.mood_id));
+                                generatedById.set(capture.id, generateOrbEffect(capture.mood_name_snapshot || capture.mood_id || 'Neutral'));
                             }
                             Promise.allSettled(
                                 missingEffects.map(async (capture) => {
@@ -255,53 +264,66 @@ export const useCaptureStore = create<CaptureState>()(
                 const tags = data.tags || [];
                 const includeInInsights = data.includeInInsights ?? true;
                 const usePhotoForInsight = data.usePhotoForInsight ?? false;
-                const orbEffect = generateOrbEffect(data.mood_name_snapshot || data.mood_id);
+                const orbEffect = generateOrbEffect(data.mood_name_snapshot || data.mood_id || 'Neutral');
                 let newCaptureId: string | null = null;
                 // Capture funnel: is this the user's first entry? (read before insert)
                 const isFirstCapture = get().captures.length === 0;
 
-                // Validate required mood fields
-                if (!data.mood_id || data.mood_id.trim() === '') {
+                /**
+                 * A shared link may be saved with no mood at all: the share-sheet
+                 * flow defers the mood to the reflection step, because asking for
+                 * a feeling mid-scroll is what stops the save from happening. Every
+                 * other entry type still requires one.
+                 */
+                const moodOptional = data.source_type === 'shared_link';
+                const hasMood = !!data.mood_id && data.mood_id.trim() !== '';
+
+                if (!hasMood && !moodOptional) {
                     throw new Error('Mood ID is required. Please select a mood before saving.');
                 }
-                if (!data.mood_name_snapshot || data.mood_name_snapshot.trim() === '') {
+                if (hasMood && (!data.mood_name_snapshot || data.mood_name_snapshot.trim() === '')) {
                     throw new Error('Mood name snapshot is required. Please select a valid mood.');
                 }
 
-                // Ensure cache is fresh before validating mood ID
-                if (!moodCache.isInitialized() || moodCache.isStale()) {
-                    await moodCache.fetchAllMoods(user?.id ?? null);
-                }
+                if (hasMood) {
+                    // Ensure cache is fresh before validating mood ID
+                    if (!moodCache.isInitialized() || moodCache.isStale()) {
+                        await moodCache.fetchAllMoods(user?.id ?? null);
+                    }
 
-                // Validate mood ID exists in cache before saving
-                const mood = moodCache.getMoodById(data.mood_id);
-                if (!mood) {
-                    throw new Error(`Invalid mood ID: ${data.mood_id}. The selected mood no longer exists. Please select a different mood.`);
-                }
+                    // Validate mood ID exists in cache before saving
+                    const mood = moodCache.getMoodById(data.mood_id!);
+                    if (!mood) {
+                        throw new Error(`Invalid mood ID: ${data.mood_id}. The selected mood no longer exists. Please select a different mood.`);
+                    }
 
-                // Diagnostic: Verify mood exists in database before insert
-                const { data: moodCheck, error: moodCheckError } = await supabase
-                    .from('moods')
-                    .select('id, name, type')
-                    .eq('id', data.mood_id)
-                    .maybeSingle();
+                    // Diagnostic: Verify mood exists in database before insert
+                    const { data: moodCheck, error: moodCheckError } = await supabase
+                        .from('moods')
+                        .select('id, name, type')
+                        .eq('id', data.mood_id!)
+                        .maybeSingle();
 
-                console.log('[captureStore] Mood validation check:', {
-                    moodId: data.mood_id,
-                    moodSnapshot: data.mood_name_snapshot,
-                    foundInDB: !!moodCheck,
-                    moodData: moodCheck,
-                    error: moodCheckError
-                });
+                    console.log('[captureStore] Mood validation check:', {
+                        moodId: data.mood_id,
+                        moodSnapshot: data.mood_name_snapshot,
+                        foundInDB: !!moodCheck,
+                        moodData: moodCheck,
+                        error: moodCheckError
+                    });
 
-                if (!moodCheck) {
-                    throw new Error(`Mood ID "${data.mood_id}" not found in database. Please refresh and try again.`);
+                    if (!moodCheck) {
+                        throw new Error(`Mood ID "${data.mood_id}" not found in database. Please refresh and try again.`);
+                    }
                 }
 
                 if (user) {
                     const dbPayload = {
-                        mood: data.mood_id,
-                        mood_name_snapshot: data.mood_name_snapshot,
+                        // Null for an unreflected shared link. The entries trigger
+                        // fills mood_name_snapshot with 'Neutral' when it is null,
+                        // which is why `mood` is the only reliable "has a mood" signal.
+                        mood: hasMood ? data.mood_id : null,
+                        mood_name_snapshot: hasMood ? data.mood_name_snapshot : null,
                         note: data.note,
                         photo_path: data.image_path ?? '',
                         user_id: user.id,
@@ -338,7 +360,7 @@ export const useCaptureStore = create<CaptureState>()(
                         user_id: inserted.user_id,
                         created_at: inserted.created_at,
                         mood_id: inserted.mood,
-                        mood_name_snapshot: inserted.mood_name_snapshot || data.mood_name_snapshot,
+                        mood_name_snapshot: inserted.mood_name_snapshot || data.mood_name_snapshot || 'Neutral',
                         note: inserted.note,
                         image_url: data.image_url || '',
                         image_path: inserted.photo_path,
@@ -384,6 +406,9 @@ export const useCaptureStore = create<CaptureState>()(
                         user_id: null,
                         created_at: new Date().toISOString(),
                         ...data,
+                        // Mirrors the server trigger's default so a guest entry
+                        // has a displayable name while mood_id stays null.
+                        mood_name_snapshot: data.mood_name_snapshot || 'Neutral',
                         tags,
                         includeInInsights,
                         usePhotoForInsight,
@@ -622,7 +647,7 @@ export const useCaptureStore = create<CaptureState>()(
             },
 
             createSharedLinkEntry: async (user, moodId, moodName, url, platform, title, thumbnailUrl, note = null, topicTag = null, includeInInsights = true) => {
-                if (!moodCache.isInitialized() || moodCache.isStale()) {
+                if (moodId && (!moodCache.isInitialized() || moodCache.isStale())) {
                     await moodCache.fetchAllMoods(user?.id ?? null);
                 }
                 const tags = topicTag ? [topicTag] : [];

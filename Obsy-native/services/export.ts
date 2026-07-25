@@ -19,8 +19,9 @@ export interface ExportData {
     captures: Array<{
         id: string;
         created_at: string;
-        mood_id: string;
-        mood_name: string;
+        /** Null for a shared link saved but not yet reflected on. */
+        mood_id: string | null;
+        mood_name: string | null;
         note: string | null;
         tags: string[];
         obsy_note: string | null;

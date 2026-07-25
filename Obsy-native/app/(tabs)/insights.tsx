@@ -20,6 +20,7 @@ import Colors from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useObsyTheme } from '@/contexts/ThemeContext';
 import { useCaptureStore } from '@/lib/captureStore';
+import { withMood } from '@/types/capture';
 import { track } from '@/lib/analytics';
 import { ensureRecentSnapshots } from '@/lib/dailySnapshotSync';
 import { buildWeeklyStatsFromDaily, buildWeeklyStatsFromCaptures, DailyInsightSnapshot, WeeklyStats } from '@/lib/insightsAnalytics';
@@ -568,7 +569,7 @@ export default function InsightsScreen() {
                 setWeeklyStats(buildWeeklyStatsFromDaily(weekly));
             } else {
                 // Fallback: compute stats directly from live captures
-                setWeeklyStats(buildWeeklyStatsFromCaptures(captures, start, end));
+                setWeeklyStats(buildWeeklyStatsFromCaptures(withMood(captures), start, end));
             }
         } catch (error) {
             console.error("Error fetching insight archives:", error);

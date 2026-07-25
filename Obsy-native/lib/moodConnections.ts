@@ -1,4 +1,4 @@
-import { Capture } from '@/types/capture';
+import { Capture, CaptureWithMood, withMood } from '@/types/capture';
 import { getMoodLabel, resolveMoodColorById } from '@/lib/moodUtils';
 
 export type RelationshipCount = Record<string, number>;
@@ -18,7 +18,7 @@ export interface MoodConnectionRelationship {
 }
 
 export interface MoodConnectionDialModel {
-    orderedEntries: Capture[];
+    orderedEntries: CaptureWithMood[];
     moodNodes: MoodConnectionNode[];
     moodIndexById: Map<string, number>;
     beforeByMood: Record<string, RelationshipCount>;
@@ -49,8 +49,8 @@ export interface MoodConnectionInterpretationData {
 }
 
 export function buildMoodConnectionModel(captures: Capture[]): MoodConnectionDialModel {
-    const orderedEntries = [...captures]
-        .filter((entry) => entry.includeInInsights !== false && !!entry.mood_id)
+    const orderedEntries = withMood(captures)
+        .filter((entry) => entry.includeInInsights !== false)
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     const moodNodes: MoodConnectionNode[] = [];

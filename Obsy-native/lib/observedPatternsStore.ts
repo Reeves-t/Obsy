@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Capture } from '@/types/capture';
+import { Capture, withMood } from '@/types/capture';
 import { getMoodLabel } from '@/lib/moodUtils';
 import { getTimeBucketForDate, getDayPart } from '@/lib/insightTime';
 import {
@@ -65,7 +65,7 @@ export const useObservedPatterns = create<ObservedPatternsState>((set, get) => (
     },
 
     updateEligibleCount: (allCaptures: Capture[]) => {
-        const eligible = allCaptures.filter(c => c.includeInInsights !== false);
+        const eligible = withMood(allCaptures).filter(c => c.includeInInsights !== false);
         const count = eligible.length;
         const current = get();
 
@@ -104,7 +104,7 @@ export const useObservedPatterns = create<ObservedPatternsState>((set, get) => (
         const state = get();
         if (state.status === 'loading') return;
 
-        const eligible = allCaptures.filter(c => c.includeInInsights !== false);
+        const eligible = withMood(allCaptures).filter(c => c.includeInInsights !== false);
         const eligibleCount = eligible.length;
 
         if (eligibleCount < GENERATION_THRESHOLD) {

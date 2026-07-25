@@ -1,4 +1,4 @@
-import { Capture } from '@/types/capture';
+import { Capture, CaptureWithMood, withMood } from '@/types/capture';
 import { getLocalDayKey, getWeekRangeForUser, getMonthRangeForUser } from '@/lib/utils';
 
 export type TimeBucket = 'early' | 'midday' | 'late';
@@ -70,8 +70,13 @@ export function formatLocalTimeLabel(date: Date): string {
 
 /**
  * Enriched capture with time context fields for insight generation.
+ *
+ * Extends CaptureWithMood rather than Capture: these are only ever produced by
+ * the selectors below, which drop entries with no mood. That keeps a shared
+ * link the user saved but has not reflected on out of every insight prompt,
+ * where it would otherwise arrive as a phantom 'Neutral'.
  */
-export interface EnrichedCapture extends Capture {
+export interface EnrichedCapture extends CaptureWithMood {
     localTimeLabel: string;
     timeBucket: TimeBucket;
     dayPart: DayPart;
@@ -81,7 +86,7 @@ export interface EnrichedCapture extends Capture {
 /**
  * Enriches a capture with time context fields.
  */
-function enrichCapture(capture: Capture): EnrichedCapture {
+function enrichCapture(capture: CaptureWithMood): EnrichedCapture {
     const captureDate = new Date(capture.created_at);
     const entry_type = (capture.source_type as EnrichedCapture['entry_type']) ?? 'capture';
     return {
@@ -103,7 +108,7 @@ function enrichCapture(capture: Capture): EnrichedCapture {
 export function getCapturesForDaily(date: Date, captures: Capture[]): EnrichedCapture[] {
     const targetDayKey = getLocalDayKey(date);
 
-    return captures
+    return withMood(captures)
         .filter((c) => {
             const captureKey = getLocalDayKey(new Date(c.created_at));
             return captureKey === targetDayKey && (c.includeInInsights !== false);
@@ -124,7 +129,7 @@ export function getCapturesForWeek(weekStart: Date, captures: Capture[], endDate
     const range = getWeekRangeForUser(weekStart);
     const effectiveEnd = endDate ?? range.end;
 
-    return captures
+    return withMood(captures)
         .filter((c) => {
             const createdAt = new Date(c.created_at);
             return createdAt >= range.start && createdAt <= effectiveEnd && (c.includeInInsights !== false);
@@ -141,11 +146,11 @@ export function getCapturesForWeek(weekStart: Date, captures: Capture[], endDate
  * @param endDate - Optional end date (defaults to month end from getMonthRangeForUser)
  * @returns Captures for the month, sorted by created_at ascending
  */
-export function getCapturesForMonth(monthStart: Date, captures: Capture[], endDate?: Date): Capture[] {
+export function getCapturesForMonth(monthStart: Date, captures: Capture[], endDate?: Date): CaptureWithMood[] {
     const range = getMonthRangeForUser(monthStart);
     const effectiveEnd = endDate ?? range.end;
 
-    return captures
+    return withMood(captures)
         .filter((c) => {
             const createdAt = new Date(c.created_at);
             return createdAt >= range.start && createdAt <= effectiveEnd && (c.includeInInsights !== false);

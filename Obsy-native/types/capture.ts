@@ -22,14 +22,24 @@ export type Capture = {
 
     /**
      * Mood ID reference (system mood ID or custom_uuid format).
-     * References the moods table. Required for all captures.
+     * References the moods table.
+     *
+     * NULL only for shared links saved straight from the share sheet, which
+     * deliberately defer the mood to the reflection step — asking someone to
+     * pick a feeling mid-scroll is what stops the save from happening at all.
+     * Such an entry is "unreflected" (see `isUnreflected`) and is excluded from
+     * every mood-based aggregate until the user reflects on it.
      */
-    mood_id: string;
+    mood_id: string | null;
 
     /**
      * Snapshot of mood name at capture time.
      * Preserved for historical accuracy even if the mood is later deleted.
      * This is the primary source for displaying mood names in the UI.
+     *
+     * NOT NULL in the database, where a trigger defaults it to 'Neutral' — so
+     * for an unreflected entry this reads 'Neutral' while `mood_id` is null.
+     * Always branch on `mood_id`, never on this field, to detect "has a mood".
      */
     mood_name_snapshot: string;
 
@@ -100,6 +110,30 @@ export type Capture = {
     /** Persisted randomized orb surface effect parameters */
     orb_effect?: OrbEffect | null;
 };
+
+/**
+ * A shared link saved from the share sheet that has not been reflected on yet:
+ * it has no mood, so it carries no emotional signal to aggregate.
+ *
+ * This is derived state, not a stored flag — reflecting on an entry sets its
+ * mood, which is the same thing as clearing this condition.
+ */
+export function isUnreflected(capture: Pick<Capture, 'source_type' | 'mood_id'>): boolean {
+    return capture.source_type === 'shared_link' && !capture.mood_id;
+}
+
+/** A capture known to carry a mood — safe to aggregate on. */
+export type CaptureWithMood = Capture & { mood_id: string };
+
+/**
+ * Captures that carry a mood, and so can take part in mood aggregation.
+ * Every insight/statistics path filters through this first: an unreflected
+ * save would otherwise land in the data as a phantom 'Neutral' (the database
+ * trigger's default snapshot) and quietly skew the user's mood history.
+ */
+export function withMood(captures: Capture[]): CaptureWithMood[] {
+    return captures.filter((c): c is CaptureWithMood => !!c.mood_id);
+}
 
 /**
  * Type guard to validate that a Capture object has all required mood fields.

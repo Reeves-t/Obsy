@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Capture } from '@/types/capture';
+import { Capture, withMood } from '@/types/capture';
 import { getLocalDayKey } from '@/lib/utils';
 import { callDaily, HabitGoalContext } from '@/services/dailyInsightClient';
 import { getHabitGoalSummary } from '@/lib/habitGoalStore';
