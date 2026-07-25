@@ -85,6 +85,18 @@ type CaptureState = {
         topicTag?: string | null,
         includeInInsights?: boolean
     ) => Promise<string | null>;
+    /**
+     * Reflect on a shared link saved from the share sheet: attach the mood (and
+     * optionally a note and topic) the user skipped at capture time. This is
+     * what moves the entry out of the reflection inbox and into mood history.
+     */
+    reflectSharedLink: (
+        id: string,
+        moodId: string,
+        moodName: string,
+        note?: string | null,
+        topicTag?: string | null,
+    ) => Promise<void>;
     /** Patch a shared-link capture in local state once its background digest resolves. */
     applySharedLinkDigest: (
         id: string,
@@ -689,6 +701,49 @@ export const useCaptureStore = create<CaptureState>()(
                 }
 
                 return newId;
+            },
+
+            reflectSharedLink: async (id, moodId, moodName, note = null, topicTag = null) => {
+                const capture = get().captures.find(c => c.id === id);
+                if (!capture) return;
+
+                const tags = topicTag && !capture.tags.includes(topicTag)
+                    ? [...capture.tags, topicTag]
+                    : capture.tags;
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { error } = await supabase
+                        .from('entries')
+                        .update({
+                            mood: moodId,
+                            mood_name_snapshot: moodName,
+                            note: note ?? capture.note,
+                            tags,
+                        })
+                        .eq('id', id);
+                    if (error) throw error;
+                }
+
+                set((state) => ({
+                    captures: state.captures.map(c => c.id === id
+                        ? {
+                            ...c,
+                            mood_id: moodId,
+                            mood_name_snapshot: moodName,
+                            note: note ?? c.note,
+                            tags,
+                            orb_effect: c.orb_effect ?? generateOrbEffect(moodName || moodId),
+                        }
+                        : c),
+                }));
+
+                // The entry now carries a mood, so it counts toward insights for
+                // the first time — recompute what was gated on it.
+                const updated = get().captures;
+                useTodayInsight.getState().computePending(updated);
+                useWeeklyInsight.getState().computePending(updated);
+                useMonthlyInsight.getState().computePending(updated);
             },
 
             applySharedLinkDigest: (id, fields) => {

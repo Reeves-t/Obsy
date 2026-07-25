@@ -17,6 +17,7 @@ import { DevPortalModal } from '@/components/dev/DevPortalModal';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
+import { ReflectionInboxStrip } from '@/components/home/ReflectionInboxStrip';
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -113,6 +114,11 @@ export default function HomeScreen() {
           <View style={styles.centerContainer}>
             <HomeActionCarousel />
           </View>
+
+          {/* Renders itself only when there is a backlog to clear. Sits where
+              the first-capture hint would go; the two never coexist, since a
+              pending save means the user already has an entry. */}
+          <ReflectionInboxStrip bottom={insets.bottom + DEFAULT_TAB_BAR_HEIGHT + 28} />
 
           {showFirstCaptureHint && (
             <Animated.View
