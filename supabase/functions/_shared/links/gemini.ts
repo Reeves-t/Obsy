@@ -1,8 +1,15 @@
 // Digests a shared link's CONTENT with Gemini, picking a strategy by media type:
 //   - video             → YouTube video ingestion (fileData)
 //   - music             → distill themes/tone from lyrics, else from title+artist
-//   - article/post/etc. → url_context (Gemini fetches & reads the page)
+//   - social/post w/text → digest the post's own caption / body text
+//   - article/etc.      → url_context (Gemini fetches & reads the page)
 // Returns a short plain-text digest, or null on any failure (caller falls back).
+//
+// Social posts get the caption path rather than url_context because TikTok,
+// Instagram and X serve bot walls to Gemini's fetcher exactly as they do to us —
+// url_context silently returns nothing for them. The caption resolved by
+// metadata.ts is the only content available, and for a journal digest it is
+// usually enough: it is what the post said about itself.
 
 import type { ResolvedLinkMetadata } from "./types.ts";
 
@@ -23,6 +30,12 @@ const MUSIC_PROMPT_LYRICS =
 const MUSIC_PROMPT_KNOWLEDGE =
   `In one plain sentence, describe this song's general mood/genre/themes for a personal journal, ` +
   `only if reasonably known. If unsure, describe it neutrally by title and artist. No preamble, no markdown.`;
+
+const SOCIAL_PROMPT =
+  `You are given a social media post's own caption or body text. In 1-2 plain sentences, ` +
+  `describe what the post is about for a personal journal, and why someone might have saved it. ` +
+  `Do not quote the caption verbatim and do not list its hashtags. If the caption is too thin to ` +
+  `tell what the post is about, say plainly what it appears to be. No preamble, no markdown, no quotes.`;
 
 interface GeminiPart {
   text?: string;
@@ -62,12 +75,45 @@ function buildBody(resolved: ResolvedLinkMetadata, url: string, lyrics: string |
     };
   }
 
-  // Everything else (article/post/playlist/podcast/social/link) — read the page.
+  // Social posts (and any post whose body we resolved) — digest the text we have.
+  // No url_context: these hosts block Gemini's fetcher, so the caption is all
+  // there is. Falls through to the page-reading path when no text resolved.
+  if ((resolved.mediaType === "social" || resolved.mediaType === "post") && resolved.text) {
+    const source = [
+      platformLabel(url),
+      resolved.author ? `by ${resolved.author}` : null,
+    ].filter(Boolean).join(" ");
+    const text = `${SOCIAL_PROMPT}\n\nPost: ${source || "social media post"}\n\nCaption:\n${resolved.text}`;
+    return {
+      contents: [{ role: "user", parts: [{ text }] }],
+      generationConfig,
+    };
+  }
+
+  // Everything else (article/playlist/podcast/link) — read the page.
   return {
     contents: [{ role: "user", parts: [{ text: `${WEB_PROMPT}\n\nURL: ${url}` }] }],
     generationConfig,
     tools: [{ url_context: {} }],
   };
+}
+
+/** Human-readable platform name from a URL, for prompt context. */
+function platformLabel(url: string): string {
+  let host = "";
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+  if (host.endsWith("tiktok.com")) return "TikTok post";
+  if (host.endsWith("instagram.com")) return "Instagram post";
+  if (host.endsWith("twitter.com") || host.endsWith("x.com")) return "X post";
+  if (host.endsWith("threads.net") || host.endsWith("threads.com")) return "Threads post";
+  if (host.endsWith("facebook.com")) return "Facebook post";
+  if (host.endsWith("tumblr.com")) return "Tumblr post";
+  if (host.endsWith("reddit.com")) return "Reddit post";
+  return host ? `post from ${host}` : "";
 }
 
 function extractText(data: unknown): string {

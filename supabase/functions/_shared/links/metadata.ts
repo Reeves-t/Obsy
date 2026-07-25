@@ -1,10 +1,19 @@
-// Resolves shared-link metadata (title, thumbnail, media type, author/track)
-// via oEmbed where available, falling back to OpenGraph tag scraping.
+// Resolves shared-link metadata (title, thumbnail, caption text, author/track)
+// via each platform's structured endpoint (oEmbed / JSON API) where available,
+// falling back to OpenGraph tag scraping for the open web.
 // Pure best-effort: every path degrades to nulls rather than throwing.
+//
+// Why structured endpoints matter: TikTok, Instagram, X and Facebook serve bot
+// walls or JS-only shells to a plain page fetch, so OpenGraph scraping returns
+// nothing usable (or worse, a login-page title). Their oEmbed endpoints return
+// the caption, author and thumbnail as JSON with no auth.
 
 import type { LinkMediaType, ResolvedLinkMetadata } from "./types.ts";
 
 const UA = "ObsyLinkBot/1.0 (+https://obsy.app)";
+
+/** Max characters of caption/selftext kept as the digest input. */
+const MAX_TEXT_CHARS = 1500;
 
 async function fetchWithTimeout(url: string, ms: number, init: RequestInit = {}): Promise<Response | null> {
   try {
@@ -24,6 +33,34 @@ function hostOf(url: string): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * Hosts that block plain page fetches. For these, OpenGraph scraping is skipped
+ * entirely — it costs latency and can only return a bot-wall title.
+ */
+function isWalledHost(host: string): boolean {
+  return (
+    host.endsWith("tiktok.com") ||
+    host.endsWith("instagram.com") ||
+    host.endsWith("threads.net") ||
+    host.endsWith("threads.com") ||
+    host.endsWith("facebook.com") ||
+    host.endsWith("twitter.com") ||
+    host.endsWith("x.com")
+  );
+}
+
+/** Signed CDN hosts whose image URLs expire within days. */
+function isExpiringThumbnailHost(thumbnailUrl: string | null): boolean {
+  if (!thumbnailUrl) return false;
+  const h = hostOf(thumbnailUrl);
+  return (
+    h.includes("tiktokcdn") ||
+    h.includes("cdninstagram") ||
+    h.includes("fbcdn") ||
+    /[?&]x-expires=/i.test(thumbnailUrl)
+  );
 }
 
 export function classifyMediaType(url: string): LinkMediaType {
@@ -47,16 +84,75 @@ export function classifyMediaType(url: string): LinkMediaType {
     host.endsWith("tiktok.com") ||
     host.endsWith("twitter.com") ||
     host.endsWith("x.com") ||
-    host.endsWith("threads.net")
+    host.endsWith("threads.net") ||
+    host.endsWith("threads.com") ||
+    host.endsWith("tumblr.com")
   ) {
     return "social";
   }
   return "article";
 }
 
+// ─────────────────────────────────────────────────────────────
+// HTML helpers
+// ─────────────────────────────────────────────────────────────
+
+function decodeHtml(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&mdash;/g, "—")
+    .replace(/&nbsp;/g, " ");
+}
+
+function stripTags(html: string): string {
+  return decodeHtml(
+    html
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]+>/g, ""),
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function clampText(s: string | null): string | null {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  return t.length > MAX_TEXT_CHARS ? t.slice(0, MAX_TEXT_CHARS) : t;
+}
+
+// ─────────────────────────────────────────────────────────────
+// oEmbed providers
+// ─────────────────────────────────────────────────────────────
+
 interface OEmbedProvider {
   match: (host: string) => boolean;
   endpoint: (url: string) => string;
+  /**
+   * Optional provider-specific mapping from the raw oEmbed JSON. Providers
+   * without one use the standard title/author_name/thumbnail_url fields.
+   */
+  parse?: (data: Record<string, unknown>) => Partial<ResolvedLinkMetadata>;
+}
+
+/**
+ * X/Twitter oEmbed returns the tweet body inside the embed blockquote:
+ *   <blockquote ...><p ...>TWEET TEXT</p>&mdash; Name (@handle) <a>date</a></blockquote>
+ * There is no thumbnail field — media tweets are rendered as text cards client-side.
+ */
+function parseTweetHtml(html: string): string | null {
+  const p = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+  if (p?.[1]) return clampText(stripTags(p[1]));
+  // No <p> (rare, e.g. media-only tweets) — fall back to the blockquote body
+  // minus the trailing author/date anchor.
+  const bq = html.match(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/i);
+  if (bq?.[1]) return clampText(stripTags(bq[1].replace(/&mdash;[\s\S]*$/i, "")));
+  return null;
 }
 
 const OEMBED_PROVIDERS: OEmbedProvider[] = [
@@ -72,6 +168,84 @@ const OEMBED_PROVIDERS: OEmbedProvider[] = [
     match: (h) => h.endsWith("soundcloud.com"),
     endpoint: (u) => `https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(u)}`,
   },
+  {
+    // TikTok: no auth, no key. `title` is the full caption including hashtags —
+    // that caption is what we digest, since the video itself is not readable.
+    match: (h) => h.endsWith("tiktok.com"),
+    endpoint: (u) => `https://www.tiktok.com/oembed?url=${encodeURIComponent(u)}`,
+    parse: (d) => ({
+      title: typeof d.title === "string" ? d.title : null,
+      text: typeof d.title === "string" ? clampText(d.title) : null,
+      author: typeof d.author_name === "string" ? d.author_name : null,
+      thumbnailUrl: typeof d.thumbnail_url === "string" ? d.thumbnail_url : null,
+    }),
+  },
+  {
+    // Instagram — tokenless since 2026-06-15 (public content only, lower rate
+    // limits than the token route). Returns the caption in `title` for most posts.
+    match: (h) => h.endsWith("instagram.com"),
+    endpoint: (u) =>
+      `https://graph.facebook.com/v21.0/instagram_oembed?omitscript=true&url=${encodeURIComponent(u)}`,
+    parse: (d) => ({
+      title: typeof d.title === "string" ? d.title : null,
+      text: typeof d.title === "string" ? clampText(d.title) : null,
+      author: typeof d.author_name === "string" ? d.author_name : null,
+      thumbnailUrl: typeof d.thumbnail_url === "string" ? d.thumbnail_url : null,
+    }),
+  },
+  {
+    match: (h) => h.endsWith("threads.net") || h.endsWith("threads.com"),
+    endpoint: (u) => `https://graph.threads.net/oembed?url=${encodeURIComponent(u)}`,
+    parse: (d) => ({
+      title: typeof d.title === "string" ? d.title : null,
+      text: typeof d.title === "string" ? clampText(d.title) : null,
+      author: typeof d.author_name === "string" ? d.author_name : null,
+      thumbnailUrl: typeof d.thumbnail_url === "string" ? d.thumbnail_url : null,
+    }),
+  },
+  {
+    match: (h) => h.endsWith("facebook.com"),
+    endpoint: (u) =>
+      `https://graph.facebook.com/v21.0/oembed_post?omitscript=true&url=${encodeURIComponent(u)}`,
+    parse: (d) => ({
+      title: typeof d.title === "string" ? d.title : null,
+      text: typeof d.title === "string" ? clampText(d.title) : null,
+      author: typeof d.author_name === "string" ? d.author_name : null,
+      thumbnailUrl: typeof d.thumbnail_url === "string" ? d.thumbnail_url : null,
+    }),
+  },
+  {
+    // X/Twitter: text-only. No thumbnail field exists in the official response,
+    // and the unofficial media routes are too unstable to depend on.
+    match: (h) => h.endsWith("twitter.com") || h.endsWith("x.com"),
+    endpoint: (u) =>
+      `https://publish.twitter.com/oembed?omit_script=1&dnt=1&url=${encodeURIComponent(u)}`,
+    parse: (d) => {
+      const html = typeof d.html === "string" ? d.html : "";
+      const text = html ? parseTweetHtml(html) : null;
+      const author = typeof d.author_name === "string" ? d.author_name : null;
+      return {
+        // The tweet body doubles as the title; the card truncates it.
+        title: text ?? (author ? `Post by ${author}` : null),
+        text,
+        author,
+        thumbnailUrl: null,
+      };
+    },
+  },
+  {
+    match: (h) => h.endsWith("tumblr.com"),
+    endpoint: (u) => `https://www.tumblr.com/oembed/1.0?url=${encodeURIComponent(u)}`,
+    parse: (d) => {
+      const summary = typeof d.summary === "string" ? d.summary : null;
+      return {
+        title: typeof d.title === "string" ? d.title : summary,
+        text: clampText(summary),
+        author: typeof d.author_name === "string" ? d.author_name : null,
+        thumbnailUrl: typeof d.thumbnail_url === "string" ? d.thumbnail_url : null,
+      };
+    },
+  },
 ];
 
 async function tryOEmbed(url: string): Promise<Partial<ResolvedLinkMetadata> | null> {
@@ -83,15 +257,75 @@ async function tryOEmbed(url: string): Promise<Partial<ResolvedLinkMetadata> | n
   if (!res || !res.ok) return null;
 
   try {
-    const data = await res.json();
-    const title: string | null = typeof data.title === "string" ? data.title : null;
-    const author: string | null = typeof data.author_name === "string" ? data.author_name : null;
-    const thumbnailUrl: string | null = typeof data.thumbnail_url === "string" ? data.thumbnail_url : null;
-    return { title, author, thumbnailUrl };
+    const data = await res.json() as Record<string, unknown>;
+    if (provider.parse) return provider.parse(data);
+    return {
+      title: typeof data.title === "string" ? data.title : null,
+      author: typeof data.author_name === "string" ? data.author_name : null,
+      thumbnailUrl: typeof data.thumbnail_url === "string" ? data.thumbnail_url : null,
+    };
   } catch {
     return null;
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Reddit (JSON API — no auth, richer than oEmbed)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Reddit serves the full post as JSON when `.json` is appended to any post URL:
+ * title, selftext (the digest input for text posts), and preview images.
+ */
+async function tryRedditJson(url: string): Promise<Partial<ResolvedLinkMetadata> | null> {
+  let jsonUrl: string;
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    u.search = "";
+    u.pathname = u.pathname.replace(/\/$/, "") + ".json";
+    jsonUrl = u.toString();
+  } catch {
+    return null;
+  }
+
+  const res = await fetchWithTimeout(jsonUrl, 7000, { headers: { Accept: "application/json" } });
+  if (!res || !res.ok) return null;
+
+  try {
+    const data = await res.json();
+    const post = data?.[0]?.data?.children?.[0]?.data;
+    if (!post || typeof post !== "object") return null;
+
+    const title: string | null = typeof post.title === "string" ? post.title : null;
+    const selftext: string | null = typeof post.selftext === "string" ? post.selftext : null;
+    const author: string | null = typeof post.author === "string" ? `u/${post.author}` : null;
+
+    // preview.images[0].source.url is HTML-escaped in Reddit's payload.
+    let thumbnailUrl: string | null = null;
+    const previewUrl = post?.preview?.images?.[0]?.source?.url;
+    if (typeof previewUrl === "string") {
+      thumbnailUrl = decodeHtml(previewUrl);
+    } else if (typeof post.thumbnail === "string" && /^https?:\/\//.test(post.thumbnail)) {
+      // "self"/"default"/"nsfw" are placeholders, not URLs.
+      thumbnailUrl = post.thumbnail;
+    }
+
+    return {
+      title,
+      // Link posts have an empty selftext — the title is then the only content.
+      text: clampText(selftext) ?? clampText(title),
+      author,
+      thumbnailUrl,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// OpenGraph (open web fallback)
+// ─────────────────────────────────────────────────────────────
 
 function metaTag(html: string, property: string): string | null {
   // Match <meta property="og:x" content="..."> or name="x" in either attribute order.
@@ -104,16 +338,6 @@ function metaTag(html: string, property: string): string | null {
     if (m?.[1]) return decodeHtml(m[1].trim());
   }
   return null;
-}
-
-function decodeHtml(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'");
 }
 
 async function tryOpenGraph(url: string): Promise<Partial<ResolvedLinkMetadata> | null> {
@@ -171,14 +395,22 @@ export async function resolveLinkMetadata(url: string): Promise<ResolvedLinkMeta
   const mediaType = classifyMediaType(url);
   const host = hostOf(url);
 
-  const [oembed, og] = await Promise.all([tryOEmbed(url), tryOpenGraph(url)]);
+  // Reddit has a dedicated JSON resolver; walled hosts skip the OG fetch, which
+  // could only return a login-page title for them.
+  const isReddit = host.endsWith("reddit.com");
+  const [structured, og] = await Promise.all([
+    isReddit ? tryRedditJson(url) : tryOEmbed(url),
+    isWalledHost(host) || isReddit ? Promise.resolve(null) : tryOpenGraph(url),
+  ]);
 
-  // oEmbed is more authoritative for title/thumbnail/author; OG fills gaps + description.
+  // Structured sources are authoritative for title/thumbnail/author/text;
+  // OG fills gaps and supplies the description.
   const merged: Partial<ResolvedLinkMetadata> = {
-    title: oembed?.title ?? og?.title ?? null,
-    thumbnailUrl: oembed?.thumbnailUrl ?? og?.thumbnailUrl ?? null,
-    author: oembed?.author ?? null,
+    title: structured?.title ?? og?.title ?? null,
+    thumbnailUrl: structured?.thumbnailUrl ?? og?.thumbnailUrl ?? null,
+    author: structured?.author ?? null,
     description: og?.description ?? null,
+    text: structured?.text ?? null,
   };
 
   const isMusic = mediaType === "music" || mediaType === "playlist";
@@ -193,5 +425,7 @@ export async function resolveLinkMetadata(url: string): Promise<ResolvedLinkMeta
     description: merged.description ?? null,
     author,
     track,
+    text: merged.text ?? null,
+    thumbnailExpires: isExpiringThumbnailHost(merged.thumbnailUrl ?? null),
   };
 }
