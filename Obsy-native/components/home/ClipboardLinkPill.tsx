@@ -33,6 +33,19 @@ import {
 
 /** Remembers the last link we already offered, so it is not re-offered forever. */
 const LAST_OFFERED_KEY = 'obsy:clipboard:last-offered';
+/** When the offer was last waved away. */
+const DISMISSED_AT_KEY = 'obsy:clipboard:dismissed-at';
+
+/**
+ * How long a dismissal suppresses the offer.
+ *
+ * This matters most on iOS, where the contents cannot be identified without
+ * reading them — so without a cooldown, one uninteresting link sitting on the
+ * clipboard would re-trigger the pill on every single foreground. A dismissal
+ * is a signal about intent, not about that particular URL, so it is honoured
+ * for a while rather than for one app switch.
+ */
+const DISMISS_COOLDOWN_MS = 30 * 60 * 1000;
 
 /** Cheap stable key for a URL — only used to avoid repeating an offer. */
 function urlKey(url: string): string {
@@ -57,6 +70,11 @@ export function ClipboardLinkPill() {
         if (dismissedThisForeground.current) return;
 
         try {
+            const dismissedAt = Number(await AsyncStorage.getItem(DISMISSED_AT_KEY) ?? 0);
+            if (Number.isFinite(dismissedAt) && Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) {
+                return;
+            }
+
             if (Platform.OS === 'android') {
                 const text = await Clipboard.getStringAsync();
                 if (!text || !isInterestingLink(text)) return;
@@ -95,6 +113,7 @@ export function ClipboardLinkPill() {
     const handleDismiss = useCallback(() => {
         dismissedThisForeground.current = true;
         setVisible(false);
+        AsyncStorage.setItem(DISMISSED_AT_KEY, String(Date.now())).catch(() => {});
     }, []);
 
     const handleAccept = useCallback(async () => {

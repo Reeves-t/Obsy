@@ -1,7 +1,12 @@
 # Plan: Shared-Link Enrichment — Social Digestion + Universal Thumbnails
 
-Status: **planned, not implemented**. Research verified 2026-07-25.
+Status: **IMPLEMENTED** 2026-07-25. Research verified 2026-07-25.
 Branch: `claude/obsy-social-sharing-flow-0jjvs8`.
+
+> Three plan assumptions were corrected during implementation, after testing
+> each endpoint live — see "Corrections from live verification" at the bottom.
+> Everything else landed as written. Not yet run against a real device or a
+> deployed database; the migrations have not been applied.
 
 ## Problem
 
@@ -149,3 +154,47 @@ Client plumbing:
 3. `digest-shared-link` re-hosting + new fields (Phase 2) + `gemini.ts` social prompt (Phase 3).
 4. Client card system + store plumbing (Phase 4).
 5. QA fixes.
+
+---
+
+## Corrections from live verification (2026-07-25)
+
+Each provider was called for real before being trusted. Three plan assumptions
+did not survive:
+
+1. **Reddit's JSON API 403s from datacenter IPs.** Both `www.reddit.com/...json`
+   and `old.reddit.com/...json` returned Reddit's bot-check page to this cloud
+   host, and so did the plain HTML page. Supabase edge functions egress from the
+   same class of IP, so this will likely fail there too. The plan had Reddit
+   *replacing* its OpenGraph path with the JSON resolver, which would have been
+   a regression; instead both run in parallel and whichever succeeds wins.
+
+2. **OpenGraph can return a bot wall as the title.** Reddit's block page is
+   titled "Reddit - Please wait for verification". Without a guard that string
+   would have become the entry's permanent title. `looksLikeBotWall()` now
+   discards such responses entirely, letting the card fall back to its platform
+   tier — which reads as intentional.
+
+3. **Tumblr's oEmbed endpoint is dead.** `https://www.tumblr.com/oembed/1.0`
+   serves an HTML page, not JSON. The provider was removed rather than left to
+   burn a 6-second timeout on every Tumblr save; Tumblr does return real
+   `og:title`/`og:image` to a plain fetch, so it resolves through OpenGraph.
+
+Confirmed working exactly as the plan described:
+
+- **TikTok** oEmbed — `title` is the full caption including hashtags, plus
+  `author_name` and a 576×1024 `thumbnail_url` carrying `x-expires`.
+- **X** oEmbed — tweet body inside the blockquote's `<p>`, `author_name`, and no
+  thumbnail field at all, which is what makes the text card the right render.
+  Note it answers with a 301 first; Deno's fetch follows redirects by default.
+- **Meta's tokenless `instagram_oembed`** — rejected a fake media id with
+  "Media Not Found" rather than demanding an access token, confirming the
+  June 2026 tokenless change is live and the endpoint URL is correct.
+
+## Still outstanding
+
+- Migrations `20260725000001` and `20260725000002` have not been applied, and
+  `types/supabase.types.ts` has not been regenerated against them.
+- No device testing. The QA matrix in this document is unrun.
+- Existing entries keep their expiring thumbnail URLs until their entry is
+  re-digested; no backfill was written (out of scope, as planned).

@@ -71,11 +71,10 @@ export default function ReflectScreen() {
     const safeIndex = Math.min(index, Math.max(0, pending.length - 1));
     const current = pending[safeIndex];
 
-    const advance = useCallback(() => {
-        setNote('');
-        // The next entry slides into this index on its own once the saved one
-        // is gone; only an explicit skip needs to step forward.
-    }, []);
+    // After a save the entry leaves `pending`, so the next one slides into this
+    // index on its own — only the note has to be cleared. An explicit skip is
+    // the one case that steps the index forward.
+    const clearDraft = useCallback(() => setNote(''), []);
 
     const handleSkip = useCallback(() => {
         setNote('');
@@ -97,13 +96,13 @@ export default function ReflectScreen() {
             await reflectSharedLink(current.id, moodId, moodName, note.trim() || null, null);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             if (pending.length <= 1) router.back();
-            else advance();
+            else clearDraft();
         } catch {
             // Leave the entry pending; the user can retry from the inbox.
         } finally {
             setSaving(false);
         }
-    }, [current, saving, getMoodById, note, reflectSharedLink, pending.length, router, advance]);
+    }, [current, saving, getMoodById, note, reflectSharedLink, pending.length, router, clearDraft]);
 
     if (!current) {
         return (

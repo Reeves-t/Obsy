@@ -1,7 +1,12 @@
 # Plan: Fast Share Capture — save in ~2 seconds, reflect later
 
-Status: **planned, not implemented**. Research verified 2026-07-25.
+Status: **IMPLEMENTED (Phases A–E)** 2026-07-25. Phase F remains deferred.
+Research verified 2026-07-25.
 Branch: `claude/obsy-social-sharing-flow-0jjvs8`.
+
+> Implementation notes, including what the plan got wrong, are at the bottom
+> under "Implementation notes". The share-target phase needs a native dev build
+> that has not been produced here — see `Obsy-native/SHARE_INTENT_SETUP.md`.
 Companion doc: `PLAN_SHARED_LINK_ENRICHMENT.md` (backend enrichment + cards).
 Both plans are independent; this one is client-heavy. If both land, the
 QuickSaveSheet gets enriched thumbnails/digests for free.
@@ -175,3 +180,55 @@ app ingests the queue on launch/foreground through the exact same
 3. Phase D reflection inbox.
 4. Phase E clipboard pill.
 5. QA fixes. (Phase F is a separate future effort.)
+
+---
+
+## Implementation notes (2026-07-25)
+
+### What the plan got wrong
+
+- **No schema change was needed to make the mood optional.** `entries.mood` was
+  already nullable. What the plan missed is the trap next door:
+  `mood_name_snapshot` is NOT NULL and `validate_entry_mood()` backfills it with
+  `'Neutral'`, so an unreflected entry reads *mood = NULL, snapshot = 'Neutral'*.
+  Any code that treats the snapshot as evidence of a mood will silently invent
+  one. `isUnreflected()` and `withMood()` both branch on `mood_id` only, and a
+  test pins that behaviour.
+
+- **The most dangerous line was on the read path, not the write path.**
+  `fetchCaptures` coerced a null mood to `'neutral'` when mapping rows. Left
+  alone, every pending save would have been marked reflected on the next fetch
+  and would have fed the user a mood they never chose. Fixed to preserve the
+  null for shared links.
+
+- **`expo-share-intent` version matters.** 5.1.1 is the SDK 54 line; 6/7/8 target
+  SDK 55/56/57. The plan said "check the compatibility table" — the answer is
+  pinned in `package.json` now, and repeated in `SHARE_INTENT_SETUP.md`.
+
+- **The clipboard pill needed a dismissal cooldown the plan did not call for.**
+  Because iOS cannot identify clipboard contents without reading them (which
+  fires the paste banner), a single uninteresting link would otherwise
+  re-trigger the offer on every foreground. A dismissal now suppresses it for
+  30 minutes.
+
+### Deviations by choice
+
+- The insights audit was driven by making `Capture.mood_id` nullable and fixing
+  the resulting compile errors, rather than by reading each consumer. The fixes
+  concentrate at three chokepoints — the daily/weekly/monthly selectors in
+  `insightTime.ts`, the pattern/keyword stores, and the mood-light derivations —
+  so future insight surfaces inherit the exclusion instead of re-implementing it.
+- `EnrichedCapture` now extends `CaptureWithMood`, since the selectors that
+  produce it drop moodless entries. That makes the exclusion a type-level fact.
+- Both Today nudges live in one collapsing stack so neither needs to know where
+  the other sits.
+
+### Not done
+
+- **No native build was produced.** `expo prebuild` needs a `patch-package`
+  setup for `xcode@3.0.1` that could not be vendored from this environment
+  (GitHub access is scoped to this repo). Steps are in
+  `Obsy-native/SHARE_INTENT_SETUP.md`; the share target is untested until that
+  build exists.
+- The QA matrix above is unrun — no device, no simulator.
+- Phase F (in-sheet save on iOS) untouched, as planned.
