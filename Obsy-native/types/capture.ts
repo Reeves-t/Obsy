@@ -27,8 +27,9 @@ export type Capture = {
      * NULL only for shared links saved straight from the share sheet, which
      * deliberately defer the mood to the reflection step — asking someone to
      * pick a feeling mid-scroll is what stops the save from happening at all.
-     * Such an entry is "unreflected" (see `isUnreflected`) and is excluded from
-     * every mood-based aggregate until the user reflects on it.
+     * Such an entry is excluded from every mood-based aggregate (see `withMood`)
+     * for as long as it has no mood — including after it leaves the inbox, since
+     * "kept" is a valid decision that attaches no feeling.
      */
     mood_id: string | null;
 
@@ -101,6 +102,16 @@ export type Capture = {
     /** The post's own words — caption, tweet body, or Reddit selftext (max 500 chars). */
     shared_link_text?: string | null;
 
+    /**
+     * When the user decided what to do with this link in the inbox — kept it, or
+     * reflected on it. NULL means it is still queued.
+     *
+     * Independent of `mood_id`: keeping something without attaching a feeling is
+     * a valid decision, and such an entry leaves the queue while still staying
+     * out of mood aggregation.
+     */
+    shared_link_processed_at?: string | null;
+
     /** Gemini-generated content digest of the shared link (article/video/song themes). Null until digested / if not digestible. */
     shared_link_digest?: string | null;
 
@@ -112,14 +123,17 @@ export type Capture = {
 };
 
 /**
- * A shared link saved from the share sheet that has not been reflected on yet:
- * it has no mood, so it carries no emotional signal to aggregate.
+ * A shared link still sitting in the inbox, awaiting a decision.
  *
- * This is derived state, not a stored flag — reflecting on an entry sets its
- * mood, which is the same thing as clearing this condition.
+ * Note this is NOT "has no mood". Keeping a link without attaching a feeling is
+ * a legitimate decision, and such an entry leaves the queue while remaining
+ * excluded from mood aggregation — see `withMood`. Conflating the two would
+ * strand every kept-but-moodless link in the queue forever.
  */
-export function isUnreflected(capture: Pick<Capture, 'source_type' | 'mood_id'>): boolean {
-    return capture.source_type === 'shared_link' && !capture.mood_id;
+export function isPendingSharedLink(
+    capture: Pick<Capture, 'source_type' | 'shared_link_processed_at'>,
+): boolean {
+    return capture.source_type === 'shared_link' && !capture.shared_link_processed_at;
 }
 
 /** A capture known to carry a mood — safe to aggregate on. */

@@ -51,6 +51,7 @@ type CaptureState = {
             shared_link_thumbnail_path?: string | null,
             shared_link_author?: string | null,
             shared_link_text?: string | null,
+            shared_link_processed_at?: string | null,
             shared_link_digest?: string | null,
             shared_link_media_type?: string | null,
         }
@@ -86,9 +87,9 @@ type CaptureState = {
         includeInInsights?: boolean
     ) => Promise<string | null>;
     /**
-     * Reflect on a shared link saved from the share sheet: attach the mood (and
-     * optionally a note and topic) the user skipped at capture time. This is
-     * what moves the entry out of the reflection inbox and into mood history.
+     * Reflect on a queued shared link: attach the mood (and optionally a note
+     * and topic) the user skipped at capture time. Marks the link processed, so
+     * it leaves the inbox and enters mood history.
      */
     reflectSharedLink: (
         id: string,
@@ -97,6 +98,12 @@ type CaptureState = {
         note?: string | null,
         topicTag?: string | null,
     ) => Promise<void>;
+    /**
+     * Keep a queued shared link without attaching a feeling to it. A decision in
+     * its own right: the link leaves the inbox and stays in the library, but
+     * carries no mood and so never reaches mood aggregation.
+     */
+    keepSharedLink: (id: string) => Promise<void>;
     /** Patch a shared-link capture in local state once its background digest resolves. */
     applySharedLinkDigest: (
         id: string,
@@ -223,6 +230,7 @@ export const useCaptureStore = create<CaptureState>()(
                                 shared_link_thumbnail_path: entry.shared_link_thumbnail_path || null,
                                 shared_link_author: entry.shared_link_author || null,
                                 shared_link_text: entry.shared_link_text || null,
+                                shared_link_processed_at: entry.shared_link_processed_at || null,
                                 shared_link_digest: entry.shared_link_digest || null,
                                 shared_link_media_type: entry.shared_link_media_type || null,
                             };
@@ -355,6 +363,7 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_thumbnail_path: data.shared_link_thumbnail_path || null,
                         shared_link_author: data.shared_link_author || null,
                         shared_link_text: data.shared_link_text || null,
+                        shared_link_processed_at: data.shared_link_processed_at || null,
                         shared_link_digest: data.shared_link_digest || null,
                         shared_link_media_type: data.shared_link_media_type || null,
                     };
@@ -392,6 +401,7 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_thumbnail_path: inserted.shared_link_thumbnail_path || null,
                         shared_link_author: inserted.shared_link_author || null,
                         shared_link_text: inserted.shared_link_text || null,
+                        shared_link_processed_at: inserted.shared_link_processed_at || null,
                         shared_link_digest: inserted.shared_link_digest || null,
                         shared_link_media_type: inserted.shared_link_media_type || null,
                     };
@@ -711,6 +721,8 @@ export const useCaptureStore = create<CaptureState>()(
                     ? [...capture.tags, topicTag]
                     : capture.tags;
 
+                const processedAt = new Date().toISOString();
+
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
                     const { error } = await supabase
@@ -720,6 +732,7 @@ export const useCaptureStore = create<CaptureState>()(
                             mood_name_snapshot: moodName,
                             note: note ?? capture.note,
                             tags,
+                            shared_link_processed_at: processedAt,
                         })
                         .eq('id', id);
                     if (error) throw error;
@@ -733,6 +746,7 @@ export const useCaptureStore = create<CaptureState>()(
                             mood_name_snapshot: moodName,
                             note: note ?? c.note,
                             tags,
+                            shared_link_processed_at: processedAt,
                             orb_effect: c.orb_effect ?? generateOrbEffect(moodName || moodId),
                         }
                         : c),
@@ -744,6 +758,31 @@ export const useCaptureStore = create<CaptureState>()(
                 useTodayInsight.getState().computePending(updated);
                 useWeeklyInsight.getState().computePending(updated);
                 useMonthlyInsight.getState().computePending(updated);
+            },
+
+            keepSharedLink: async (id) => {
+                const capture = get().captures.find(c => c.id === id);
+                if (!capture) return;
+
+                const processedAt = new Date().toISOString();
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { error } = await supabase
+                        .from('entries')
+                        .update({ shared_link_processed_at: processedAt })
+                        .eq('id', id);
+                    if (error) throw error;
+                }
+
+                set((state) => ({
+                    captures: state.captures.map(c => c.id === id
+                        ? { ...c, shared_link_processed_at: processedAt }
+                        : c),
+                }));
+
+                // Deliberately no insight recompute: keeping a link attaches no
+                // mood, so nothing that aggregates on mood has changed.
             },
 
             applySharedLinkDigest: (id, fields) => {

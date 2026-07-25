@@ -1,8 +1,9 @@
 /**
  * Reflection flow — the second half of the share-sheet capture.
  *
- * Pages one at a time through shared links the user saved but has not given a
- * mood to. By the time they get here the background digest has usually landed,
+ * Pages one at a time through the links still queued in the inbox, for users who
+ * would rather work the backlog than decide item by item in the list. By the
+ * time they get here the background digest has usually landed,
  * so the prompt can name what the thing actually was ("You saved a TikTok about
  * burnout — what made you stop?"). That is a far easier blank to fill than an
  * empty note field at capture time, which is exactly why the mood was deferred.
@@ -34,7 +35,7 @@ import { MoodSelectionModal } from '@/components/capture/MoodSelectionModal';
 import { StaticLinkPreview } from '@/components/entries/StaticLinkPreview';
 import { MOODS } from '@/constants/Moods';
 import { moodCache } from '@/lib/moodCache';
-import { isUnreflected } from '@/types/capture';
+import { isPendingSharedLink } from '@/types/capture';
 import { detectPlatform, type SharedLinkPlatform } from '@/services/sharedLinkService';
 
 /** Builds the prompt line, leaning on the digest when we have one. */
@@ -55,7 +56,7 @@ export default function ReflectScreen() {
     // Oldest first: clear the backlog in the order it accumulated.
     const pending = useMemo(
         () => captures
-            .filter(isUnreflected)
+            .filter(isPendingSharedLink)
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
         [captures],
     );

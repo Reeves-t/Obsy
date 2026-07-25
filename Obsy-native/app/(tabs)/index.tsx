@@ -17,8 +17,8 @@ import { DevPortalModal } from '@/components/dev/DevPortalModal';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
-import { ReflectionInboxStrip } from '@/components/home/ReflectionInboxStrip';
 import { ClipboardLinkPill } from '@/components/home/ClipboardLinkPill';
+import { SharedLinksInbox } from '@/components/home/SharedLinksInbox';
 import { DEFAULT_TAB_BAR_HEIGHT } from '@/components/ScreenWrapper';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -116,11 +116,8 @@ export default function HomeScreen() {
             <HomeActionCarousel />
           </View>
 
-          {/* Capture nudges, stacked above the tab bar. Each renders null when
-              it has nothing to offer, so the column collapses on its own rather
-              than leaving a gap. Both sit where the first-capture hint goes; the
-              hint never coexists with them, since either nudge implies an entry
-              already exists or a link is waiting. */}
+          {/* Floats over the hero rather than joining the inbox below, because
+              it is an offer about the clipboard right now, not part of the queue. */}
           <View
             style={[
               styles.nudgeStack,
@@ -128,7 +125,6 @@ export default function HomeScreen() {
             ]}
           >
             <ClipboardLinkPill />
-            <ReflectionInboxStrip />
           </View>
 
           {showFirstCaptureHint && (
@@ -149,6 +145,8 @@ export default function HomeScreen() {
             </Animated.View>
           )}
         </View>
+
+        <SharedLinksInbox />
 
         {SHOW_YEAR_IN_PIXELS_MVP && (
           <View style={[styles.section, { height: pageHeight }]}>

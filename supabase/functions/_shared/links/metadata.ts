@@ -424,12 +424,18 @@ export async function resolveLinkMetadata(url: string): Promise<ResolvedLinkMeta
 
   // Structured sources are authoritative for title/thumbnail/author/text;
   // OG fills gaps and supplies the description.
+  //
+  // og:description doubles as the text slot for ordinary web pages. It is the
+  // summary the page wrote about itself, which is exactly what the text card
+  // wants when a site publishes no og:image, and what the digest falls back to
+  // when Gemini cannot reach the page. Without this a plain article with no
+  // image would drop all the way to a bare monogram card.
   const merged: Partial<ResolvedLinkMetadata> = {
     title: structured?.title ?? og?.title ?? null,
     thumbnailUrl: structured?.thumbnailUrl ?? og?.thumbnailUrl ?? null,
     author: structured?.author ?? null,
     description: og?.description ?? null,
-    text: structured?.text ?? null,
+    text: structured?.text ?? clampText(og?.description ?? null),
   };
 
   const isMusic = mediaType === "music" || mediaType === "playlist";

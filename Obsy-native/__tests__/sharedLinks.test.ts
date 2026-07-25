@@ -6,7 +6,7 @@ import {
     extractUrlFromSharePayload,
     isValidShareUrl,
 } from '@/services/sharedLinkService';
-import { isUnreflected, withMood } from '@/types/capture';
+import { isPendingSharedLink, withMood } from '@/types/capture';
 import type { Capture } from '@/types/capture';
 
 function makeCapture(overrides: Partial<Capture> = {}): Capture {
@@ -85,13 +85,35 @@ describe('share payload parsing', () => {
     });
 });
 
-describe('unreflected saves', () => {
-    it('treats a moodless shared link as unreflected', () => {
-        expect(isUnreflected(makeCapture({ source_type: 'shared_link', mood_id: null }))).toBe(true);
+describe('inbox queue', () => {
+    it('queues a shared link that has not been processed', () => {
+        expect(isPendingSharedLink(makeCapture({
+            source_type: 'shared_link',
+            shared_link_processed_at: null,
+        }))).toBe(true);
     });
 
-    it('does not treat a shared link that has a mood as unreflected', () => {
-        expect(isUnreflected(makeCapture({ source_type: 'shared_link', mood_id: 'calm' }))).toBe(false);
+    it('removes a link from the queue once it is processed', () => {
+        expect(isPendingSharedLink(makeCapture({
+            source_type: 'shared_link',
+            shared_link_processed_at: new Date().toISOString(),
+        }))).toBe(false);
+    });
+
+    it('keeps a moodless-but-kept link out of the queue', () => {
+        // "Keep" is a real decision. Deriving the queue from mood instead of
+        // from processed_at would strand every kept link in it forever.
+        const kept = makeCapture({
+            source_type: 'shared_link',
+            mood_id: null,
+            shared_link_processed_at: new Date().toISOString(),
+        });
+        expect(isPendingSharedLink(kept)).toBe(false);
+        expect(withMood([kept])).toHaveLength(0);
+    });
+
+    it('does not queue entries that are not shared links', () => {
+        expect(isPendingSharedLink(makeCapture({ source_type: 'journal' }))).toBe(false);
     });
 
     it('keeps moodless entries out of mood aggregation', () => {

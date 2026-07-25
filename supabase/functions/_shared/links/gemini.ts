@@ -90,9 +90,17 @@ function buildBody(resolved: ResolvedLinkMetadata, url: string, lyrics: string |
     };
   }
 
-  // Everything else (article/playlist/podcast/link) — read the page.
+  // Everything else (article/playlist/podcast/link) — read the page. Ordinary
+  // websites do not bot-wall, so url_context genuinely fetches and reads them;
+  // this is the full-HTML digest path. Any og:description we resolved rides
+  // along so the model still has something to work with when the fetch is
+  // blocked or the page is JS-only.
+  const context = resolved.text
+    ? `${WEB_PROMPT}\n\nURL: ${url}\n\nThe page summarises itself as:\n${resolved.text}`
+    : `${WEB_PROMPT}\n\nURL: ${url}`;
+
   return {
-    contents: [{ role: "user", parts: [{ text: `${WEB_PROMPT}\n\nURL: ${url}` }] }],
+    contents: [{ role: "user", parts: [{ text: context }] }],
     generationConfig,
     tools: [{ url_context: {} }],
   };

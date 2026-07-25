@@ -3,9 +3,14 @@
  *
  * Reached from the OS share sheet: the user shares a link from TikTok, opens
  * straight into this sheet, taps Save, and swipes back to what they were doing.
- * Nothing is required beyond that one tap. No mood, no note, no topic — those
- * belong to the reflection step on Today, because asking for a feeling
- * mid-scroll is what stops the save from happening at all.
+ * Nothing is required beyond that one tap — no mood, no topic. Those belong to
+ * the inbox, because asking for a feeling mid-scroll is what stops the save
+ * from happening at all.
+ *
+ * The one-line note is the deliberate exception: a single row, optional, that
+ * submits straight to the save. It catches the thought that would be gone by
+ * the time the user opens Obsy again. Anything longer is a reflection, and
+ * reflection is a different moment.
  *
  * Everything shown here is parsed from the URL locally, so the sheet paints
  * instantly with no network round trip. The real title, thumbnail and digest
@@ -19,6 +24,9 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     ScrollView,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,6 +67,7 @@ export default function QuickSaveScreen() {
 
     const [state, setState] = useState<SaveState>('idle');
     const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+    const [note, setNote] = useState('');
 
     const meta = useMemo(() => {
         if (!rawUrl) return null;
@@ -116,7 +125,7 @@ export default function QuickSaveScreen() {
                 meta.platform,
                 displayTitle,
                 null,              // thumbnail arrives with the background digest
-                null,              // note comes at reflection time
+                note.trim() || null,
                 selectedTopicId ? `topic:${selectedTopicId}` : null,
                 true,
             );
@@ -128,7 +137,7 @@ export default function QuickSaveScreen() {
         }
     }, [
         meta, state, recentDuplicate, dismiss, createSharedLinkEntry,
-        user, displayTitle, selectedTopicId,
+        user, displayTitle, selectedTopicId, note,
     ]);
 
     // ── Bad or missing payload ─────────────────────────────────────────
@@ -153,6 +162,10 @@ export default function QuickSaveScreen() {
 
     return (
         <ScreenWrapper>
+            <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
             <ScrollView
                 contentContainerStyle={styles.container}
                 keyboardShouldPersistTaps="handled"
@@ -183,6 +196,29 @@ export default function QuickSaveScreen() {
                         {meta.domain}
                     </ThemedText>
                 </LinearGradient>
+
+                {/* A single line, capped to one row, submitting straight to the
+                    save. Anything longer belongs to the reflection step — this
+                    is for the thought that would otherwise be lost by then. */}
+                {!saved && !duplicate && (
+                    <TextInput
+                        value={note}
+                        onChangeText={setNote}
+                        placeholder="Add a line? (optional)"
+                        placeholderTextColor={colors.textTertiary}
+                        returnKeyType="done"
+                        maxLength={140}
+                        onSubmitEditing={handleSave}
+                        style={[
+                            styles.noteInput,
+                            {
+                                color: colors.text,
+                                borderColor: colors.cardBorder,
+                                backgroundColor: colors.cardBackground,
+                            },
+                        ]}
+                    />
+                )}
 
                 {/* One-tap filing. Skipping this is the expected path. */}
                 {topicShortcuts.length > 0 && !saved && !duplicate && (
@@ -258,11 +294,13 @@ export default function QuickSaveScreen() {
                     </ThemedText>
                 )}
             </ScrollView>
+            </KeyboardAvoidingView>
         </ScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
+    flex: { flex: 1 },
     container: {
         padding: 20,
         gap: 18,
@@ -323,6 +361,13 @@ const styles = StyleSheet.create({
     linkDomain: {
         color: 'rgba(255,255,255,0.75)',
         fontSize: 12,
+    },
+    noteInput: {
+        height: 44,
+        borderRadius: 12,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        fontSize: 14,
     },
     topicRow: {
         flexDirection: 'row',

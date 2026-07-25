@@ -261,6 +261,7 @@ function ThemedNavigator() {
         <Stack.Screen name="quick-mood" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="share" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="reflect" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="shared-links" options={{ headerShown: false }} />
         <Stack.Screen name="topics" options={{ headerShown: false }} />
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ headerShown: false }} />
