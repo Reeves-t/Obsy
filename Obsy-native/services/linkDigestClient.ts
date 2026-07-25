@@ -6,7 +6,13 @@ export interface LinkDigestResult {
     digest?: string | null;
     mediaType?: string | null;
     title?: string | null;
+    /** Source CDN thumbnail — may expire (TikTok/Meta sign these). */
     thumbnailUrl?: string | null;
+    /** Storage path of the re-hosted copy in the private `link-thumbnails` bucket. */
+    thumbnailPath?: string | null;
+    author?: string | null;
+    /** The post's own caption / body text, capped server-side at 500 chars. */
+    text?: string | null;
     error?: string;
 }
 

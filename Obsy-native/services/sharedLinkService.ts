@@ -211,6 +211,66 @@ export function platformToColor(platform: SharedLinkPlatform): string {
     }
 }
 
+/**
+ * Two-stop gradient for a platform, used by text cards and the monogram
+ * fallback so a link with no image still reads as *that platform* rather than
+ * as a generic grey box.
+ */
+export function platformToGradient(platform: SharedLinkPlatform): [string, string] {
+    switch (platform) {
+        case 'YouTube': return ['#FF0000', '#8B0000'];
+        case 'Reddit': return ['#FF4500', '#B22200'];
+        case 'TikTok': return ['#69C9D0', '#EE1D52'];
+        case 'Instagram': return ['#F09433', '#BC1888'];
+        case 'Spotify': return ['#1DB954', '#0B6B2F'];
+        case 'Twitter': return ['#1DA1F2', '#0B5C8F'];
+        case 'Tumblr': return ['#36465D', '#1B2331'];
+        case 'Twitch': return ['#9146FF', '#4B1D91'];
+        default: return ['#4A5568', '#232A35'];
+    }
+}
+
+/** Shape of a link's preview media, which drives how the card frames it. */
+export type LinkAspect = 'portrait' | 'landscape' | 'square';
+
+/**
+ * The aspect a platform's media is shaped like.
+ *
+ * Keyed on the *class* of media rather than per-platform special cases, so a
+ * new platform only needs to be slotted into one of three buckets. Portrait
+ * media (TikTok, Reels, Shorts) is 9:16 and would letterbox badly in a 16:9
+ * frame; the card fills the gap with a blurred copy of the image instead.
+ */
+export function platformAspect(
+    platform: SharedLinkPlatform,
+    mediaType?: string | null,
+    url?: string | null,
+): LinkAspect {
+    // A YouTube Short is portrait despite YouTube being a landscape platform.
+    if (platform === 'YouTube') {
+        return url && /\/shorts\//i.test(url) ? 'portrait' : 'landscape';
+    }
+    if (platform === 'TikTok') return 'portrait';
+    if (platform === 'Instagram') {
+        return url && /\/(reel|reels)\//i.test(url) ? 'portrait' : 'square';
+    }
+    if (platform === 'Spotify') return 'square';
+    if (mediaType === 'music' || mediaType === 'playlist' || mediaType === 'podcast') {
+        return 'square';
+    }
+    if (platform === 'Twitch') return 'landscape';
+    return 'landscape';
+}
+
+/** Numeric ratio for a given aspect, for `aspectRatio` styling. */
+export function aspectRatioValue(aspect: LinkAspect): number {
+    switch (aspect) {
+        case 'portrait': return 3 / 4;   // framed shorter than true 9:16 so feed rows stay scannable
+        case 'square': return 1;
+        default: return 16 / 9;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Deep Link / Share Extension Handler (scaffold)
 // ─────────────────────────────────────────────────────────────

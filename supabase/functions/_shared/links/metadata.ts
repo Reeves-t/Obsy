@@ -233,19 +233,10 @@ const OEMBED_PROVIDERS: OEmbedProvider[] = [
       };
     },
   },
-  {
-    match: (h) => h.endsWith("tumblr.com"),
-    endpoint: (u) => `https://www.tumblr.com/oembed/1.0?url=${encodeURIComponent(u)}`,
-    parse: (d) => {
-      const summary = typeof d.summary === "string" ? d.summary : null;
-      return {
-        title: typeof d.title === "string" ? d.title : summary,
-        text: clampText(summary),
-        author: typeof d.author_name === "string" ? d.author_name : null,
-        thumbnailUrl: typeof d.thumbnail_url === "string" ? d.thumbnail_url : null,
-      };
-    },
-  },
+  // Tumblr deliberately has NO provider here: its documented /oembed/1.0
+  // endpoint serves an HTML page rather than JSON (verified — it is dead), and
+  // Tumblr does serve real og:title/og:image to a plain fetch. It resolves
+  // through the OpenGraph path below instead.
 ];
 
 async function tryOEmbed(url: string): Promise<Partial<ResolvedLinkMetadata> | null> {
@@ -276,6 +267,12 @@ async function tryOEmbed(url: string): Promise<Partial<ResolvedLinkMetadata> | n
 /**
  * Reddit serves the full post as JSON when `.json` is appended to any post URL:
  * title, selftext (the digest input for text posts), and preview images.
+ *
+ * Reddit rate-limits and often outright 403s requests from datacenter IP ranges
+ * (verified: both www and old.reddit return their bot-check page to a cloud
+ * host, for the .json endpoint and the HTML page alike). This is therefore a
+ * best-effort *upgrade* over OpenGraph rather than a replacement — the caller
+ * runs the OG fetch alongside it and merges whichever succeeds.
  */
 async function tryRedditJson(url: string): Promise<Partial<ResolvedLinkMetadata> | null> {
   let jsonUrl: string;
@@ -327,6 +324,20 @@ async function tryRedditJson(url: string): Promise<Partial<ResolvedLinkMetadata>
 // OpenGraph (open web fallback)
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Titles that mean "you have been bot-blocked", not "this is the page".
+ *
+ * Without this guard a blocked fetch persists its wall as the entry's title —
+ * a saved Reddit thread showing up in the journal as "Reddit - Please wait for
+ * verification" forever. Returning null instead lets the card fall back to the
+ * platform tier, which reads as intentional.
+ */
+function looksLikeBotWall(title: string | null): boolean {
+  if (!title) return false;
+  return /(please wait|just a moment|attention required|verify you are|are you a robot|security check|access denied|forbidden|enable javascript|log ?in|sign ?in to|something went wrong)/i
+    .test(title);
+}
+
 function metaTag(html: string, property: string): string | null {
   // Match <meta property="og:x" content="..."> or name="x" in either attribute order.
   const patterns = [
@@ -357,8 +368,14 @@ async function tryOpenGraph(url: string): Promise<Partial<ResolvedLinkMetadata> 
 
   const ogTitle = metaTag(html, "og:title");
   const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1];
+  const title = ogTitle ?? (titleTag ? decodeHtml(titleTag.trim()) : null);
+
+  // A bot wall has a title and nothing else worth keeping; treat the whole
+  // response as a miss rather than persisting the wall's copy.
+  if (looksLikeBotWall(title)) return null;
+
   return {
-    title: ogTitle ?? (titleTag ? decodeHtml(titleTag.trim()) : null),
+    title,
     description: metaTag(html, "og:description"),
     thumbnailUrl: metaTag(html, "og:image"),
   };
@@ -395,12 +412,14 @@ export async function resolveLinkMetadata(url: string): Promise<ResolvedLinkMeta
   const mediaType = classifyMediaType(url);
   const host = hostOf(url);
 
-  // Reddit has a dedicated JSON resolver; walled hosts skip the OG fetch, which
-  // could only return a login-page title for them.
+  // Reddit has a dedicated JSON resolver, but it 403s from datacenter IPs often
+  // enough that it keeps the OG fetch as a running mate rather than replacing it.
+  // Hosts that hard-block page fetches skip OG entirely — for them it can only
+  // return a login wall, and the guard in tryOpenGraph would discard it anyway.
   const isReddit = host.endsWith("reddit.com");
   const [structured, og] = await Promise.all([
     isReddit ? tryRedditJson(url) : tryOEmbed(url),
-    isWalledHost(host) || isReddit ? Promise.resolve(null) : tryOpenGraph(url),
+    isWalledHost(host) ? Promise.resolve(null) : tryOpenGraph(url),
   ]);
 
   // Structured sources are authoritative for title/thumbnail/author/text;

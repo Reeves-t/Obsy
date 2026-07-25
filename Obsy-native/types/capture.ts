@@ -75,8 +75,21 @@ export type Capture = {
     /** Title parsed from URL metadata or share payload */
     shared_link_title?: string | null;
 
-    /** Thumbnail URL for shared link preview (if available) */
+    /**
+     * Thumbnail URL for shared link preview (if available).
+     * For TikTok/Meta links this is a signed CDN URL that expires within days —
+     * prefer `shared_link_thumbnail_path`, which points at our own re-hosted copy.
+     */
     shared_link_thumbnail_url?: string | null;
+
+    /** Storage path of the re-hosted thumbnail in the private `link-thumbnails` bucket. */
+    shared_link_thumbnail_path?: string | null;
+
+    /** Resolved author: @handle, channel, artist, or u/redditor. */
+    shared_link_author?: string | null;
+
+    /** The post's own words — caption, tweet body, or Reddit selftext (max 500 chars). */
+    shared_link_text?: string | null;
 
     /** Gemini-generated content digest of the shared link (article/video/song themes). Null until digested / if not digestible. */
     shared_link_digest?: string | null;

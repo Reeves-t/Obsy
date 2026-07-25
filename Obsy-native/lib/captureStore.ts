@@ -47,6 +47,9 @@ type CaptureState = {
             shared_link_platform?: string | null,
             shared_link_title?: string | null,
             shared_link_thumbnail_url?: string | null,
+            shared_link_thumbnail_path?: string | null,
+            shared_link_author?: string | null,
+            shared_link_text?: string | null,
             shared_link_digest?: string | null,
             shared_link_media_type?: string | null,
         }
@@ -88,6 +91,9 @@ type CaptureState = {
             mediaType?: string | null;
             title?: string | null;
             thumbnailUrl?: string | null;
+            thumbnailPath?: string | null;
+            author?: string | null;
+            text?: string | null;
         }
     ) => void;
     createCapture: (
@@ -193,6 +199,9 @@ export const useCaptureStore = create<CaptureState>()(
                                 shared_link_platform: entry.shared_link_platform || null,
                                 shared_link_title: entry.shared_link_title || null,
                                 shared_link_thumbnail_url: entry.shared_link_thumbnail_url || null,
+                                shared_link_thumbnail_path: entry.shared_link_thumbnail_path || null,
+                                shared_link_author: entry.shared_link_author || null,
+                                shared_link_text: entry.shared_link_text || null,
                                 shared_link_digest: entry.shared_link_digest || null,
                                 shared_link_media_type: entry.shared_link_media_type || null,
                             };
@@ -309,6 +318,9 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_platform: data.shared_link_platform || null,
                         shared_link_title: data.shared_link_title || null,
                         shared_link_thumbnail_url: data.shared_link_thumbnail_url || null,
+                        shared_link_thumbnail_path: data.shared_link_thumbnail_path || null,
+                        shared_link_author: data.shared_link_author || null,
+                        shared_link_text: data.shared_link_text || null,
                         shared_link_digest: data.shared_link_digest || null,
                         shared_link_media_type: data.shared_link_media_type || null,
                     };
@@ -343,6 +355,9 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_platform: inserted.shared_link_platform || null,
                         shared_link_title: inserted.shared_link_title || null,
                         shared_link_thumbnail_url: inserted.shared_link_thumbnail_url || null,
+                        shared_link_thumbnail_path: inserted.shared_link_thumbnail_path || null,
+                        shared_link_author: inserted.shared_link_author || null,
+                        shared_link_text: inserted.shared_link_text || null,
                         shared_link_digest: inserted.shared_link_digest || null,
                         shared_link_media_type: inserted.shared_link_media_type || null,
                     };
@@ -639,6 +654,9 @@ export const useCaptureStore = create<CaptureState>()(
                                     mediaType: res.mediaType,
                                     title: res.title,
                                     thumbnailUrl: res.thumbnailUrl,
+                                    thumbnailPath: res.thumbnailPath,
+                                    author: res.author,
+                                    text: res.text,
                                 });
                             }
                         })
@@ -658,6 +676,9 @@ export const useCaptureStore = create<CaptureState>()(
                             shared_link_media_type: fields.mediaType ?? c.shared_link_media_type ?? null,
                             shared_link_title: fields.title ?? c.shared_link_title ?? null,
                             shared_link_thumbnail_url: fields.thumbnailUrl ?? c.shared_link_thumbnail_url ?? null,
+                            shared_link_thumbnail_path: fields.thumbnailPath ?? c.shared_link_thumbnail_path ?? null,
+                            shared_link_author: fields.author ?? c.shared_link_author ?? null,
+                            shared_link_text: fields.text ?? c.shared_link_text ?? null,
                         };
                     }),
                 }));
