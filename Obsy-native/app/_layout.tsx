@@ -1,10 +1,12 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { View } from 'react-native';
+import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent';
+import { extractUrlFromSharePayload, isValidShareUrl } from '@/services/sharedLinkService';
 import { ObsyAnimatedSplash } from '@/components/splash/ObsyAnimatedSplash';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -99,20 +101,61 @@ export default function RootLayout() {
 
 function RootLayoutNav({ onDataReady }: { onDataReady: () => void }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <I18nProvider>
-          <ObsyThemeProvider>
-            <MoodCacheInitializer />
-            <RevenueCatInitializer />
-            <AnalyticsInitializer />
-            <SnapshotLoader onDataReady={onDataReady} />
-            <ThemedNavigator />
-          </ObsyThemeProvider>
-        </I18nProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    // ShareIntentProvider must wrap every other provider — it is what picks up
+    // the payload when the OS launches the app from a share sheet.
+    <ShareIntentProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <I18nProvider>
+            <ObsyThemeProvider>
+              <MoodCacheInitializer />
+              <RevenueCatInitializer />
+              <AnalyticsInitializer />
+              <ShareIntentRouter />
+              <SnapshotLoader onDataReady={onDataReady} />
+              <ThemedNavigator />
+            </ObsyThemeProvider>
+          </I18nProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ShareIntentProvider>
   );
+}
+
+/**
+ * Routes an incoming OS share into the QuickSave sheet.
+ *
+ * Share payloads are rarely a bare URL — apps commonly send "Title -
+ * https://…", so the raw text is scanned for a link when `webUrl` is absent.
+ * The intent is reset as soon as it has been routed, otherwise it replays on
+ * the next foreground.
+ */
+function ShareIntentRouter() {
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!hasShareIntent) return;
+
+    const candidate = shareIntent?.webUrl
+      ?? extractUrlFromSharePayload(shareIntent?.text ?? '');
+
+    if (candidate && isValidShareUrl(candidate)) {
+      router.push({
+        pathname: '/share',
+        params: {
+          url: candidate,
+          // iOS supplies the page title when web-page activation is enabled;
+          // it beats anything we could guess from the URL slug.
+          title: shareIntent?.meta?.title ?? '',
+        },
+      });
+    }
+
+    resetShareIntent();
+  }, [hasShareIntent, shareIntent, router, resetShareIntent]);
+
+  return null;
 }
 
 function RevenueCatInitializer() {
@@ -216,6 +259,7 @@ function ThemedNavigator() {
         <Stack.Screen name="journal" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="voice" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="quick-mood" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="share" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="topics" options={{ headerShown: false }} />
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="language" options={{ headerShown: false }} />
