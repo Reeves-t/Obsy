@@ -58,7 +58,11 @@ describe('Insight Generation', () => {
     it('should filter captures within week range and sort chronologically', () => {
       // Arrange: Get 4 days of captures
       const weeklyCaptures = createWeeklyCaptures();
-      const weekStart = new Date('2025-02-02T00:00:00Z'); // Sunday
+      // Constructed in LOCAL time, not as a 'Z' string. getCapturesForWeek
+      // derives its range with date-fns startOfWeek/endOfWeek, which work in
+      // local time — so a UTC midnight resolves to the previous evening
+      // anywhere west of Greenwich and silently selects the wrong week.
+      const weekStart = new Date(2025, 1, 2); // Sunday 2 Feb 2025, local
       
       // Act: Filter and sort captures for the week
       const result = getCapturesForWeek(weekStart, weeklyCaptures);
@@ -75,7 +79,7 @@ describe('Insight Generation', () => {
 
     it('should sort captures chronologically across all days', () => {
       const weeklyCaptures = createWeeklyCaptures();
-      const weekStart = new Date('2025-02-02T00:00:00Z');
+      const weekStart = new Date(2025, 1, 2); // Sunday 2 Feb 2025, local
       
       const result = getCapturesForWeek(weekStart, weeklyCaptures);
       
@@ -89,7 +93,7 @@ describe('Insight Generation', () => {
 
     it('should only include captures with includeInInsights !== false', () => {
       const weeklyCaptures = createWeeklyCaptures();
-      const weekStart = new Date('2025-02-02T00:00:00Z');
+      const weekStart = new Date(2025, 1, 2); // Sunday 2 Feb 2025, local
       
       const result = getCapturesForWeek(weekStart, weeklyCaptures);
       
