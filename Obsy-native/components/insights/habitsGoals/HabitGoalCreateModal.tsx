@@ -1,15 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-    Modal,
-    StyleSheet,
-    View,
-    Text,
-    TextInput,
-    Pressable,
-    ScrollView,
-    KeyboardAvoidingView,
-    Platform,
-} from 'react-native';
+import { StyleSheet, View, Text, TextInput, Pressable, ScrollView } from 'react-native';
+import { AuraPopup } from '@/components/ui/AuraPopup';
 import { HabitGoalOrb } from './HabitGoalOrb';
 import type { HabitGoalFrequency, HabitGoalType, NewHabitGoal } from '@/lib/habitGoalStore';
 
@@ -25,7 +16,7 @@ interface HabitGoalCreateModalProps {
     initialNote?: string;
 }
 
-// ── Small inline segmented control ───────────────────────────
+// ── Small inline segmented control (styled for the dark aura card) ───
 function Segmented<T extends string>({
     options,
     value,
@@ -67,7 +58,7 @@ export function HabitGoalCreateModal({
     const [frequency, setFrequency] = useState<HabitGoalFrequency>(defaultFrequency);
     const [note, setNote] = useState('');
 
-    // Reset fields whenever the sheet opens, seeding from any prefill props.
+    // Reset fields whenever the popup opens, seeding from any prefill props.
     useEffect(() => {
         if (visible) {
             setType(initialType ?? 'habit');
@@ -92,109 +83,83 @@ export function HabitGoalCreateModal({
     const previewTitle = useMemo(() => title.trim() || (type === 'habit' ? 'New habit' : 'New goal'), [title, type]);
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-            <Pressable style={styles.backdrop} onPress={onClose} />
-            <KeyboardAvoidingView
-                style={styles.sheetWrap}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                pointerEvents="box-none"
+        <AuraPopup visible={visible} onClose={onClose} avoidKeyboard maxWidth={360}>
+            {/* Header */}
+            <View style={styles.header}>
+                <Pressable onPress={onClose} hitSlop={12}>
+                    <Text style={styles.cancelBtn}>Cancel</Text>
+                </Pressable>
+                <Text style={styles.headerTitle}>New {type === 'habit' ? 'Habit' : 'Goal'}</Text>
+                <Pressable onPress={handleSave} hitSlop={12} disabled={!canSave}>
+                    <Text style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}>Save</Text>
+                </Pressable>
+            </View>
+
+            <ScrollView
+                style={styles.body}
+                contentContainerStyle={styles.bodyContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
             >
-                <View style={styles.sheet}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <Pressable onPress={onClose} hitSlop={12}>
-                            <Text style={styles.cancelBtn}>Cancel</Text>
-                        </Pressable>
-                        <Text style={styles.headerTitle}>New {type === 'habit' ? 'Habit' : 'Goal'}</Text>
-                        <Pressable onPress={handleSave} hitSlop={12} disabled={!canSave}>
-                            <Text style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}>Save</Text>
-                        </Pressable>
-                    </View>
-
-                    <ScrollView
-                        style={styles.body}
-                        contentContainerStyle={styles.bodyContent}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {/* Preview orb */}
-                        <View style={styles.preview}>
-                            <HabitGoalOrb size={84} title={previewTitle} type={type} />
-                        </View>
-
-                        {/* Type */}
-                        <Text style={styles.fieldLabel}>TYPE</Text>
-                        <Segmented
-                            options={[
-                                { value: 'habit', label: 'Habit' },
-                                { value: 'goal', label: 'Goal' },
-                            ]}
-                            value={type}
-                            onChange={setType}
-                        />
-
-                        {/* Title */}
-                        <Text style={styles.fieldLabel}>TITLE</Text>
-                        <View style={styles.fieldContainer}>
-                            <TextInput
-                                value={title}
-                                onChangeText={setTitle}
-                                placeholder={type === 'habit' ? 'e.g. Morning walk' : 'e.g. Read 4 books'}
-                                placeholderTextColor="rgba(255,255,255,0.25)"
-                                style={styles.titleInput}
-                                returnKeyType="done"
-                            />
-                        </View>
-
-                        {/* Frequency */}
-                        <Text style={styles.fieldLabel}>FREQUENCY</Text>
-                        <Segmented
-                            options={[
-                                { value: 'daily', label: 'Daily' },
-                                { value: 'weekly', label: 'Weekly' },
-                            ]}
-                            value={frequency}
-                            onChange={setFrequency}
-                        />
-
-                        {/* Note (optional) */}
-                        <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
-                        <View style={[styles.fieldContainer, styles.noteContainer]}>
-                            <TextInput
-                                value={note}
-                                onChangeText={setNote}
-                                placeholder="A small reminder of why this matters"
-                                placeholderTextColor="rgba(255,255,255,0.25)"
-                                style={styles.noteInput}
-                                multiline
-                                textAlignVertical="top"
-                            />
-                        </View>
-                    </ScrollView>
+                {/* Preview orb */}
+                <View style={styles.preview}>
+                    <HabitGoalOrb size={64} title={previewTitle} type={type} />
                 </View>
-            </KeyboardAvoidingView>
-        </Modal>
+
+                {/* Type */}
+                <Text style={styles.fieldLabel}>TYPE</Text>
+                <Segmented
+                    options={[
+                        { value: 'habit', label: 'Habit' },
+                        { value: 'goal', label: 'Goal' },
+                    ]}
+                    value={type}
+                    onChange={setType}
+                />
+
+                {/* Title */}
+                <Text style={styles.fieldLabel}>TITLE</Text>
+                <View style={styles.fieldContainer}>
+                    <TextInput
+                        value={title}
+                        onChangeText={setTitle}
+                        placeholder={type === 'habit' ? 'e.g. Morning walk' : 'e.g. Read 4 books'}
+                        placeholderTextColor="rgba(255,255,255,0.25)"
+                        style={styles.titleInput}
+                        returnKeyType="done"
+                    />
+                </View>
+
+                {/* Frequency */}
+                <Text style={styles.fieldLabel}>FREQUENCY</Text>
+                <Segmented
+                    options={[
+                        { value: 'daily', label: 'Daily' },
+                        { value: 'weekly', label: 'Weekly' },
+                    ]}
+                    value={frequency}
+                    onChange={setFrequency}
+                />
+
+                {/* Note (optional) */}
+                <Text style={styles.fieldLabel}>NOTE (OPTIONAL)</Text>
+                <View style={[styles.fieldContainer, styles.noteContainer]}>
+                    <TextInput
+                        value={note}
+                        onChangeText={setNote}
+                        placeholder="A small reminder of why this matters"
+                        placeholderTextColor="rgba(255,255,255,0.25)"
+                        style={styles.noteInput}
+                        multiline
+                        textAlignVertical="top"
+                    />
+                </View>
+            </ScrollView>
+        </AuraPopup>
     );
 }
 
 const styles = StyleSheet.create({
-    backdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-    },
-    sheetWrap: {
-        flex: 1,
-        justifyContent: 'flex-end',
-    },
-    sheet: {
-        backgroundColor: '#0c0e14',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        maxHeight: '88%',
-        paddingBottom: 28,
-    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -202,8 +167,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
         paddingTop: 18,
         paddingBottom: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.06)',
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: 'rgba(255,255,255,0.1)',
     },
     cancelBtn: {
         fontSize: 16,
@@ -212,7 +177,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: 'rgba(255,255,255,0.9)',
+        color: '#fff',
     },
     saveBtn: {
         fontSize: 16,
@@ -224,15 +189,16 @@ const styles = StyleSheet.create({
     },
     body: {
         paddingHorizontal: 20,
+        maxHeight: 440,
     },
     bodyContent: {
-        paddingTop: 16,
-        paddingBottom: 8,
-        gap: 10,
+        paddingTop: 14,
+        paddingBottom: 18,
+        gap: 8,
     },
     preview: {
         alignItems: 'center',
-        paddingBottom: 6,
+        paddingBottom: 4,
     },
     fieldLabel: {
         fontSize: 11,
@@ -247,9 +213,9 @@ const styles = StyleSheet.create({
     fieldContainer: {
         padding: 14,
         borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
+        borderColor: 'rgba(255,255,255,0.1)',
         minHeight: 50,
         justifyContent: 'center',
     },
@@ -260,7 +226,7 @@ const styles = StyleSheet.create({
         padding: 0,
     },
     noteContainer: {
-        minHeight: 80,
+        minHeight: 68,
         justifyContent: 'flex-start',
     },
     noteInput: {
@@ -268,12 +234,12 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 21,
         padding: 0,
-        minHeight: 56,
+        minHeight: 48,
     },
     // Segmented control
     segment: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
         borderRadius: 12,
         padding: 4,
         gap: 4,
@@ -285,7 +251,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     segmentBtnActive: {
-        backgroundColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'rgba(255,255,255,0.16)',
     },
     segmentText: {
         fontSize: 14,

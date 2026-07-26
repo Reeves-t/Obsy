@@ -1,5 +1,7 @@
-import React from 'react';
-import { Modal, StyleSheet, View, Text, Pressable } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, View, Text, Pressable, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { AuraPopup } from '@/components/ui/AuraPopup';
 import { HabitGoalOrb } from './HabitGoalOrb';
 import type { HabitGoal } from '@/lib/habitGoalStore';
 
@@ -11,76 +13,79 @@ interface HabitGoalConfirmModalProps {
 }
 
 const COMPLETE_GREEN = '#5fd6a0';
+const DELETE_RED = '#ff7a7a';
 
 export function HabitGoalConfirmModal({ item, onClose, onConfirm, onRemove }: HabitGoalConfirmModalProps) {
     const visible = item !== null;
-    const completed = item?.isCompletedForCurrentPeriod ?? false;
-    const unit = item?.frequency === 'weekly' ? 'week' : 'day';
+
+    // Keep the last item so content stays rendered through the exit animation.
+    const lastItem = useRef<HabitGoal | null>(item);
+    if (item) lastItem.current = item;
+    const shown = item ?? lastItem.current;
+
+    const completed = shown?.isCompletedForCurrentPeriod ?? false;
+    const unit = shown?.frequency === 'weekly' ? 'week' : 'day';
+    const kind = shown?.type === 'goal' ? 'goal' : 'habit';
+
+    const confirmDelete = () => {
+        Alert.alert(
+            `Delete this ${kind}?`,
+            shown ? `“${shown.title}” and its streak history will be removed.` : undefined,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: onRemove },
+            ]
+        );
+    };
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-            <Pressable style={styles.backdrop} onPress={onClose}>
-                {/* Inner pressable stops backdrop taps from closing when tapping the card */}
-                <Pressable style={styles.card} onPress={() => {}}>
-                    {item && (
-                        <>
-                            <View style={styles.orbWrap}>
-                                <HabitGoalOrb size={88} title={item.title} type={item.type} completed={completed} />
-                            </View>
+        <AuraPopup visible={visible} onClose={onClose}>
+            {shown && (
+                <View style={styles.content}>
+                    <View style={styles.orbWrap}>
+                        <HabitGoalOrb size={80} title={shown.title} type={shown.type} completed={completed} />
+                    </View>
 
-                            <Text style={styles.title}>{item.title}</Text>
+                    <Text style={styles.title}>{shown.title}</Text>
+                    <Text style={styles.prompt}>{completed ? 'Undo completion?' : 'Mark complete?'}</Text>
 
-                            <Text style={styles.prompt}>{completed ? 'Undo completion?' : 'Mark complete?'}</Text>
-
-                            {item.currentStreak > 0 && (
-                                <Text style={styles.meta}>
-                                    {item.currentStreak}-{unit} streak{item.bestStreak > item.currentStreak ? ` · best ${item.bestStreak}` : ''}
-                                </Text>
-                            )}
-
-                            <Pressable
-                                style={[styles.primaryBtn, completed ? styles.undoBtn : styles.completeBtn]}
-                                onPress={onConfirm}
-                            >
-                                <Text style={[styles.primaryText, completed && styles.undoText]}>
-                                    {completed ? 'Undo' : 'Complete'}
-                                </Text>
-                            </Pressable>
-
-                            <Pressable style={styles.cancelBtn} onPress={onClose}>
-                                <Text style={styles.cancelText}>Cancel</Text>
-                            </Pressable>
-
-                            <Pressable style={styles.removeBtn} onPress={onRemove} hitSlop={8}>
-                                <Text style={styles.removeText}>Remove</Text>
-                            </Pressable>
-                        </>
+                    {shown.currentStreak > 0 && (
+                        <Text style={styles.meta}>
+                            {shown.currentStreak}-{unit} streak
+                            {shown.bestStreak > shown.currentStreak ? ` · best ${shown.bestStreak}` : ''}
+                        </Text>
                     )}
-                </Pressable>
-            </Pressable>
-        </Modal>
+
+                    <Pressable
+                        style={[styles.primaryBtn, completed ? styles.undoBtn : styles.completeBtn]}
+                        onPress={onConfirm}
+                    >
+                        <Text style={[styles.primaryText, completed && styles.undoText]}>
+                            {completed ? 'Undo' : 'Complete'}
+                        </Text>
+                    </Pressable>
+
+                    <View style={styles.actionRow}>
+                        <Pressable style={styles.cancelBtn} onPress={onClose} hitSlop={8}>
+                            <Text style={styles.cancelText}>Cancel</Text>
+                        </Pressable>
+                        <Pressable style={styles.deleteBtn} onPress={confirmDelete} hitSlop={8}>
+                            <Ionicons name="trash-outline" size={15} color={DELETE_RED} />
+                            <Text style={styles.deleteText}>Delete</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            )}
+        </AuraPopup>
     );
 }
 
 const styles = StyleSheet.create({
-    backdrop: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+    content: {
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32,
-    },
-    card: {
-        width: '100%',
-        maxWidth: 320,
-        backgroundColor: '#0c0e14',
-        borderRadius: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        paddingHorizontal: 22,
-        paddingTop: 24,
-        paddingBottom: 16,
-        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingTop: 26,
+        paddingBottom: 18,
     },
     orbWrap: {
         marginBottom: 16,
@@ -101,11 +106,12 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: COMPLETE_GREEN,
         marginTop: 8,
+        fontWeight: '600',
     },
     primaryBtn: {
-        marginTop: 20,
+        marginTop: 22,
         width: '100%',
-        paddingVertical: 14,
+        paddingVertical: 15,
         borderRadius: 999,
         alignItems: 'center',
     },
@@ -115,7 +121,7 @@ const styles = StyleSheet.create({
     undoBtn: {
         backgroundColor: 'rgba(255,255,255,0.1)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.18)',
+        borderColor: 'rgba(255,255,255,0.2)',
     },
     primaryText: {
         fontSize: 16,
@@ -125,22 +131,33 @@ const styles = StyleSheet.create({
     undoText: {
         color: '#fff',
     },
-    cancelBtn: {
-        marginTop: 6,
-        width: '100%',
-        paddingVertical: 12,
+    actionRow: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        marginTop: 14,
+        paddingHorizontal: 4,
+    },
+    cancelBtn: {
+        paddingVertical: 6,
+        paddingHorizontal: 6,
     },
     cancelText: {
-        fontSize: 15,
+        fontSize: 14,
         color: 'rgba(255,255,255,0.6)',
+        fontWeight: '500',
     },
-    removeBtn: {
-        marginTop: 4,
+    deleteBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
         paddingVertical: 6,
+        paddingHorizontal: 6,
     },
-    removeText: {
-        fontSize: 12,
-        color: 'rgba(255,120,120,0.7)',
+    deleteText: {
+        fontSize: 14,
+        color: DELETE_RED,
+        fontWeight: '500',
     },
 });

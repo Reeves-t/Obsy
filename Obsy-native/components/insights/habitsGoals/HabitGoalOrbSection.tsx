@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text, Pressable, PanResponder, PanResponderInstance, LayoutChangeEvent, LayoutAnimation, Platform, UIManager } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View, Text, Pressable, LayoutChangeEvent, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 import { useObsyTheme } from '@/contexts/ThemeContext';
-import { HabitGoalOrb } from './HabitGoalOrb';
+import { FloatingOrb } from './FloatingOrb';
+import { HabitGoalCelebration } from './HabitGoalCelebration';
 import { HabitGoalCreateModal } from './HabitGoalCreateModal';
 import { HabitGoalConfirmModal } from './HabitGoalConfirmModal';
 import { HabitGoalDetailsList } from './HabitGoalDetailsList';
-import { useHabitOrbPhysics } from './useHabitOrbPhysics';
+import { useHabitOrbPhysicsV2, MAX_ORBS } from './useHabitOrbPhysicsV2';
 import { useHabitGoalStore, HabitGoalFrequency } from '@/lib/habitGoalStore';
 
 interface HabitGoalOrbSectionProps {
@@ -32,13 +35,15 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
     const reconcilePeriods = useHabitGoalStore((s) => s.reconcilePeriods);
 
     const myItems = useMemo(() => items.filter((i) => i.frequency === frequency), [items, frequency]);
-    const ids = useMemo(() => myItems.map((i) => i.id), [myItems]);
+    // Only the first MAX_ORBS float as orbs; any overflow still appears in the details list.
+    const orbItems = useMemo(() => myItems.slice(0, MAX_ORBS), [myItems]);
+    const ids = useMemo(() => orbItems.map((i) => i.id), [orbItems]);
 
     const [box, setBox] = useState({ width: 0, height: BOX_HEIGHT });
     const [creating, setCreating] = useState(false);
     const [confirmId, setConfirmId] = useState<string | null>(null);
-    const [draggingId, setDraggingId] = useState<string | null>(null);
     const [showDetails, setShowDetails] = useState(false);
+    const [celebration, setCelebration] = useState<{ x: number; y: number; key: number } | null>(null);
 
     const toggleDetails = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -51,84 +56,12 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
     }, [isFocused, reconcilePeriods]);
 
     // Physics only runs while: mounted + screen focused + parent active + has orbs.
-    const physicsActive = active && isFocused && myItems.length > 0;
-    const { stateRef, draggingIdRef, markReleased } = useHabitOrbPhysics(ids, {
+    const physicsActive = active && isFocused && orbItems.length > 0;
+    const physics = useHabitOrbPhysicsV2(ids, {
         width: box.width,
         height: box.height,
         active: physicsActive,
     });
-
-    // ── Stable per-orb drag handling (PanResponder so the page ScrollView
-    //    doesn't steal vertical drags). Created once per id and cached. ──
-    const boxRef = useRef(box);
-    boxRef.current = box;
-    const dragRef = useRef<{ id: string; startX: number; startY: number; moved: boolean } | null>(null);
-    const pansRef = useRef(new Map<string, PanResponderInstance>());
-
-    const getPan = (id: string): PanResponderInstance => {
-        const cached = pansRef.current.get(id);
-        if (cached) return cached;
-        const pan = PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onStartShouldSetPanResponderCapture: () => true,
-            onMoveShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponderCapture: () => true,
-            onPanResponderTerminationRequest: () => false,
-            onPanResponderGrant: () => {
-                const p = stateRef.current.get(id);
-                if (!p) return;
-                p.vx = 0;
-                p.vy = 0;
-                draggingIdRef.current = id;
-                setDraggingId(id);
-                markReleased(id);
-                dragRef.current = { id, startX: p.x, startY: p.y, moved: false };
-            },
-            onPanResponderMove: (_e, g) => {
-                const d = dragRef.current;
-                const p = stateRef.current.get(id);
-                if (!d || d.id !== id || !p) return;
-                if (Math.abs(g.dx) + Math.abs(g.dy) > 6) d.moved = true;
-                const { width, height } = boxRef.current;
-                const r = p.size / 2;
-                p.x = Math.max(r, Math.min(width - r, d.startX + g.dx));
-                p.y = Math.max(r, Math.min(height - r, d.startY + g.dy));
-                p.vx = 0;
-                p.vy = 0;
-            },
-            onPanResponderRelease: (_e, g) => {
-                const d = dragRef.current;
-                dragRef.current = null;
-                draggingIdRef.current = null;
-                setDraggingId(null);
-                const p = stateRef.current.get(id);
-                if (!d || !p) return;
-                markReleased(id);
-                if (!d.moved) {
-                    // Tap (no drag) → open the confirm sheet, never auto-complete.
-                    setConfirmId(id);
-                    return;
-                }
-                // Flick: hand back momentum (gesture velocity is px/ms).
-                p.vx = Math.max(-5, Math.min(5, g.vx * 12));
-                p.vy = Math.max(-5, Math.min(5, g.vy * 12));
-            },
-            onPanResponderTerminate: () => {
-                dragRef.current = null;
-                draggingIdRef.current = null;
-                setDraggingId(null);
-            },
-        });
-        pansRef.current.set(id, pan);
-        return pan;
-    };
-
-    // Drop cached responders for removed orbs.
-    useEffect(() => {
-        for (const id of [...pansRef.current.keys()]) {
-            if (!ids.includes(id)) pansRef.current.delete(id);
-        }
-    }, [ids.join(',')]);
 
     const confirmItem = confirmId ? myItems.find((i) => i.id === confirmId) ?? null : null;
 
@@ -174,7 +107,7 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
             </Text>
 
             {/* Floating area */}
-            <View
+            <GestureHandlerRootView
                 style={[
                     styles.box,
                     {
@@ -187,45 +120,45 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
                     setBox({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })
                 }
             >
-                {myItems.length === 0 ? (
-                    <View style={styles.empty}>
+                {orbItems.length === 0 ? (
+                    <View style={styles.empty} pointerEvents="none">
                         <Text style={[styles.emptyText, { color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }]}>
                             Tap + to add a {frequency} habit or goal
                         </Text>
                         <Text style={[styles.emptySub, { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.28)' }]}>
-                            They float here as orbs. Tap one to mark it complete.
+                            They float here as orbs. Hold one to pick it up, tap to mark it complete.
                         </Text>
                     </View>
                 ) : (
                     box.width > 0 &&
-                    myItems.map((item) => {
-                        const p = stateRef.current.get(item.id);
-                        if (!p) return null;
-                        const pan = getPan(item.id);
+                    orbItems.map((item) => {
+                        const slot = physics.slotFor(item.id);
+                        if (slot == null) return null;
                         return (
-                            <View
+                            <FloatingOrb
                                 key={item.id}
-                                {...pan.panHandlers}
-                                style={{
-                                    position: 'absolute',
-                                    left: p.x - p.size / 2,
-                                    top: p.y - p.size / 2,
-                                    width: p.size,
-                                    height: p.size,
-                                    zIndex: draggingId === item.id ? 10 : 2,
-                                }}
-                            >
-                                <HabitGoalOrb
-                                    size={p.size}
-                                    title={item.title}
-                                    type={item.type}
-                                    completed={item.isCompletedForCurrentPeriod}
-                                />
-                            </View>
+                                item={item}
+                                slot={slot}
+                                size={physics.sizeFor(item.id)}
+                                physics={physics}
+                                onTap={setConfirmId}
+                            />
                         );
                     })
                 )}
-            </View>
+
+                {/* Completion burst — mounted only while alive, then torn down */}
+                {celebration && box.width > 0 && (
+                    <HabitGoalCelebration
+                        key={celebration.key}
+                        x={celebration.x}
+                        y={celebration.y}
+                        width={box.width}
+                        height={box.height}
+                        onDone={() => setCelebration(null)}
+                    />
+                )}
+            </GestureHandlerRootView>
 
             {/* Metadata dropdown */}
             {showDetails && myItems.length > 0 && (
@@ -246,7 +179,18 @@ export function HabitGoalOrbSection({ frequency, active = true }: HabitGoalOrbSe
                 item={confirmItem}
                 onClose={() => setConfirmId(null)}
                 onConfirm={() => {
-                    if (confirmId) toggleCompletion(confirmId);
+                    if (confirmId) {
+                        const willComplete = confirmItem ? !confirmItem.isCompletedForCurrentPeriod : false;
+                        toggleCompletion(confirmId);
+                        // Celebrate only when completing (not undo), and only if the
+                        // orb is on screen (overflow items live in the list only).
+                        if (willComplete) {
+                            const pos = physics.positionOf(confirmId);
+                            if (pos) setCelebration({ x: pos.x, y: pos.y, key: Date.now() });
+                            physics.triggerCompletionPop(confirmId);
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                        }
+                    }
                     setConfirmId(null);
                 }}
                 onRemove={() => {
