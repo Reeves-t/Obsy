@@ -1,42 +1,54 @@
 /**
  * StaticLinkPreview — the always-on, scroll-friendly view of a shared link.
  *
- * Renders a platform-themed card per shared link without spinning up a
- * WebView, so the Entries list stays smooth even with many embed-capable
- * entries on screen. The caller (SharedLinkCard) can layer an inline
- * PlatformEmbed below this when the user taps the preview pill.
+ * Renders every platform through one of three tiers, so a feed of saves from
+ * eight different sites reads as one system while still being unmistakably
+ * *that* platform. No WebView is involved; the Entries list stays smooth.
  *
- *  - YouTube → real thumbnail via img.youtube.com/vi/{id}/hqdefault.jpg
- *  - Spotify → green-tinted card with track/album/playlist name from slug
- *  - TikTok  → dark TikTok-themed card with @handle (from URL path)
- *  - Reddit  → orange themed card with r/sub and post slug
- *  - Instagram / Twitter → branded color block with code or @handle
- *  - Web / unknown → original thumbnail+icon fallback
+ *  1. Image card    — a real preview image, framed by the aspect its platform
+ *                     shoots in. Portrait media (TikTok, Reels, Shorts) sits on
+ *                     a blurred copy of itself rather than letterboxing on black.
+ *  2. Text card     — platform-tinted gradient carrying the post's own words.
+ *                     X has no thumbnail in its oEmbed response at all, and text
+ *                     posts on Reddit/Tumblr have nothing to show; quoting them
+ *                     looks deliberate where a stretched avatar would not.
+ *  3. Monogram card — nothing resolved: platform gradient, logo, domain. A
+ *                     failed TikTok save still looks like a TikTok, not a grey box.
+ *
+ * The caller (SharedLinkCard) can layer an inline PlatformEmbed below this when
+ * the user taps the preview pill.
  */
 
 import React, { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/ui/ThemedText';
 import {
     platformToColor,
+    platformToGradient,
+    platformAspect,
+    aspectRatioValue,
     type SharedLinkPlatform,
 } from '@/services/sharedLinkService';
-import {
-    extractYouTubeId,
-    extractSpotifyEmbedPath,
-    extractTikTokVideoId,
-    extractInstagramCode,
-    extractTweetId,
-    extractRedditPostPath,
-} from './PlatformEmbed';
+import { useLinkThumbnail } from '@/hooks/useLinkThumbnail';
+import { extractYouTubeId, extractSpotifyEmbedPath, extractInstagramCode } from './PlatformEmbed';
 
 interface StaticLinkPreviewProps {
     url: string;
     platform: SharedLinkPlatform;
     title: string | null;
+    /** Source CDN thumbnail. May be an expiring signed URL — used only as fallback. */
     thumbnailUrl: string | null;
+    /** Storage path of our re-hosted copy. Preferred over thumbnailUrl. */
+    thumbnailPath?: string | null;
+    /** The post's own words (caption / tweet body / selftext) — backs the text card. */
+    text?: string | null;
+    /** Resolved author: @handle, channel, artist, u/redditor. */
+    author?: string | null;
+    /** Resolved media type, used to pick the frame aspect for non-obvious platforms. */
+    mediaType?: string | null;
     isLight: boolean;
 }
 
@@ -68,7 +80,7 @@ function parseForDisplay(platform: SharedLinkPlatform, url: string, title: strin
             case 'Spotify': {
                 const path = extractSpotifyEmbedPath(url);
                 if (path) {
-                    const [type, _id] = path.split('/');
+                    const [type] = path.split('/');
                     // Try to find a human-readable name in the path
                     const start = parts[0]?.startsWith('intl-') ? 1 : 0;
                     const after = parts.slice(start + 2);
@@ -113,8 +125,8 @@ function parseForDisplay(platform: SharedLinkPlatform, url: string, title: strin
             case 'Twitter': {
                 const handle = parts[0] ? `@${parts[0]}` : null;
                 return {
-                    badge: handle ?? 'TWEET',
-                    headline: title ?? (handle ? `Tweet by ${handle}` : 'Tweet'),
+                    badge: handle ?? 'POST',
+                    headline: title ?? (handle ? `Post by ${handle}` : 'Post'),
                     subline: u.hostname.replace(/^www\./, ''),
                 };
             }
@@ -162,106 +174,174 @@ function PlatformPreviewIcon({ platform, size, color }: { platform: SharedLinkPl
     }
 }
 
+/**
+ * The one element every tier shares: a floating pill naming the source.
+ * It sits on imagery, gradients and blur alike, so it carries its own scrim
+ * rather than relying on the surface beneath it.
+ */
+function PlatformChip({ platform, label }: { platform: SharedLinkPlatform; label?: string | null }) {
+    return (
+        <View style={styles.chip}>
+            <PlatformPreviewIcon platform={platform} size={11} color="#fff" />
+            <ThemedText numberOfLines={1} style={styles.chipText}>
+                {label || platform}
+            </ThemedText>
+        </View>
+    );
+}
+
 export const StaticLinkPreview = memo(function StaticLinkPreview({
     url,
     platform,
     title,
     thumbnailUrl,
+    thumbnailPath,
+    text,
+    author,
+    mediaType,
     isLight,
 }: StaticLinkPreviewProps) {
     const bits = useMemo(() => parseForDisplay(platform, url, title), [platform, url, title]);
     const platformColor = platformToColor(platform);
+    const gradient = useMemo(() => platformToGradient(platform), [platform]);
+    const aspect = useMemo(
+        () => platformAspect(platform, mediaType, url),
+        [platform, mediaType, url],
+    );
 
-    // ── YouTube: real thumbnail with play overlay ──────────────────────
-    if (platform === 'YouTube' && bits.youtubeId) {
+    const stored = useLinkThumbnail(thumbnailPath, thumbnailUrl);
+    // YouTube publishes a stable, non-expiring thumbnail by video id, so it
+    // needs no re-host and works even for entries saved before digestion ran.
+    const uri = stored ?? (bits.youtubeId ? `https://img.youtube.com/vi/${bits.youtubeId}/hqdefault.jpg` : null);
+
+    const isVideo = mediaType === 'video' || platform === 'YouTube' || platform === 'TikTok' || platform === 'Twitch';
+    const frameBorder = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+
+    // ── Tier 1: image card ─────────────────────────────────────────────
+    if (uri) {
+        const isPortrait = aspect === 'portrait';
         return (
-            <View style={[styles.youtubeFrame, { borderColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' }]}>
+            <View style={[styles.mediaFrame, { aspectRatio: aspectRatioValue(aspect), borderColor: frameBorder }]}>
+                {/* Portrait media is narrower than the frame; a blurred, darkened
+                    copy fills the sides so the card never shows dead black bars. */}
+                {isPortrait && (
+                    <>
+                        <Image
+                            source={{ uri }}
+                            style={StyleSheet.absoluteFill}
+                            contentFit="cover"
+                            blurRadius={28}
+                            cachePolicy="memory-disk"
+                        />
+                        <View style={styles.blurScrim} />
+                    </>
+                )}
+
                 <Image
-                    source={{ uri: `https://img.youtube.com/vi/${bits.youtubeId}/hqdefault.jpg` }}
-                    style={styles.youtubeImage}
-                    contentFit="cover"
+                    source={{ uri }}
+                    style={styles.mediaImage}
+                    contentFit={isPortrait ? 'contain' : 'cover'}
                     cachePolicy="memory-disk"
+                    transition={120}
                 />
-                <View style={styles.playOverlay}>
-                    <View style={styles.playButton}>
-                        <Ionicons name="play" size={26} color="#fff" />
-                    </View>
+
+                <View style={styles.chipHolder}>
+                    <PlatformChip platform={platform} label={bits.badge ?? platform} />
                 </View>
+
+                {isVideo && (
+                    <View style={styles.playOverlay} pointerEvents="none">
+                        <View style={styles.playButton}>
+                            <Ionicons name="play" size={24} color="#fff" />
+                        </View>
+                    </View>
+                )}
+
                 {bits.headline ? (
-                    <View style={styles.youtubeCaption}>
-                        <ThemedText numberOfLines={2} style={styles.youtubeCaptionText}>
+                    <View style={styles.captionBar}>
+                        <ThemedText numberOfLines={2} style={styles.captionText}>
                             {bits.headline}
                         </ThemedText>
+                        {author ? (
+                            <ThemedText numberOfLines={1} style={styles.captionAuthor}>
+                                {author}
+                            </ThemedText>
+                        ) : null}
                     </View>
                 ) : null}
             </View>
         );
     }
 
-    // ── Generic branded card for other platforms ───────────────────────
-    const tint = platformColor + (isLight ? '14' : '22'); // 8% / 13% alpha
-    const border = platformColor + '55';
-
-    return (
-        <View style={[styles.brandCard, { backgroundColor: tint, borderColor: border }]}>
-            <View style={[styles.brandIconBubble, { backgroundColor: platformColor + 'EE' }]}>
-                <PlatformPreviewIcon platform={platform} size={22} color="#fff" />
-            </View>
-            <View style={styles.brandTextArea}>
-                <View style={styles.brandBadgeRow}>
-                    {bits.badge ? (
-                        <ThemedText style={[styles.brandBadge, { color: platformColor }]}>
-                            {bits.badge}
-                        </ThemedText>
-                    ) : (
-                        <ThemedText style={[styles.brandBadge, { color: platformColor }]}>
-                            {platform.toUpperCase()}
-                        </ThemedText>
-                    )}
-                </View>
-                {bits.headline ? (
-                    <ThemedText
-                        numberOfLines={2}
-                        style={[styles.brandHeadline, { color: isLight ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.95)' }]}
-                    >
-                        {bits.headline}
+    // ── Tier 2: text card ──────────────────────────────────────────────
+    const excerpt = text?.trim();
+    if (excerpt) {
+        return (
+            <LinearGradient
+                colors={gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.textCard, { borderColor: platformColor + '55' }]}
+            >
+                <PlatformChip platform={platform} label={bits.badge ?? platform} />
+                <ThemedText numberOfLines={5} style={styles.quote}>
+                    “{excerpt}”
+                </ThemedText>
+                {(author || bits.subline) ? (
+                    <ThemedText numberOfLines={1} style={styles.textCardAuthor}>
+                        {author ?? bits.subline}
                     </ThemedText>
                 ) : null}
+            </LinearGradient>
+        );
+    }
+
+    // ── Tier 3: monogram fallback ──────────────────────────────────────
+    return (
+        <LinearGradient
+            colors={gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.monogramCard, { borderColor: platformColor + '55' }]}
+        >
+            <View style={styles.monogramIcon}>
+                <PlatformPreviewIcon platform={platform} size={26} color="#fff" />
+            </View>
+            <View style={styles.monogramText}>
+                <ThemedText numberOfLines={2} style={styles.monogramHeadline}>
+                    {bits.headline ?? platform}
+                </ThemedText>
                 {bits.subline ? (
-                    <ThemedText
-                        numberOfLines={1}
-                        style={[styles.brandSubline, { color: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.5)' }]}
-                    >
+                    <ThemedText numberOfLines={1} style={styles.monogramSubline}>
                         {bits.subline}
                     </ThemedText>
                 ) : null}
             </View>
-            {thumbnailUrl ? (
-                <View style={styles.brandThumb}>
-                    <Image
-                        source={{ uri: thumbnailUrl }}
-                        style={styles.brandThumbImage}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                    />
-                </View>
-            ) : null}
-        </View>
+        </LinearGradient>
     );
 });
 
 const styles = StyleSheet.create({
-    // YouTube thumbnail block
-    youtubeFrame: {
+    // ── Tier 1: image ──────────────────────────────────────────────────
+    mediaFrame: {
         borderRadius: 12,
         borderWidth: 1,
         overflow: 'hidden',
-        aspectRatio: 16 / 9,
         position: 'relative',
+        backgroundColor: '#000',
     },
-    youtubeImage: {
+    mediaImage: {
         width: '100%',
         height: '100%',
+    },
+    blurScrim: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.35)',
+    },
+    chipHolder: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
     },
     playOverlay: {
         position: 'absolute',
@@ -270,75 +350,106 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     playButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
         backgroundColor: 'rgba(0,0,0,0.55)',
         alignItems: 'center',
         justifyContent: 'center',
         paddingLeft: 3,
     },
-    youtubeCaption: {
+    captionBar: {
         position: 'absolute',
         left: 0, right: 0, bottom: 0,
-        padding: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
         backgroundColor: 'rgba(0,0,0,0.55)',
+        gap: 1,
     },
-    youtubeCaptionText: {
+    captionText: {
         color: '#fff',
         fontSize: 13,
         fontWeight: '500',
+        lineHeight: 17,
+    },
+    captionAuthor: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 11,
     },
 
-    // Generic branded card (Spotify, TikTok, Reddit, Instagram, Twitter, Web)
-    brandCard: {
+    // ── Shared chip ────────────────────────────────────────────────────
+    chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 11,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        alignSelf: 'flex-start',
+        maxWidth: 180,
+    },
+    chipText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+        flexShrink: 1,
+    },
+
+    // ── Tier 2: text card ──────────────────────────────────────────────
+    textCard: {
+        borderRadius: 12,
+        borderWidth: 1,
+        padding: 14,
+        gap: 10,
+        minHeight: 120,
+        justifyContent: 'center',
+    },
+    quote: {
+        color: '#fff',
+        fontSize: 15,
+        lineHeight: 21,
+        fontWeight: '500',
+    },
+    textCardAuthor: {
+        color: 'rgba(255,255,255,0.75)',
+        fontSize: 11,
+        fontWeight: '600',
+    },
+
+    // ── Tier 3: monogram ───────────────────────────────────────────────
+    monogramCard: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        padding: 12,
+        padding: 14,
         borderRadius: 12,
         borderWidth: 1,
+        minHeight: 76,
     },
-    brandIconBubble: {
+    monogramIcon: {
         width: 44,
         height: 44,
         borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.25)',
         flexShrink: 0,
     },
-    brandTextArea: {
+    monogramText: {
         flex: 1,
         gap: 2,
     },
-    brandBadgeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    brandBadge: {
-        fontSize: 10,
-        fontWeight: '700',
-        letterSpacing: 0.5,
-        textTransform: 'uppercase',
-    },
-    brandHeadline: {
+    monogramHeadline: {
+        color: '#fff',
         fontSize: 14,
         fontWeight: '600',
         lineHeight: 18,
     },
-    brandSubline: {
+    monogramSubline: {
+        color: 'rgba(255,255,255,0.7)',
         fontSize: 11,
-    },
-    brandThumb: {
-        width: 56,
-        height: 56,
-        borderRadius: 10,
-        overflow: 'hidden',
-        flexShrink: 0,
-    },
-    brandThumbImage: {
-        width: '100%',
-        height: '100%',
     },
 });

@@ -51,6 +51,7 @@ export const SharedLinkCard = memo(function SharedLinkCard({
     const title = capture.shared_link_title ?? null;
     const url = capture.shared_link_url ?? '';
     const thumbnail = capture.shared_link_thumbnail_url ?? null;
+    const thumbnailPath = capture.shared_link_thumbnail_path ?? null;
     const savedPlatform = (capture.shared_link_platform ?? 'Web') as SharedLinkPlatform;
     const platform = savedPlatform === 'Web' && url ? detectPlatform(url) : savedPlatform;
 
@@ -91,6 +92,10 @@ export const SharedLinkCard = memo(function SharedLinkCard({
                     platform={platform}
                     title={title}
                     thumbnailUrl={thumbnail}
+                    thumbnailPath={thumbnailPath}
+                    text={capture.shared_link_text ?? null}
+                    author={capture.shared_link_author ?? null}
+                    mediaType={capture.shared_link_media_type ?? null}
                     isLight={isLight}
                 />
             </TouchableOpacity>

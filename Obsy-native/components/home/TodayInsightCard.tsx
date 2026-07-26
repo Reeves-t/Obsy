@@ -7,6 +7,7 @@ import { InsightText } from '@/components/insights/InsightText';
 import { useTodayInsight } from '@/lib/todayInsightStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCaptureStore } from '@/lib/captureStore';
+import { withMood } from '@/types/capture';
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from '@/services/archive';
 import { BookmarkButton } from '@/components/insights/BookmarkButton';
 import Colors from '@/constants/Colors';
@@ -120,10 +121,9 @@ export const TodayInsightCard: React.FC<TodayInsightCardProps> = ({
 
     const todayMoodIds = React.useMemo(() => {
         const todayKey = getLocalDayKey(new Date());
-        return captures
+        return withMood(captures)
             .filter(c => getLocalDayKey(new Date(c.created_at)) === todayKey)
-            .map(c => c.mood_id)
-            .filter(Boolean);
+            .map(c => c.mood_id);
     }, [captures]);
 
     // Derive mood lights from today's captures (top 4 most frequent moods)

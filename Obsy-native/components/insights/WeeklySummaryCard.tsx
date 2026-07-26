@@ -7,6 +7,7 @@ import { InsightSectionHeader } from "@/components/insights/InsightSectionHeader
 import { useInsightLightGate, type MoodLight } from "@/hooks/useInsightLightGate";
 import { getMoodTheme } from "@/lib/moods/theme";
 import { WeeklyStats } from "@/lib/insightsAnalytics";
+import { withMood } from "@/types/capture";
 import { archiveInsightWithResult, fetchArchives, ARCHIVE_ERROR_CODES } from "@/services/archive";
 import { BookmarkButton } from "@/components/insights/BookmarkButton";
 import * as Haptics from "expo-haptics";
@@ -49,13 +50,12 @@ export const WeeklySummaryCard = memo(function WeeklySummaryCard({
     const weekKey = format(currentWeekStart, 'yyyy-MM-dd');
     const currentWeekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
     const weekMoodIds = React.useMemo(() => {
-        return captures
+        return withMood(captures)
             .filter((capture) => {
                 const date = new Date(capture.created_at);
                 return date >= currentWeekStart && date <= currentWeekEnd;
             })
-            .map((capture) => capture.mood_id)
-            .filter(Boolean);
+            .map((capture) => capture.mood_id);
     }, [captures, currentWeekStart.getTime(), currentWeekEnd.getTime()]);
 
     // Derive mood lights from this week's captures (top 4 most frequent moods)

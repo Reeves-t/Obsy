@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Capture } from '@/types/capture';
+import { Capture, withMood } from '@/types/capture';
 import { getMoodLabel } from '@/lib/moodUtils';
 import {
     callPatternKeywords,
@@ -94,7 +94,7 @@ export const usePatternKeywords = create<PatternKeywordsState>((set, get) => ({
         const state = get();
         if (state.status === 'loading') return { kind: 'none' };
 
-        const eligible = allCaptures.filter(c => c.includeInInsights !== false);
+        const eligible = withMood(allCaptures).filter(c => c.includeInInsights !== false);
         const eligibleCount = eligible.length;
 
         if (eligibleCount < MIN_ELIGIBLE) {

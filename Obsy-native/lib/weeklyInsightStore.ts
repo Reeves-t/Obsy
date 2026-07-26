@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Capture } from '@/types/capture';
+import { Capture, withMood } from '@/types/capture';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
 import { callWeekly } from '@/services/weeklyInsightClient';
 import type { HabitGoalContext } from '@/services/dailyInsightClient';

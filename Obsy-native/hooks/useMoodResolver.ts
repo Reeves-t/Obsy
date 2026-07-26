@@ -33,11 +33,22 @@ export function useMoodResolver() {
         return () => subscription.unsubscribe();
     }, []);
 
-    const resolveMood = useCallback((moodId: string): Mood | null => {
+    const resolveMood = useCallback((moodId: string | null | undefined): Mood | null => {
+        if (!moodId) return null;
         return moodCache.getMoodById(moodId);
     }, []);
 
-    const getMoodDisplay = useCallback((moodId: string, nameSnapshot?: string) => {
+    /**
+     * Resolves a mood to its display form, or null when there is nothing to show.
+     *
+     * A null `moodId` means the entry has no mood yet — a shared link saved from
+     * the share sheet and not reflected on. Callers render no mood pill for it.
+     * Note that such an entry still carries a 'Neutral' name snapshot from the
+     * database trigger, so the snapshot alone must never stand in for a mood.
+     */
+    const getMoodDisplay = useCallback((moodId: string | null | undefined, nameSnapshot?: string) => {
+        if (!moodId) return null;
+
         const mood = moodCache.getMoodById(moodId);
 
         if (!mood) {

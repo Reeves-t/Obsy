@@ -80,8 +80,9 @@ type CaptureState = {
     addCapture: (
         user: User | null,
         data: Omit<Capture, "id" | "user_id" | "created_at" | "tags" | "includeInInsights" | "usePhotoForInsight" | "mood_id" | "mood_name_snapshot"> & {
-            mood_id: string,
-            mood_name_snapshot: string,
+            /** Null only for a shared link saved without reflecting yet. */
+            mood_id: string | null,
+            mood_name_snapshot: string | null,
             tags?: string[],
             includeInInsights?: boolean,
             usePhotoForInsight?: boolean,
@@ -94,6 +95,10 @@ type CaptureState = {
             shared_link_platform?: string | null,
             shared_link_title?: string | null,
             shared_link_thumbnail_url?: string | null,
+            shared_link_thumbnail_path?: string | null,
+            shared_link_author?: string | null,
+            shared_link_text?: string | null,
+            shared_link_processed_at?: string | null,
             shared_link_digest?: string | null,
             shared_link_media_type?: string | null,
             unpack_payload?: UnpackPayload | null,
@@ -118,8 +123,9 @@ type CaptureState = {
     ) => Promise<string | null>;
     createSharedLinkEntry: (
         user: User | null,
-        moodId: string,
-        moodName: string,
+        /** Null when saved from the share sheet — the mood comes at reflection time. */
+        moodId: string | null,
+        moodName: string | null,
         url: string,
         platform: string,
         title: string | null,
@@ -154,6 +160,24 @@ type CaptureState = {
         },
         includeInInsights?: boolean
     ) => Promise<string | null>;
+    /**
+     * Reflect on a queued shared link: attach the mood (and optionally a note
+     * and topic) the user skipped at capture time. Marks the link processed, so
+     * it leaves the inbox and enters mood history.
+     */
+    reflectSharedLink: (
+        id: string,
+        moodId: string,
+        moodName: string,
+        note?: string | null,
+        topicTag?: string | null,
+    ) => Promise<void>;
+    /**
+     * Keep a queued shared link without attaching a feeling to it. A decision in
+     * its own right: the link leaves the inbox and stays in the library, but
+     * carries no mood and so never reaches mood aggregation.
+     */
+    keepSharedLink: (id: string) => Promise<void>;
     /** Patch a shared-link capture in local state once its background digest resolves. */
     applySharedLinkDigest: (
         id: string,
@@ -162,6 +186,9 @@ type CaptureState = {
             mediaType?: string | null;
             title?: string | null;
             thumbnailUrl?: string | null;
+            thumbnailPath?: string | null;
+            author?: string | null;
+            text?: string | null;
         }
     ) => void;
     createCapture: (
@@ -231,19 +258,26 @@ export const useCaptureStore = create<CaptureState>()(
                                 resolvedUrl = localUri;
                             }
 
-                            // Ensure required mood fields are populated
-                            const moodId = entry.mood || 'neutral';
+                            /**
+                             * A shared link saved from the share sheet has no mood until
+                             * the user reflects on it. That null must survive the round
+                             * trip — coercing it to 'neutral' here would silently mark
+                             * every pending save as reflected on the next fetch, and feed
+                             * a mood the user never chose into their history.
+                             */
+                            const isUnreflectedLink = entry.source_type === 'shared_link' && !entry.mood;
+                            const moodId: string | null = isUnreflectedLink ? null : (entry.mood || 'neutral');
 
                             // Resolve mood name: if snapshot looks like a raw ID (e.g., "custom_abc123"),
                             // try to resolve it to the actual mood name
                             let moodSnapshot = entry.mood_name_snapshot;
-                            if (!moodSnapshot || moodSnapshot.startsWith('custom_') || moodSnapshot === moodId) {
+                            if (moodId && (!moodSnapshot || moodSnapshot.startsWith('custom_') || moodSnapshot === moodId)) {
                                 // Snapshot is missing or appears to be a raw ID - resolve it
                                 moodSnapshot = getMoodLabel(moodId, entry.mood_name_snapshot);
                             }
 
                             // Log warning if we had to use fallback values
-                            if (!entry.mood_name_snapshot || entry.mood_name_snapshot.startsWith('custom_')) {
+                            if (moodId && (!entry.mood_name_snapshot || entry.mood_name_snapshot.startsWith('custom_'))) {
                                 console.warn(`[captureStore] Entry ${entry.id} has invalid mood_name_snapshot "${entry.mood_name_snapshot}", resolved to: ${moodSnapshot}`);
                             }
 
@@ -252,7 +286,7 @@ export const useCaptureStore = create<CaptureState>()(
                                 user_id: entry.user_id,
                                 created_at: entry.created_at,
                                 mood_id: moodId,
-                                mood_name_snapshot: moodSnapshot,
+                                mood_name_snapshot: moodSnapshot || 'Neutral',
                                 note: entry.note,
                                 image_url: resolvedUrl,
                                 image_path: entry.photo_path,
@@ -267,6 +301,10 @@ export const useCaptureStore = create<CaptureState>()(
                                 shared_link_platform: entry.shared_link_platform || null,
                                 shared_link_title: entry.shared_link_title || null,
                                 shared_link_thumbnail_url: entry.shared_link_thumbnail_url || null,
+                                shared_link_thumbnail_path: entry.shared_link_thumbnail_path || null,
+                                shared_link_author: entry.shared_link_author || null,
+                                shared_link_text: entry.shared_link_text || null,
+                                shared_link_processed_at: entry.shared_link_processed_at || null,
                                 shared_link_digest: entry.shared_link_digest || null,
                                 shared_link_media_type: entry.shared_link_media_type || null,
                                 unpack_payload: (entry.unpack_payload as Capture['unpack_payload']) || null,
@@ -279,7 +317,7 @@ export const useCaptureStore = create<CaptureState>()(
                         if (missingEffects.length > 0) {
                             const generatedById = new Map<string, ReturnType<typeof generateOrbEffect>>();
                             for (const capture of missingEffects) {
-                                generatedById.set(capture.id, generateOrbEffect(capture.mood_name_snapshot || capture.mood_id));
+                                generatedById.set(capture.id, generateOrbEffect(capture.mood_name_snapshot || capture.mood_id || 'Neutral'));
                             }
                             Promise.allSettled(
                                 missingEffects.map(async (capture) => {
@@ -321,53 +359,66 @@ export const useCaptureStore = create<CaptureState>()(
                 const tags = data.tags || [];
                 const includeInInsights = data.includeInInsights ?? true;
                 const usePhotoForInsight = data.usePhotoForInsight ?? false;
-                const orbEffect = generateOrbEffect(data.mood_name_snapshot || data.mood_id);
+                const orbEffect = generateOrbEffect(data.mood_name_snapshot || data.mood_id || 'Neutral');
                 let newCaptureId: string | null = null;
                 // Capture funnel: is this the user's first entry? (read before insert)
                 const isFirstCapture = get().captures.length === 0;
 
-                // Validate required mood fields
-                if (!data.mood_id || data.mood_id.trim() === '') {
+                /**
+                 * A shared link may be saved with no mood at all: the share-sheet
+                 * flow defers the mood to the reflection step, because asking for
+                 * a feeling mid-scroll is what stops the save from happening. Every
+                 * other entry type still requires one.
+                 */
+                const moodOptional = data.source_type === 'shared_link';
+                const hasMood = !!data.mood_id && data.mood_id.trim() !== '';
+
+                if (!hasMood && !moodOptional) {
                     throw new Error('Mood ID is required. Please select a mood before saving.');
                 }
-                if (!data.mood_name_snapshot || data.mood_name_snapshot.trim() === '') {
+                if (hasMood && (!data.mood_name_snapshot || data.mood_name_snapshot.trim() === '')) {
                     throw new Error('Mood name snapshot is required. Please select a valid mood.');
                 }
 
-                // Ensure cache is fresh before validating mood ID
-                if (!moodCache.isInitialized() || moodCache.isStale()) {
-                    await moodCache.fetchAllMoods(user?.id ?? null);
-                }
+                if (hasMood) {
+                    // Ensure cache is fresh before validating mood ID
+                    if (!moodCache.isInitialized() || moodCache.isStale()) {
+                        await moodCache.fetchAllMoods(user?.id ?? null);
+                    }
 
-                // Validate mood ID exists in cache before saving
-                const mood = moodCache.getMoodById(data.mood_id);
-                if (!mood) {
-                    throw new Error(`Invalid mood ID: ${data.mood_id}. The selected mood no longer exists. Please select a different mood.`);
-                }
+                    // Validate mood ID exists in cache before saving
+                    const mood = moodCache.getMoodById(data.mood_id!);
+                    if (!mood) {
+                        throw new Error(`Invalid mood ID: ${data.mood_id}. The selected mood no longer exists. Please select a different mood.`);
+                    }
 
-                // Diagnostic: Verify mood exists in database before insert
-                const { data: moodCheck, error: moodCheckError } = await supabase
-                    .from('moods')
-                    .select('id, name, type')
-                    .eq('id', data.mood_id)
-                    .maybeSingle();
+                    // Diagnostic: Verify mood exists in database before insert
+                    const { data: moodCheck, error: moodCheckError } = await supabase
+                        .from('moods')
+                        .select('id, name, type')
+                        .eq('id', data.mood_id!)
+                        .maybeSingle();
 
-                console.log('[captureStore] Mood validation check:', {
-                    moodId: data.mood_id,
-                    moodSnapshot: data.mood_name_snapshot,
-                    foundInDB: !!moodCheck,
-                    moodData: moodCheck,
-                    error: moodCheckError
-                });
+                    console.log('[captureStore] Mood validation check:', {
+                        moodId: data.mood_id,
+                        moodSnapshot: data.mood_name_snapshot,
+                        foundInDB: !!moodCheck,
+                        moodData: moodCheck,
+                        error: moodCheckError
+                    });
 
-                if (!moodCheck) {
-                    throw new Error(`Mood ID "${data.mood_id}" not found in database. Please refresh and try again.`);
+                    if (!moodCheck) {
+                        throw new Error(`Mood ID "${data.mood_id}" not found in database. Please refresh and try again.`);
+                    }
                 }
 
                 if (user) {
                     const dbPayload = {
-                        mood: data.mood_id,
-                        mood_name_snapshot: data.mood_name_snapshot,
+                        // Null for an unreflected shared link. The entries trigger
+                        // fills mood_name_snapshot with 'Neutral' when it is null,
+                        // which is why `mood` is the only reliable "has a mood" signal.
+                        mood: hasMood ? data.mood_id : null,
+                        mood_name_snapshot: hasMood ? data.mood_name_snapshot : null,
                         note: data.note,
                         photo_path: data.image_path ?? '',
                         user_id: user.id,
@@ -384,6 +435,10 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_platform: data.shared_link_platform || null,
                         shared_link_title: data.shared_link_title || null,
                         shared_link_thumbnail_url: data.shared_link_thumbnail_url || null,
+                        shared_link_thumbnail_path: data.shared_link_thumbnail_path || null,
+                        shared_link_author: data.shared_link_author || null,
+                        shared_link_text: data.shared_link_text || null,
+                        shared_link_processed_at: data.shared_link_processed_at || null,
                         shared_link_digest: data.shared_link_digest || null,
                         shared_link_media_type: data.shared_link_media_type || null,
                         unpack_payload: data.unpack_payload ?? null,
@@ -402,7 +457,7 @@ export const useCaptureStore = create<CaptureState>()(
                         user_id: inserted.user_id,
                         created_at: inserted.created_at,
                         mood_id: inserted.mood,
-                        mood_name_snapshot: inserted.mood_name_snapshot || data.mood_name_snapshot,
+                        mood_name_snapshot: inserted.mood_name_snapshot || data.mood_name_snapshot || 'Neutral',
                         note: inserted.note,
                         image_url: data.image_url || '',
                         image_path: inserted.photo_path,
@@ -419,6 +474,10 @@ export const useCaptureStore = create<CaptureState>()(
                         shared_link_platform: inserted.shared_link_platform || null,
                         shared_link_title: inserted.shared_link_title || null,
                         shared_link_thumbnail_url: inserted.shared_link_thumbnail_url || null,
+                        shared_link_thumbnail_path: inserted.shared_link_thumbnail_path || null,
+                        shared_link_author: inserted.shared_link_author || null,
+                        shared_link_text: inserted.shared_link_text || null,
+                        shared_link_processed_at: inserted.shared_link_processed_at || null,
                         shared_link_digest: inserted.shared_link_digest || null,
                         shared_link_media_type: inserted.shared_link_media_type || null,
                         unpack_payload: (inserted.unpack_payload as Capture['unpack_payload']) ?? data.unpack_payload ?? null,
@@ -446,6 +505,9 @@ export const useCaptureStore = create<CaptureState>()(
                         user_id: null,
                         created_at: new Date().toISOString(),
                         ...data,
+                        // Mirrors the server trigger's default so a guest entry
+                        // has a displayable name while mood_id stays null.
+                        mood_name_snapshot: data.mood_name_snapshot || 'Neutral',
                         tags,
                         includeInInsights,
                         usePhotoForInsight,
@@ -685,7 +747,7 @@ export const useCaptureStore = create<CaptureState>()(
             },
 
             createSharedLinkEntry: async (user, moodId, moodName, url, platform, title, thumbnailUrl, note = null, includeInInsights = true) => {
-                if (!moodCache.isInitialized() || moodCache.isStale()) {
+                if (moodId && (!moodCache.isInitialized() || moodCache.isStale())) {
                     await moodCache.fetchAllMoods(user?.id ?? null);
                 }
                 const tags: string[] = [];
@@ -717,6 +779,9 @@ export const useCaptureStore = create<CaptureState>()(
                                     mediaType: res.mediaType,
                                     title: res.title,
                                     thumbnailUrl: res.thumbnailUrl,
+                                    thumbnailPath: res.thumbnailPath,
+                                    author: res.author,
+                                    text: res.text,
                                 });
                             }
                         })
@@ -772,6 +837,78 @@ export const useCaptureStore = create<CaptureState>()(
                 });
             },
 
+            reflectSharedLink: async (id, moodId, moodName, note = null, topicTag = null) => {
+                const capture = get().captures.find(c => c.id === id);
+                if (!capture) return;
+
+                const tags = topicTag && !capture.tags.includes(topicTag)
+                    ? [...capture.tags, topicTag]
+                    : capture.tags;
+
+                const processedAt = new Date().toISOString();
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { error } = await supabase
+                        .from('entries')
+                        .update({
+                            mood: moodId,
+                            mood_name_snapshot: moodName,
+                            note: note ?? capture.note,
+                            tags,
+                            shared_link_processed_at: processedAt,
+                        })
+                        .eq('id', id);
+                    if (error) throw error;
+                }
+
+                set((state) => ({
+                    captures: state.captures.map(c => c.id === id
+                        ? {
+                            ...c,
+                            mood_id: moodId,
+                            mood_name_snapshot: moodName,
+                            note: note ?? c.note,
+                            tags,
+                            shared_link_processed_at: processedAt,
+                            orb_effect: c.orb_effect ?? generateOrbEffect(moodName || moodId),
+                        }
+                        : c),
+                }));
+
+                // The entry now carries a mood, so it counts toward insights for
+                // the first time — recompute what was gated on it.
+                const updated = get().captures;
+                useTodayInsight.getState().computePending(updated);
+                useWeeklyInsight.getState().computePending(updated);
+                useMonthlyInsight.getState().computePending(updated);
+            },
+
+            keepSharedLink: async (id) => {
+                const capture = get().captures.find(c => c.id === id);
+                if (!capture) return;
+
+                const processedAt = new Date().toISOString();
+
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { error } = await supabase
+                        .from('entries')
+                        .update({ shared_link_processed_at: processedAt })
+                        .eq('id', id);
+                    if (error) throw error;
+                }
+
+                set((state) => ({
+                    captures: state.captures.map(c => c.id === id
+                        ? { ...c, shared_link_processed_at: processedAt }
+                        : c),
+                }));
+
+                // Deliberately no insight recompute: keeping a link attaches no
+                // mood, so nothing that aggregates on mood has changed.
+            },
+
             applySharedLinkDigest: (id, fields) => {
                 set((state) => ({
                     captures: state.captures.map((c) => {
@@ -782,6 +919,9 @@ export const useCaptureStore = create<CaptureState>()(
                             shared_link_media_type: fields.mediaType ?? c.shared_link_media_type ?? null,
                             shared_link_title: fields.title ?? c.shared_link_title ?? null,
                             shared_link_thumbnail_url: fields.thumbnailUrl ?? c.shared_link_thumbnail_url ?? null,
+                            shared_link_thumbnail_path: fields.thumbnailPath ?? c.shared_link_thumbnail_path ?? null,
+                            shared_link_author: fields.author ?? c.shared_link_author ?? null,
+                            shared_link_text: fields.text ?? c.shared_link_text ?? null,
                         };
                     }),
                 }));

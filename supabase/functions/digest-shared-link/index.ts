@@ -2,16 +2,23 @@
  * Supabase Edge Function: digest-shared-link
  *
  * Enriches a shared_link entry with a Gemini-generated content digest, a resolved
- * media type, a real title, and a thumbnail. Strategy by media type:
+ * media type, a real title, an author, and a re-hosted thumbnail. Strategy by
+ * media type:
  *   - video             → Gemini watches the YouTube URL
  *   - music             → resolve track/artist, fetch lyrics (LRCLIB), Gemini distills
  *                         themes/tone (lyrics are NOT persisted)
- *   - article/post/etc. → Gemini url_context reads the page
+ *   - social/post       → digest the post's own caption (these hosts block page fetches)
+ *   - article/etc.      → Gemini url_context reads the page
+ *
+ * The resolved thumbnail is downloaded into the private `link-thumbnails` bucket,
+ * because TikTok/Meta hand back signed URLs that expire within days — see
+ * _shared/links/thumbnail.ts.
  *
  * Always degrades gracefully: if digestion fails, it still backfills the resolved
- * title/thumbnail/media_type so the entry is richer than raw URL-slug parsing.
+ * title/thumbnail/author/media_type so the entry is richer than raw URL-slug parsing.
  *
- * Envelope: { ok, entryId, digest?, mediaType?, title?, thumbnailUrl?, error? }
+ * Envelope: { ok, entryId, digest?, mediaType?, title?, thumbnailUrl?,
+ *             thumbnailPath?, author?, text?, error? }
  */
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -19,6 +26,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { resolveLinkMetadata } from "../_shared/links/metadata.ts";
 import { fetchLyrics } from "../_shared/links/lyrics.ts";
 import { digestLinkWithGemini } from "../_shared/links/gemini.ts";
+import { rehostThumbnail } from "../_shared/links/thumbnail.ts";
 
 interface DigestRequest {
   /** Enrich a saved entry in place (original flow). */
@@ -40,6 +48,8 @@ const corsHeaders = {
 };
 
 const MAX_DIGEST_CHARS = 800;
+/** Caption/selftext kept on the row — enough for a text card, not a copy of the post. */
+const MAX_TEXT_CHARS = 500;
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -124,7 +134,9 @@ serve(async (req) => {
   // Load the entry (RLS gates this to the owner).
   const { data: entry, error: rowError } = await supabase
     .from("entries")
-    .select("id, source_type, shared_link_url, shared_link_title, shared_link_thumbnail_url")
+    .select(
+      "id, user_id, source_type, shared_link_url, shared_link_title, shared_link_thumbnail_url, shared_link_thumbnail_path",
+    )
     .eq("id", body.entryId)
     .single();
 
@@ -159,11 +171,25 @@ serve(async (req) => {
   const title = resolved.title ?? entry.shared_link_title ?? null;
   const thumbnailUrl = resolved.thumbnailUrl ?? entry.shared_link_thumbnail_url ?? null;
 
+  // 5. Re-host the thumbnail so the card outlives the source CDN's signed-URL
+  //    expiry (TikTok/Meta lapse within days). Best-effort: on failure the raw
+  //    URL above still renders until it expires.
+  let thumbnailPath: string | null = entry.shared_link_thumbnail_path ?? null;
+  if (thumbnailUrl && entry.user_id) {
+    const stored = await rehostThumbnail(supabase, thumbnailUrl, entry.user_id, entry.id);
+    if (stored) thumbnailPath = stored;
+  }
+
+  const text = resolved.text ? resolved.text.slice(0, MAX_TEXT_CHARS) : null;
+
   const update: Record<string, unknown> = {
     shared_link_digest: digest,
     shared_link_media_type: resolved.mediaType,
     shared_link_title: title,
     shared_link_thumbnail_url: thumbnailUrl,
+    shared_link_thumbnail_path: thumbnailPath,
+    shared_link_author: resolved.author,
+    shared_link_text: text,
   };
 
   const { error: updateError } = await supabase
@@ -182,5 +208,8 @@ serve(async (req) => {
     mediaType: resolved.mediaType,
     title,
     thumbnailUrl,
+    thumbnailPath,
+    author: resolved.author,
+    text,
   });
 });

@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SaveCaptureAnimation } from '@/components/capture/SaveCaptureAnimation';
+import { ClipboardLinkPill } from '@/components/home/ClipboardLinkPill';
+import { SharedLinksInbox } from '@/components/home/SharedLinksInbox';
 
 let hasForcedOnboardingThisSession = false;
 
@@ -61,6 +63,11 @@ export default function HomeScreen() {
         <HomeHeader />
         <HeroSection />
         <HomeComposer />
+        {/* An offer about what is on the clipboard right now — sits with the
+            composer because it is another way to start a capture, not part of
+            the queue below. Renders nothing when there is no link to offer. */}
+        <ClipboardLinkPill />
+        <SharedLinksInbox />
         <RecentMemories
           captures={captures.slice(0, 12)}
           hasFetched={hasFetchedCaptures && !loading}

@@ -626,6 +626,10 @@ function LinkHero({ capture, moodDisplay, onBack, onDelete, isDeleting }: {
                         platform={platform}
                         title={title}
                         thumbnailUrl={thumb}
+                        thumbnailPath={capture.shared_link_thumbnail_path ?? null}
+                        text={capture.shared_link_text ?? null}
+                        author={capture.shared_link_author ?? null}
+                        mediaType={capture.shared_link_media_type ?? null}
                         isLight={false}
                     />
                 </TouchableOpacity>
