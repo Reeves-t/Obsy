@@ -132,15 +132,28 @@ export type Capture = {
 /**
  * A shared link still sitting in the inbox, awaiting a decision.
  *
- * Note this is NOT "has no mood". Keeping a link without attaching a feeling is
- * a legitimate decision, and such an entry leaves the queue while remaining
- * excluded from mood aggregation — see `withMood`. Conflating the two would
- * strand every kept-but-moodless link in the queue forever.
+ * Two ways to leave the queue, and both matter:
+ *
+ * 1. `shared_link_processed_at` is set — the user made an explicit decision in
+ *    the inbox (kept it, or reflected on it). Note this is NOT "has no mood":
+ *    keeping a link without attaching a feeling is a legitimate decision, and
+ *    such an entry leaves the queue while remaining excluded from mood
+ *    aggregation (see `withMood`). Conflating the two would strand every
+ *    kept-but-moodless link in the queue forever.
+ *
+ * 2. It already carries a mood. Every link saved before the inbox existed went
+ *    through the old flow, which required a mood up front — so those rows have
+ *    a mood but a NULL `shared_link_processed_at`, purely because the column is
+ *    newer than they are. They were dealt with at save time and were never
+ *    queued; without this clause the inbox fills up with the user's entire
+ *    shared-link history the moment the feature ships.
  */
 export function isPendingSharedLink(
-    capture: Pick<Capture, 'source_type' | 'shared_link_processed_at'>,
+    capture: Pick<Capture, 'source_type' | 'shared_link_processed_at' | 'mood_id'>,
 ): boolean {
-    return capture.source_type === 'shared_link' && !capture.shared_link_processed_at;
+    if (capture.source_type !== 'shared_link') return false;
+    if (capture.shared_link_processed_at) return false;
+    return !capture.mood_id;
 }
 
 /** A capture known to carry a mood — safe to aggregate on. */

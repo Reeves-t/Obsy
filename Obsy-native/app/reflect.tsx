@@ -23,7 +23,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/ui/ThemedText';
@@ -52,6 +52,8 @@ export default function ReflectScreen() {
     const { colors, isLight } = useObsyTheme();
     const { captures, reflectSharedLink } = useCaptureStore();
     const { getMoodById } = useCustomMoodStore();
+    const params = useLocalSearchParams<{ focus?: string }>();
+    const focusId = typeof params.focus === 'string' ? params.focus : null;
 
     // Oldest first: clear the backlog in the order it accumulated.
     const pending = useMemo(
@@ -61,7 +63,15 @@ export default function ReflectScreen() {
         [captures],
     );
 
-    const [index, setIndex] = useState(0);
+    // Arriving from a specific tile starts on that link; arriving from the
+    // inbox as a whole starts at the top of the backlog. Resolved once on
+    // mount — after the first save the list reorders itself, and re-seeking the
+    // focused id would fight the natural advance to the next item.
+    const [index, setIndex] = useState(() => {
+        if (!focusId) return 0;
+        const at = pending.findIndex(c => c.id === focusId);
+        return at >= 0 ? at : 0;
+    });
     const [note, setNote] = useState('');
     const [moodModalVisible, setMoodModalVisible] = useState(false);
     const [saving, setSaving] = useState(false);

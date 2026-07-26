@@ -86,9 +86,10 @@ describe('share payload parsing', () => {
 });
 
 describe('inbox queue', () => {
-    it('queues a shared link that has not been processed', () => {
+    it('queues a shared link saved with no mood and not yet processed', () => {
         expect(isPendingSharedLink(makeCapture({
             source_type: 'shared_link',
+            mood_id: null,
             shared_link_processed_at: null,
         }))).toBe(true);
     });
@@ -96,7 +97,20 @@ describe('inbox queue', () => {
     it('removes a link from the queue once it is processed', () => {
         expect(isPendingSharedLink(makeCapture({
             source_type: 'shared_link',
+            mood_id: null,
             shared_link_processed_at: new Date().toISOString(),
+        }))).toBe(false);
+    });
+
+    it('does not queue a link that already carries a mood', () => {
+        // Every link saved before the inbox existed has a mood but a NULL
+        // processed_at, because the column is newer than the row. Queueing on
+        // processed_at alone would dump the user's whole shared-link history
+        // into the inbox the day this ships.
+        expect(isPendingSharedLink(makeCapture({
+            source_type: 'shared_link',
+            mood_id: 'calm',
+            shared_link_processed_at: null,
         }))).toBe(false);
     });
 
