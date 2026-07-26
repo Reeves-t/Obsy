@@ -91,6 +91,68 @@ npx eas-cli build --profile development-device --platform ios
 
 ---
 
+## Shipping this to the test-store app — read before you run anything
+
+**Do NOT run `eas update` to ship this version.** It will hard-crash every
+install of the current build.
+
+This project has EAS Update configured (`expo-updates`, `updates.url` in
+`app.json`) with `runtimeVersion: { "policy": "appVersion" }`. Runtime version
+is therefore derived from `expo.version`, which is still **1.0.0** — the same as
+the build already on TestFlight. EAS Update uses runtime version to decide which
+binaries may receive a JS bundle, so as things stand it considers the old binary
+a valid target for the new JS.
+
+That JS imports `expo-share-intent`, a native module the current binary does not
+contain, and `ShareIntentProvider` wraps the entire app at the root of
+[app/\_layout.tsx](app/_layout.tsx). An OTA delivery would fail at the first
+render on launch, for every tester, with no in-app recovery path.
+
+**Bumping `expo.version` is the safety mechanism, not a formality.** It changes
+the runtime version, which makes old binaries ineligible for the new bundle.
+
+### The sequence, on a Mac
+
+```bash
+git pull
+npm install
+
+# 1. Bump expo.version in app.json (e.g. 1.0.0 -> 1.1.0)
+#    This is what stops the OTA channel reaching the old binary.
+# 2. Bump expo.ios.buildNumber (App Store Connect rejects duplicates).
+
+npx expo prebuild --clean
+npx eas-cli build --profile production --platform ios
+npx eas-cli submit --profile production --platform ios
+```
+
+A **new native build is mandatory** — this release adds native code, so it can
+never go out as an over-the-air update no matter how convenient that would be.
+
+### The database is already migrated, and that is fine
+
+The three shared-link migrations were applied to prod on 2026-07-25, ahead of
+any app release. The currently installed test-store build keeps working against
+the migrated schema:
+
+- the new columns are nullable additions, so an older client simply never
+  selects them;
+- `entries_mood_required_unless_shared_link` was added `NOT VALID` and only
+  forbids a moodless entry that is not a shared link — the old client always
+  writes a mood, so every write it makes still passes;
+- the new index and storage policies are additive.
+
+So there is no ordering constraint between the app release and the database.
+The schema went first, on purpose.
+
+### Merging to `main` on its own changes nothing
+
+There are no GitHub Actions workflows in this repo, so nothing builds,
+publishes, or updates on push. The TestFlight binary is a compiled artifact: it
+changes when you upload a build, and at no other time. Merging is just git.
+
+---
+
 ## Android status
 
 **Config is verified correct; no Android build has ever been produced.**
