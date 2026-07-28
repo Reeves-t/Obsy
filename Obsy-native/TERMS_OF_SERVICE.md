@@ -6,7 +6,10 @@
 
 ## Agreement
 
-By using Obsy ("the App"), you agree to these Terms of Service ("Terms"). If you don't agree, don't use the App. These Terms, together with our Privacy Policy, are the agreement between you and Obsy, and serve as the End User License Agreement (EULA) for the App.
+By using Obsy ("the App"), you agree to these Terms of Service ("Terms"). If you don't agree, don't use the App. These Terms are an agreement between you and **Daystruct** ("Daystruct", "we", "us"), the operator of Obsy. Together with our Privacy Policy, they serve as the End User License Agreement (EULA) for the App.
+
+> **Published at:** https://www.daystruct.ai/legal/obsy/terms
+> This file is the source of truth. When it changes, update the published page to match.
 
 ---
 
@@ -69,7 +72,14 @@ You agree not to:
 ## AI-Generated Insights & Transcription
 
 ### What They Are
-Obsy uses third-party AI providers — currently **DeepSeek** and **Anthropic (Claude)** — to generate reflective insights from your moods, journal notes, and (with per-capture consent on Plus) photos. Voice notes are transcribed using **OpenAI's Whisper**. AI requests run server-side; see our Privacy Policy for what is shared.
+Obsy uses third-party AI providers to generate reflective insights from your moods, journal notes, and (with per-capture consent on Plus) photos:
+
+- **Anthropic (Claude)** — primary provider for insight generation, the Moodverse companion, mood-color generation, and topic-attachment extraction.
+- **Google (Gemini)** — fallback for insight generation, and the provider that digests shared links you save.
+- **DeepSeek** — Topic Pulse and Mood Signal / Mood Connection interpretation, using non-identifying topic and aggregated mood metadata only.
+- **OpenAI (Whisper)** — speech-to-text transcription of voice notes.
+
+AI requests run server-side. See our Privacy Policy for exactly what is shared with each provider.
 
 ### What They Aren't
 - **Not therapy.** Obsy is not a mental health service.
@@ -132,10 +142,10 @@ These Terms are governed by the laws of the State of Georgia, United States.
 Before filing any lawsuit, you agree to contact us and attempt to resolve the dispute informally for at least 30 days.
 
 ### Apple App Store
-You acknowledge that these Terms are between you and Obsy, not Apple, and that Apple is not responsible for the App or its content. Apple is a third-party beneficiary of these Terms and may enforce them.
+You acknowledge that these Terms are between you and Daystruct, not Apple, and that Apple is not responsible for the App or its content. Apple is a third-party beneficiary of these Terms and may enforce them.
 
 ### Entire Agreement
-These Terms, plus our Privacy Policy, constitute the entire agreement between you and Obsy.
+These Terms, plus our Privacy Policy, constitute the entire agreement between you and Daystruct regarding Obsy.
 
 ### Severability
 If any part of these Terms is found unenforceable, the rest remains in effect.
@@ -155,8 +165,9 @@ We may update these Terms as Obsy evolves. When we make significant changes:
 
 Questions about these Terms?
 
-**Email:** legal@obsy.app
-**Support:** support@obsy.app
+**Email:** legal@daystruct.ai
+**Support:** support@daystruct.ai
+**Help center:** https://www.daystruct.ai/support/obsy
 
 ---
 

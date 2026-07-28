@@ -46,11 +46,19 @@ from the tables below. **Legal/privacy owner should confirm before submission.**
 - **Voice notes & photos are private.** Stored in private Supabase buckets;
   playback is via short-lived signed URLs (OBS-15). Not public, not shared.
 - **Third parties that receive data:** Supabase (backend/storage), RevenueCat
-  (purchases), the LLM provider(s) used for insights (DeepSeek for digest /
-  Claude — see board decisions) receive **entry text / mood** to generate
-  insights. Confirm each is reflected in the Privacy Policy and that the LLM
-  data-handling is covered. (Per MVP_FEATURE_REMOVALS, the "use photo for
-  insight" path was removed, so **photos are not sent to the LLM**.)
+  (purchases), and four AI providers — **Anthropic (Claude)** primary,
+  **Google (Gemini)** fallback and shared-link digestion, **DeepSeek** for
+  Topic Pulse / Mood Signal (non-identifying metadata only), and **OpenAI
+  (Whisper)** for voice transcription. All are listed in the Privacy Policy and
+  published at https://www.daystruct.ai/legal/subprocessors.
+- ⚠️ **CORRECTION (2026-07-28):** an earlier revision of this file stated that the
+  "use photo for insight" path had been removed and that **photos are not sent to
+  the LLM**. That is **wrong** and filling the ASC label from it would under-declare
+  data collection. The path is live: `use_photo_for_insight` exists in the schema
+  and in `types/capture.ts`, `services/ai.ts`, and `lib/captureStore.ts`. Photos
+  **are** sent to the AI provider when the user opts in per capture (Plus only).
+  Declare **User Content → Photos or Videos** as collected and linked to identity.
+  The Privacy Policy has always described this correctly.
 
 ## 2. Data NOT used to track you
 Obsy does **not** use the IDFA, does **not** share data with data brokers, and
@@ -67,15 +75,30 @@ App Tracking Transparency prompt is required (none is in `app.json`).
 | `NSPhotoLibraryAddUsageDescription` | "Obsy saves images to your photo library when you export them." |
 
 ## 4. Account deletion (App Store requirement)
-Apps offering account creation must offer in-app account deletion. The
-`delete-account` Supabase edge function exists (added on this branch). **Verify
-it is reachable from in-app settings UI and that it deletes auth + storage + DB
-rows** before submission — this is a common review rejection.
+Apps offering account creation must offer in-app account deletion. ✅ **Wired and
+reachable**: `Profile → Delete Account` calls `handleDeleteAccount`
+(`app/(tabs)/profile.tsx`), which invokes the `delete-account` edge function and
+signs the user out. Confirm on-device that it clears auth + storage + DB rows.
+
+## 5. Required ASC URLs
+Both are live on the Daystruct site (Obsy's legal/support host):
+
+| ASC field | URL |
+|---|---|
+| Privacy Policy URL | `https://www.daystruct.ai/legal/obsy/privacy` |
+| Support URL | `https://www.daystruct.ai/support/obsy` |
+
+These match `constants/legal.ts`, which the Settings screen and the paywall link
+to. **Verify both return 200 on the production deployment before submitting** — a
+reviewer hitting a 404 here is a rejection.
 
 ---
 
 ### Open items for the privacy/legal owner before submission
 1. Confirm mood/emotional data classification (User Content vs. also Sensitive Info).
-2. Confirm Privacy Policy lists Supabase, RevenueCat, and the LLM provider(s) as processors.
+2. ✅ Privacy Policy lists Supabase, RevenueCat, and all four AI providers as processors;
+   the list is also published at https://www.daystruct.ai/legal/subprocessors.
 3. Decide analytics declaration timing (declare now vs. re-submit at OBS-20 activation).
-4. Confirm in-app account deletion is wired and functional.
+4. ✅ In-app account deletion is wired (see §4).
+5. Declare **User Content → Photos or Videos** — see the correction in §1. Photos are
+   sent to the AI provider on per-capture opt-in (Plus).

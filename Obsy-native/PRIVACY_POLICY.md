@@ -1,6 +1,11 @@
 # Obsy Privacy Policy
 
-**Last Updated:** June 16, 2026
+**Last Updated:** July 28, 2026
+
+Obsy is built and operated by **Daystruct**.
+
+> **Published at:** https://www.daystruct.ai/legal/obsy/privacy
+> This file is the source of truth. When it changes, update the published page to match.
 
 ---
 
@@ -116,7 +121,7 @@ We use **PostHog** (EU data residency) for privacy-respecting product analytics,
 
 ## Third-Party Service Providers
 
-We share the minimum data necessary with the following sub-processors:
+We share the minimum data necessary with the following sub-processors. The current list is also maintained at https://www.daystruct.ai/legal/subprocessors:
 
 | Service | Purpose | Data Shared | Region |
 |---------|---------|-------------|--------|
@@ -182,8 +187,9 @@ We may update this policy as Obsy evolves. When we make significant changes:
 
 Questions about your privacy? Concerns about your data?
 
-**Email:** privacy@obsy.app
-**Support:** support@obsy.app
+**Email:** privacy@daystruct.ai
+**Support:** support@daystruct.ai
+**Data controls:** https://www.daystruct.ai/support/obsy/data
 
 ---
 
