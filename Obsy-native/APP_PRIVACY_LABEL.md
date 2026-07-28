@@ -80,6 +80,27 @@ reachable**: `Profile → Delete Account` calls `handleDeleteAccount`
 (`app/(tabs)/profile.tsx`), which invokes the `delete-account` edge function and
 signs the user out. Confirm on-device that it clears auth + storage + DB rows.
 
+## 4a. In-app support & data controls (App Review looks for these)
+All Settings rows under **DATA & PRIVACY** and **SUPPORT & ABOUT** now have real
+destinations. Previously every one of them was `onPress={() => { }}`:
+
+| Row | Destination |
+|---|---|
+| Data Trust Foundation | `DATA_CONTROLS_URL` — data controls page |
+| Clear Local Data | `clearLocalData()` in `services/localData.ts` |
+| Privacy Policy / Terms of Use | `PRIVACY_POLICY_URL` / `TERMS_OF_SERVICE_URL` |
+| FAQ / Help | `SUPPORT_URL` — Obsy help center |
+| Contact Support | Pre-filled `mailto:` to `SUPPORT_EMAIL`, help-center fallback |
+| Rate Obsy | `APP_STORE_REVIEW_URL` (only resolves once the listing is public) |
+| Version | Non-interactive; reads `Constants.expoConfig.version` |
+
+**Clear Local Data previously did nothing** — it showed a destructive confirmation
+claiming photos and cached insights had been permanently deleted, then ran an empty
+handler. It now deletes the `captures/` and `thumbnails/` directories and drops the
+insight-card generation cache, and reports bytes freed. Saved insight cards are
+preserved (device-only user content); signed-out users get a distinct warning
+because they have no cloud copy to fall back on.
+
 ## 5. Required ASC URLs
 Both are live on the Daystruct site (Obsy's legal/support host):
 

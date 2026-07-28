@@ -26,3 +26,11 @@ export const DATA_CONTROLS_URL = 'https://www.daystruct.ai/support/obsy/data';
 
 /** Published support mailbox, shown in the legal documents. */
 export const SUPPORT_EMAIL = 'support@daystruct.ai';
+
+/**
+ * Deep link that opens the App Store review sheet for Obsy.
+ * The id is the ASC app id also configured as `submit.production.ios.ascAppId`
+ * in eas.json — keep the two in sync if the listing ever changes.
+ */
+export const APP_STORE_APP_ID = '6758523822';
+export const APP_STORE_REVIEW_URL = `https://apps.apple.com/app/id${APP_STORE_APP_ID}?action=write-review`;

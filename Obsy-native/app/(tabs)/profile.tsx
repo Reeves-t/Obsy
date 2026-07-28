@@ -11,7 +11,9 @@ import {
   Platform,
   UIManager,
   LayoutAnimation,
+  Linking,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -30,7 +32,15 @@ import { useTimeFormatStore } from '@/lib/timeFormatStore';
 import { useI18n } from '@/i18n/config';
 import * as WebBrowser from 'expo-web-browser';
 import { exportUserData } from '@/services/export';
-import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/legal';
+import {
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+  SUPPORT_URL,
+  DATA_CONTROLS_URL,
+  SUPPORT_EMAIL,
+  APP_STORE_REVIEW_URL,
+} from '@/constants/legal';
+import { clearLocalData, getLocalDataUsage, formatBytes } from '@/services/localData';
 import { restorePurchases } from '@/lib/revenuecat';
 import { submitRecommendation, MAX_RECOMMENDATION_LENGTH } from '@/services/recommendations';
 
@@ -456,6 +466,88 @@ export default function ProfileScreen() {
     WebBrowser.openBrowserAsync(url);
   };
 
+  const appVersion = Constants.expoConfig?.version ?? 'unknown';
+
+  const handleContactSupport = async () => {
+    // Pre-fill the details support always has to ask for anyway.
+    const subject = `Obsy support request (v${appVersion})`;
+    const body = [
+      '',
+      '',
+      '—',
+      `App version: ${appVersion}`,
+      `Platform: ${Platform.OS} ${Platform.Version}`,
+      `Account: ${isGuest ? 'signed out' : user?.email ?? 'signed in'}`,
+    ].join('\n');
+    const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(mailto);
+      if (canOpen) {
+        await Linking.openURL(mailto);
+        return;
+      }
+    } catch (error) {
+      console.warn('Could not open mail client:', error);
+    }
+    // No mail client configured — fall back to the web help center.
+    Alert.alert(
+      'Contact support',
+      `Email us at ${SUPPORT_EMAIL}, or open the help center for troubleshooting steps.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open help center', onPress: () => openLegal(SUPPORT_URL) },
+      ],
+    );
+  };
+
+  const handleRateObsy = async () => {
+    try {
+      await Linking.openURL(APP_STORE_REVIEW_URL);
+    } catch (error) {
+      console.error('Error opening App Store review:', error);
+      Alert.alert('Could not open the App Store', 'Please try again from the App Store app.');
+    }
+  };
+
+  const handleClearLocalData = async () => {
+    const usage = await getLocalDataUsage();
+
+    if (usage.fileCount === 0) {
+      Alert.alert('Nothing to clear', 'There are no photos stored on this device.');
+      return;
+    }
+
+    // Signed-out users have no cloud copy — their entries are the local rows,
+    // so say plainly that the photos are unrecoverable.
+    const message = isGuest
+      ? `This permanently deletes ${usage.fileCount} photo${usage.fileCount === 1 ? '' : 's'} (${formatBytes(usage.bytes)}) from this device.\n\nYou are not signed in, so these photos exist nowhere else. They cannot be recovered. Your entries will remain, without their images.`
+      : `This permanently deletes ${usage.fileCount} photo${usage.fileCount === 1 ? '' : 's'} (${formatBytes(usage.bytes)}) from this device.\n\nYour journal entries stay in the cloud, but any photo you have not backed up cannot be recovered. Saved insight cards are kept.`;
+
+    Alert.alert('Clear local data', message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear All',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const result = await clearLocalData({ resetCaptureState: !isGuest });
+            Alert.alert(
+              'Local data cleared',
+              `Removed ${result.filesRemoved} file${result.filesRemoved === 1 ? '' : 's'} and freed ${formatBytes(result.bytesFreed)}.`,
+            );
+          } catch (error) {
+            console.error('Error clearing local data:', error);
+            Alert.alert(
+              'Could not clear local data',
+              'Something went wrong and your local data was not fully removed. Please try again.',
+            );
+          }
+        },
+      },
+    ]);
+  };
+
   const handleRestorePurchases = async () => {
     try {
       const res = await restorePurchases();
@@ -847,22 +939,13 @@ export default function ProfileScreen() {
             icon="shield-checkmark-outline"
             title="Data Trust Foundation"
             subtitle="Photos stay on-device. AI only sees them if you opt-in per capture."
-            onPress={() => { }}
+            onPress={() => openLegal(DATA_CONTROLS_URL)}
           />
           <SettingRow
             icon="trash-bin-outline"
             title="Clear Local Data"
-            subtitle="Remove all photos and cached insights from this device."
-            onPress={() => {
-              Alert.alert(
-                'Clear Local Data',
-                'This will permanently delete all photos and cached insights on this device. Your journal entries in the cloud will remain.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Clear All', style: 'destructive', onPress: () => { /* Handle clear */ } }
-                ]
-              );
-            }}
+            subtitle="Remove photos stored on this device."
+            onPress={handleClearLocalData}
           />
           <SettingRow
             icon="document-text-outline"
@@ -882,17 +965,23 @@ export default function ProfileScreen() {
           <SettingRow
             icon="help-circle-outline"
             title="FAQ / Help"
-            onPress={() => { }}
+            onPress={() => openLegal(SUPPORT_URL)}
           />
           <SettingRow
             icon="mail-outline"
             title="Contact Support"
-            onPress={() => { }}
+            onPress={handleContactSupport}
           />
           <SettingRow
             icon="star-outline"
             title="Rate Obsy"
-            onPress={() => { }}
+            onPress={handleRateObsy}
+          />
+          <SettingRow
+            icon="information-circle-outline"
+            title="Version"
+            value={appVersion}
+            showChevron={false}
             isLast
           />
         </CollapsibleSection>
