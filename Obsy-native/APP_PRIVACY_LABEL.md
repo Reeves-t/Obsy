@@ -27,6 +27,7 @@ from the tables below. **Legal/privacy owner should confirm before submission.**
 | User Content → **Photos or Videos** | Capture photos + images attached to entries/topics | Camera / photo library → `entries` storage bucket | **Yes** | No | App Functionality |
 | User Content → **Audio Data** | Voice-note recordings | Microphone → private `voice-notes` bucket (signed-URL access, OBS-15) | **Yes** | No | App Functionality |
 | Purchases → **Purchase History** | Plus subscription purchase/renewal/entitlement state | RevenueCat (`react-native-purchases`) + webhook → `user_settings.subscription_tier` | **Yes** | No | App Functionality (entitlement) + Developer's purchase analytics (RevenueCat) |
+| Identifiers → **Device ID** | Expo push token (per-install delivery address) | `push_tokens` table, written on notification opt-in | **Yes** | No | App Functionality (notification delivery) |
 | Usage Data → **Product Interaction** | Feature/screen events (no PII) | `lib/analytics` façade | **No** | No | Analytics / App Functionality |
 | Diagnostics → **Crash / Performance / Other Diagnostic Data** | Error + performance events (no PII) | `lib/analytics` façade | **No** | No | Analytics |
 
@@ -79,6 +80,24 @@ Apps offering account creation must offer in-app account deletion. ✅ **Wired a
 reachable**: `Profile → Delete Account` calls `handleDeleteAccount`
 (`app/(tabs)/profile.tsx`), which invokes the `delete-account` edge function and
 signs the user out. Confirm on-device that it clears auth + storage + DB rows.
+
+## 3a. Push notifications (added 2026-07-28)
+Remote push is opt-in and off by default. Enabling it collects a **push token**
+(Identifiers → Device ID, linked to identity) and the device's **IANA timezone**
+(stored on `user_settings`, supporting App Functionality — not a separate ASC
+category). Both are deleted on opt-out, sign-out, and account deletion.
+
+- **No ATT prompt.** The token is a delivery address, not an advertising
+  identifier, and is not shared for tracking. "Data Used to Track You" stays **NONE**.
+- **No `NSUserNotificationsUsageDescription` needed** — iOS supplies its own
+  notification permission prompt; there is no Info.plist usage string for it.
+- **No background modes declared.** Obsy sends user-visible alerts only, so
+  `UIBackgroundModes: ["remote-notification"]` is deliberately absent. Adding
+  silent push later would change this and require re-review of the declaration.
+- Notification copy is derived from the user's own activity (logged today or
+  not, streak length). **No journal text, photo, or voice content is ever placed
+  in a notification payload**, so none reaches Apple or Expo.
+- Setup steps (APNs key, cron, device QA) are in `NOTIFICATIONS_SETUP.md`.
 
 ## 4a. In-app support & data controls (App Review looks for these)
 All Settings rows under **DATA & PRIVACY** and **SUPPORT & ABOUT** now have real

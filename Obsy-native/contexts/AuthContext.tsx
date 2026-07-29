@@ -6,6 +6,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { initializeMoodStore } from '@/lib/customMoodStore';
 import { moodCache } from '@/lib/moodCache';
 import { useHabitGoalStore } from '@/lib/habitGoalStore';
+import { unregisterPushNotifications } from '@/services/pushNotifications';
 
 type AuthContextType = {
     session: Session | null;
@@ -131,6 +132,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const signOut = async () => {
+        // Drop this device's push token first, while the session can still
+        // authorize the delete. Leaving it behind would keep a valid delivery
+        // target for the signed-out account — and on a shared device, send the
+        // previous owner's notifications to whoever signs in next.
+        await unregisterPushNotifications();
         await supabase.auth.signOut();
         setSession(null);
         // After sign out, user becomes a guest but stays in the app

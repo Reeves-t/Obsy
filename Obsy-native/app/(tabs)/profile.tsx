@@ -41,6 +41,12 @@ import {
   APP_STORE_REVIEW_URL,
 } from '@/constants/legal';
 import { clearLocalData, getLocalDataUsage, formatBytes } from '@/services/localData';
+import {
+  AVAILABLE_NOTIFICATION_TYPES,
+  type NotificationType,
+} from '@/constants/notifications';
+import type { NotificationPreferences } from '@/services/notificationPreferences';
+import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 import { restorePurchases } from '@/lib/revenuecat';
 import { submitRecommendation, MAX_RECOMMENDATION_LENGTH } from '@/services/recommendations';
 
@@ -59,6 +65,111 @@ interface UserProfile {
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification settings support
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Icon per notification type, keyed to the registry in constants/notifications. */
+const NOTIFICATION_ROW_ICONS: Record<NotificationType, keyof typeof Ionicons.glyphMap> = {
+  daily_reminder: 'alarm-outline',
+  streak: 'flame-outline',
+  monthly_insight: 'sparkles-outline',
+  shared_link_pending: 'link-outline',
+};
+
+/** Which `NotificationPreferences` field each type's toggle writes. */
+const NOTIFICATION_PREF_KEYS: Record<NotificationType, keyof NotificationPreferences> = {
+  daily_reminder: 'dailyReminder',
+  streak: 'streak',
+  monthly_insight: 'monthlyInsight',
+  shared_link_pending: 'sharedLinkPending',
+};
+
+// Preset times instead of a picker dependency. These cover the realistic range
+// for a journaling reminder and an overnight quiet window without pulling in
+// @react-native-community/datetimepicker for two fields.
+const REMINDER_TIME_OPTIONS = ['08:00', '12:00', '17:00', '19:00', '20:00', '21:00'];
+const QUIET_START_OPTIONS = ['20:00', '21:00', '22:00', '23:00', '00:00'];
+const QUIET_END_OPTIONS = ['06:00', '07:00', '08:00', '09:00', '10:00'];
+
+/** "20:00" → "8:00 PM". Display only; storage stays 24-hour. */
+function formatTimeLabel(value: string): string {
+  const [hourStr, minute] = value.split(':');
+  const hour = Number(hourStr);
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:${minute} ${suffix}`;
+}
+
+/** A settings row whose value is chosen from a short list of preset times. */
+const TimeChoiceRow: React.FC<{
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  isLight: boolean;
+  isLast?: boolean;
+}> = ({ icon, title, options, value, onChange, isLight, isLast = false }) => {
+  const borderColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+  const iconBgColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)';
+  const iconColor = isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)';
+
+  return (
+    <View
+      style={[
+        styles.settingRow,
+        { flexDirection: 'column', alignItems: 'stretch' },
+        !isLast && [styles.settingRowBorder, { borderBottomColor: borderColor }],
+      ]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.iconContainer, { backgroundColor: iconBgColor }]}>
+          <Ionicons name={icon} size={18} color={iconColor} />
+        </View>
+        <View style={styles.settingContent}>
+          <ThemedText style={[styles.settingTitle, { color: isLight ? '#1a1a1a' : '#fff' }]}>
+            {title}
+          </ThemedText>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, paddingLeft: 4 }}>
+        {options.map((option) => {
+          const selected = option === value;
+          return (
+            <TouchableOpacity
+              key={option}
+              onPress={() => onChange(option)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: selected
+                  ? (isLight ? '#1a1a1a' : '#fff')
+                  : (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'),
+              }}
+            >
+              <ThemedText
+                style={{
+                  fontSize: 13,
+                  fontWeight: '600',
+                  color: selected
+                    ? (isLight ? '#fff' : '#1a1a1a')
+                    : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)'),
+                }}
+              >
+                {formatTimeLabel(option)}
+              </ThemedText>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings Row Component
@@ -285,6 +396,14 @@ export default function ProfileScreen() {
   const { timeFormat, setTimeFormat } = useTimeFormatStore();
   const { t, languageLabel } = useI18n();
   const router = useRouter();
+
+  const {
+    preferences: notificationPreferences,
+    loading: notificationsLoading,
+    busy: notificationsBusy,
+    update: updateNotificationPreference,
+    setEnabled: setNotificationsEnabled,
+  } = useNotificationSettings(isGuest);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -891,6 +1010,115 @@ export default function ProfileScreen() {
               />
             }
           />
+        </CollapsibleSection>
+
+        {/* NOTIFICATIONS */}
+        <CollapsibleSection title="NOTIFICATIONS">
+          {isGuest ? (
+            <SettingRow
+              icon="notifications-off-outline"
+              title="Sign in to use notifications"
+              subtitle="Reminders are delivered to your account, so they need one."
+              showChevron={false}
+              isLast
+            />
+          ) : (
+            <>
+              <SettingRow
+                icon="notifications-outline"
+                title="Push notifications"
+                subtitle="Reminders, streaks, and monthly insights."
+                showChevron={false}
+                rightElement={
+                  notificationsLoading ? (
+                    <ActivityIndicator size="small" color={isLight ? '#1a1a1a' : '#fff'} />
+                  ) : (
+                    <Switch
+                      value={notificationPreferences.notificationsEnabled}
+                      onValueChange={setNotificationsEnabled}
+                      disabled={notificationsBusy}
+                      trackColor={{ false: isLight ? 'rgba(0,0,0,0.1)' : '#3e3e3e', true: Colors.obsy.silver }}
+                      thumbColor={isLight ? '#1a1a1a' : '#fff'}
+                    />
+                  )
+                }
+                isLast={!notificationPreferences.notificationsEnabled}
+              />
+
+              {notificationPreferences.notificationsEnabled && (
+                <>
+                  {AVAILABLE_NOTIFICATION_TYPES.map((type) => (
+                    <SettingRow
+                      key={type.id}
+                      icon={NOTIFICATION_ROW_ICONS[type.id]}
+                      title={type.label}
+                      subtitle={type.description}
+                      showChevron={false}
+                      rightElement={
+                        <Switch
+                          value={notificationPreferences[NOTIFICATION_PREF_KEYS[type.id]] as boolean}
+                          onValueChange={(val) =>
+                            updateNotificationPreference({ [NOTIFICATION_PREF_KEYS[type.id]]: val })
+                          }
+                          trackColor={{ false: isLight ? 'rgba(0,0,0,0.1)' : '#3e3e3e', true: Colors.obsy.silver }}
+                          thumbColor={isLight ? '#1a1a1a' : '#fff'}
+                        />
+                      }
+                    />
+                  ))}
+
+                  {notificationPreferences.dailyReminder && (
+                    <TimeChoiceRow
+                      icon="time-outline"
+                      title="Reminder time"
+                      options={REMINDER_TIME_OPTIONS}
+                      value={notificationPreferences.dailyReminderTime}
+                      onChange={(val) => updateNotificationPreference({ dailyReminderTime: val })}
+                      isLight={isLight}
+                    />
+                  )}
+
+                  <SettingRow
+                    icon="moon-outline"
+                    title="Quiet hours"
+                    subtitle="Hold notifications overnight."
+                    showChevron={false}
+                    rightElement={
+                      <Switch
+                        value={notificationPreferences.quietHoursEnabled}
+                        onValueChange={(val) => updateNotificationPreference({ quietHoursEnabled: val })}
+                        trackColor={{ false: isLight ? 'rgba(0,0,0,0.1)' : '#3e3e3e', true: Colors.obsy.silver }}
+                        thumbColor={isLight ? '#1a1a1a' : '#fff'}
+                      />
+                    }
+                    isLast={!notificationPreferences.quietHoursEnabled}
+                  />
+
+                  {notificationPreferences.quietHoursEnabled && (
+                    <>
+                      <TimeChoiceRow
+                        icon="cloudy-night-outline"
+                        title="Quiet from"
+                        options={QUIET_START_OPTIONS}
+                        value={notificationPreferences.quietHoursStart}
+                        onChange={(val) => updateNotificationPreference({ quietHoursStart: val })}
+                        isLight={isLight}
+                      />
+                      <TimeChoiceRow
+                        icon="sunny-outline"
+                        title="Quiet until"
+                        options={QUIET_END_OPTIONS}
+                        value={notificationPreferences.quietHoursEnd}
+                        onChange={(val) => updateNotificationPreference({ quietHoursEnd: val })}
+                        isLight={isLight}
+                        isLast
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </CollapsibleSection>
 
         {/* ARCHIVE */}
