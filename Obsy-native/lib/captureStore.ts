@@ -23,6 +23,7 @@ import { getTierLimits } from "@/hooks/useSubscription";
 import { getLocalDayKey } from "@/lib/utils";
 import { track } from "@/lib/analytics";
 import type { CaptureType } from "@/lib/analytics/events";
+import { requestServerNotification } from "@/services/pushNotifications";
 
 type SubscriptionTier = 'free' | 'plus'; // OBS-19: free|plus only
 
@@ -362,6 +363,12 @@ export const useCaptureStore = create<CaptureState>()(
                     upsertDailyMoodFlow(user.id, dateKey, flowData).catch((err) => {
                         console.error("[captureStore] Failed to upsert daily mood flow:", err);
                     });
+
+                    // Ask the server whether this entry completed a streak
+                    // milestone. Fire-and-forget: the streak is recomputed
+                    // server-side from `entries`, so a dropped call costs at
+                    // most one notification and never blocks the save.
+                    requestServerNotification('streak').catch(() => { });
                 } else {
                     const id = Crypto.randomUUID();
                     const newCapture: Capture = {

@@ -39,6 +39,7 @@ import { formatMonthKey } from '@/lib/dailyMoodFlows';
 import { fetchInsightHistory, fetchMostRecentMonthlyInsight, upsertInsightHistory } from '@/services/insightHistory';
 import { areAllMoodOnlyEntries, buildMoodOnlyInsight } from '@/lib/moodOnlyInsights';
 import { buildContextDigest, DigestEntry } from '@/lib/contextDigests';
+import { requestServerNotification } from '@/services/pushNotifications';
 
 interface MonthlyInsightState {
     status: 'idle' | 'loading' | 'success' | 'error';
@@ -261,6 +262,11 @@ export const useMonthlyInsight = create<MonthlyInsightState>((set, get) => ({
                 } catch (e) {
                     console.warn('[MonthlyInsight] Failed to persist to insight_history:', e);
                 }
+
+                // Tell the server the month's insight exists. Deduped per month
+                // server-side, so regenerating or reopening will not re-notify.
+                const monthKey = `${targetMonth.getFullYear()}-${String(targetMonth.getMonth() + 1).padStart(2, '0')}`;
+                requestServerNotification('monthly_insight', { month: monthKey }).catch(() => { });
 
                 return;
             }

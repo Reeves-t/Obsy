@@ -1,6 +1,11 @@
 # Obsy Privacy Policy
 
-**Last Updated:** June 16, 2026
+**Last Updated:** July 29, 2026
+
+Obsy is built and operated by **Daystruct**.
+
+> **Published at:** https://www.daystruct.ai/legal/obsy/privacy
+> This file is the source of truth. When it changes, update the published page to match.
 
 ---
 
@@ -49,6 +54,7 @@
 | Data | Purpose | Notes |
 |------|---------|-------|
 | **Usage & Diagnostics events** | Understand which features are used and find bugs | Anonymous product analytics — see [Analytics](#analytics). No personal content. |
+| **Push token & timezone** | Deliver the notifications you turned on, at the right local hour | Only collected if you enable notifications. Deleted when you turn them off or sign out. See [Notifications](#notifications). |
 
 ---
 
@@ -114,9 +120,26 @@ We use **PostHog** (EU data residency) for privacy-respecting product analytics,
 
 ---
 
+## Notifications
+
+Notifications are **off until you turn them on.** Enabling them collects two things:
+
+| Data | Why | Retention |
+|------|-----|-----------|
+| **Push token** | A per-device address Apple uses to deliver a notification. It identifies the install, not you. | Deleted when you turn notifications off, sign out, or delete your account. |
+| **Timezone** | So a reminder set for 8pm arrives at 8pm where you are, and quiet hours cover your night rather than UTC's. | Kept while notifications are on. |
+
+- You control **each type separately** — daily reminders, streaks, and monthly insights — and can set **quiet hours** so nothing arrives overnight.
+- Notification text is generated from your own activity (whether you logged today, how long your streak is). **Your journal text, photos, and voice notes are never included in a notification, and are never sent to Apple.**
+- Delivery goes through **Expo's push service** to **Apple Push Notification service**. Apple receives the notification title and body in order to deliver it.
+- We keep a record of which notifications were sent to you, so a scheduled reminder is not delivered twice and so support can help if a notification did or did not arrive. It records the type and time, not the content.
+- Turning notifications off in the app deletes the device's token. Turning them off in iOS Settings stops delivery immediately.
+
+---
+
 ## Third-Party Service Providers
 
-We share the minimum data necessary with the following sub-processors:
+We share the minimum data necessary with the following sub-processors. The current list is also maintained at https://www.daystruct.ai/legal/subprocessors:
 
 | Service | Purpose | Data Shared | Region |
 |---------|---------|-------------|--------|
@@ -127,7 +150,8 @@ We share the minimum data necessary with the following sub-processors:
 | **OpenAI** | Voice-note transcription (Whisper) | Voice-note audio you record | United States |
 | **RevenueCat** | Subscription management | App Store transaction + pseudonymous user id | United States |
 | **Apple App Store** | Payment processing & subscriptions | Payment handled entirely by Apple | Per Apple |
-| **Expo (EAS)** | App delivery, over-the-air updates, crash diagnostics | Device/crash diagnostics, update delivery | United States |
+| **Expo (EAS)** | App delivery, over-the-air updates, crash diagnostics, push notification delivery | Device/crash diagnostics, update delivery, push token + notification title/body | United States |
+| **Apple (APNs)** | Push notification delivery to your device | Push token + notification title/body. No journal content. | Per Apple |
 | **PostHog** | Product analytics | Anonymous usage/diagnostic events (no personal content) | European Union |
 
 We do not share your data with any other third parties.
@@ -182,8 +206,9 @@ We may update this policy as Obsy evolves. When we make significant changes:
 
 Questions about your privacy? Concerns about your data?
 
-**Email:** privacy@obsy.app
-**Support:** support@obsy.app
+**Email:** privacy@daystruct.ai
+**Support:** support@daystruct.ai
+**Data controls:** https://www.daystruct.ai/support/obsy/data
 
 ---
 

@@ -27,6 +27,7 @@ from the tables below. **Legal/privacy owner should confirm before submission.**
 | User Content → **Photos or Videos** | Capture photos + images attached to entries/topics | Camera / photo library → `entries` storage bucket | **Yes** | No | App Functionality |
 | User Content → **Audio Data** | Voice-note recordings | Microphone → private `voice-notes` bucket (signed-URL access, OBS-15) | **Yes** | No | App Functionality |
 | Purchases → **Purchase History** | Plus subscription purchase/renewal/entitlement state | RevenueCat (`react-native-purchases`) + webhook → `user_settings.subscription_tier` | **Yes** | No | App Functionality (entitlement) + Developer's purchase analytics (RevenueCat) |
+| Identifiers → **Device ID** | Expo push token (per-install delivery address) | `push_tokens` table, written on notification opt-in | **Yes** | No | App Functionality (notification delivery) |
 | Usage Data → **Product Interaction** | Feature/screen events (no PII) | `lib/analytics` façade | **No** | No | Analytics / App Functionality |
 | Diagnostics → **Crash / Performance / Other Diagnostic Data** | Error + performance events (no PII) | `lib/analytics` façade | **No** | No | Analytics |
 
@@ -46,11 +47,19 @@ from the tables below. **Legal/privacy owner should confirm before submission.**
 - **Voice notes & photos are private.** Stored in private Supabase buckets;
   playback is via short-lived signed URLs (OBS-15). Not public, not shared.
 - **Third parties that receive data:** Supabase (backend/storage), RevenueCat
-  (purchases), the LLM provider(s) used for insights (DeepSeek for digest /
-  Claude — see board decisions) receive **entry text / mood** to generate
-  insights. Confirm each is reflected in the Privacy Policy and that the LLM
-  data-handling is covered. (Per MVP_FEATURE_REMOVALS, the "use photo for
-  insight" path was removed, so **photos are not sent to the LLM**.)
+  (purchases), and four AI providers — **Anthropic (Claude)** primary,
+  **Google (Gemini)** fallback and shared-link digestion, **DeepSeek** for
+  Topic Pulse / Mood Signal (non-identifying metadata only), and **OpenAI
+  (Whisper)** for voice transcription. All are listed in the Privacy Policy and
+  published at https://www.daystruct.ai/legal/subprocessors.
+- ⚠️ **CORRECTION (2026-07-28):** an earlier revision of this file stated that the
+  "use photo for insight" path had been removed and that **photos are not sent to
+  the LLM**. That is **wrong** and filling the ASC label from it would under-declare
+  data collection. The path is live: `use_photo_for_insight` exists in the schema
+  and in `types/capture.ts`, `services/ai.ts`, and `lib/captureStore.ts`. Photos
+  **are** sent to the AI provider when the user opts in per capture (Plus only).
+  Declare **User Content → Photos or Videos** as collected and linked to identity.
+  The Privacy Policy has always described this correctly.
 
 ## 2. Data NOT used to track you
 Obsy does **not** use the IDFA, does **not** share data with data brokers, and
@@ -67,15 +76,69 @@ App Tracking Transparency prompt is required (none is in `app.json`).
 | `NSPhotoLibraryAddUsageDescription` | "Obsy saves images to your photo library when you export them." |
 
 ## 4. Account deletion (App Store requirement)
-Apps offering account creation must offer in-app account deletion. The
-`delete-account` Supabase edge function exists (added on this branch). **Verify
-it is reachable from in-app settings UI and that it deletes auth + storage + DB
-rows** before submission — this is a common review rejection.
+Apps offering account creation must offer in-app account deletion. ✅ **Wired and
+reachable**: `Profile → Delete Account` calls `handleDeleteAccount`
+(`app/(tabs)/profile.tsx`), which invokes the `delete-account` edge function and
+signs the user out. Confirm on-device that it clears auth + storage + DB rows.
+
+## 3a. Push notifications (added 2026-07-28)
+Remote push is opt-in and off by default. Enabling it collects a **push token**
+(Identifiers → Device ID, linked to identity) and the device's **IANA timezone**
+(stored on `user_settings`, supporting App Functionality — not a separate ASC
+category). Both are deleted on opt-out, sign-out, and account deletion.
+
+- **No ATT prompt.** The token is a delivery address, not an advertising
+  identifier, and is not shared for tracking. "Data Used to Track You" stays **NONE**.
+- **No `NSUserNotificationsUsageDescription` needed** — iOS supplies its own
+  notification permission prompt; there is no Info.plist usage string for it.
+- **No background modes declared.** Obsy sends user-visible alerts only, so
+  `UIBackgroundModes: ["remote-notification"]` is deliberately absent. Adding
+  silent push later would change this and require re-review of the declaration.
+- Notification copy is derived from the user's own activity (logged today or
+  not, streak length). **No journal text, photo, or voice content is ever placed
+  in a notification payload**, so none reaches Apple or Expo.
+- Setup steps (APNs key, cron, device QA) are in `NOTIFICATIONS_SETUP.md`.
+
+## 4a. In-app support & data controls (App Review looks for these)
+All Settings rows under **DATA & PRIVACY** and **SUPPORT & ABOUT** now have real
+destinations. Previously every one of them was `onPress={() => { }}`:
+
+| Row | Destination |
+|---|---|
+| Data Trust Foundation | `DATA_CONTROLS_URL` — data controls page |
+| Clear Local Data | `clearLocalData()` in `services/localData.ts` |
+| Privacy Policy / Terms of Use | `PRIVACY_POLICY_URL` / `TERMS_OF_SERVICE_URL` |
+| FAQ / Help | `SUPPORT_URL` — Obsy help center |
+| Contact Support | Pre-filled `mailto:` to `SUPPORT_EMAIL`, help-center fallback |
+| Rate Obsy | `APP_STORE_REVIEW_URL` (only resolves once the listing is public) |
+| Version | Non-interactive; reads `Constants.expoConfig.version` |
+
+**Clear Local Data previously did nothing** — it showed a destructive confirmation
+claiming photos and cached insights had been permanently deleted, then ran an empty
+handler. It now deletes the `captures/` and `thumbnails/` directories and drops the
+insight-card generation cache, and reports bytes freed. Saved insight cards are
+preserved (device-only user content); signed-out users get a distinct warning
+because they have no cloud copy to fall back on.
+
+## 5. Required ASC URLs
+Both are live on the Daystruct site (Obsy's legal/support host):
+
+| ASC field | URL |
+|---|---|
+| Privacy Policy URL | `https://www.daystruct.ai/legal/obsy/privacy` |
+| Support URL | `https://www.daystruct.ai/support/obsy` |
+
+These match `constants/legal.ts`, which the Settings screen and the paywall link
+to. **Verify both return 200 on the production deployment before submitting** — a
+reviewer hitting a 404 here is a rejection.
 
 ---
 
 ### Open items for the privacy/legal owner before submission
 1. Confirm mood/emotional data classification (User Content vs. also Sensitive Info).
-2. Confirm Privacy Policy lists Supabase, RevenueCat, and the LLM provider(s) as processors.
+2. ✅ Privacy Policy lists Supabase, RevenueCat, and all four AI providers as processors;
+   the list is also published at https://www.daystruct.ai/legal/subprocessors.
 3. Decide analytics declaration timing (declare now vs. re-submit at OBS-20 activation).
-4. Confirm in-app account deletion is wired and functional.
+4. ✅ In-app account deletion is wired (see §4).
+5. Declare **User Content → Photos or Videos** — see the correction in §1. Photos are
+   sent to the AI provider on per-capture opt-in (Plus).
