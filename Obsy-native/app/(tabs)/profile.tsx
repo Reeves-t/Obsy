@@ -815,6 +815,15 @@ export default function ProfileScreen() {
         {/* ACCOUNT */}
         {user && (
           <CollapsibleSection title="ACCOUNT">
+            {/* Restores the entry point to app/friends. The screen and
+                services/friends.ts were kept through the MVP removals with no
+                way in on purpose (MVP_FEATURE_REMOVALS.md §68) — this is it. */}
+            <SettingRow
+              icon="people-outline"
+              title="Friends"
+              subtitle="Connect with friends to share links between walls."
+              onPress={() => router.push('/friends')}
+            />
             <SettingRow
               icon="refresh-outline"
               title="Restore Purchases"
